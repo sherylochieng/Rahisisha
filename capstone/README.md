@@ -1,4 +1,4 @@
-# Rahisisha — Make Business Easy
+# Rahisisha - Make Business Easy
 
 > A multi-tenant SaaS platform that gives a small business its own online shop plus an AI team for marketing, customer conversations and sales.
 
