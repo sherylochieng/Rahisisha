@@ -8,10 +8,10 @@
 
 ## Context
 
-Rahisisha is a multi-tenant SaaS ... many businesses (tenants) share one platform.
-Amina's boutique, Brian's photography studio, and the founder's,sheryls', dress shop all run
+Rahisisha is a multi-tenant SaaS - many businesses (tenants) share one platform.
+Amina's boutique, Brian's photography studio, and the founder's dress shop all run
 on the same system. The core safety requirement is that Business A can never see,
-change, or delete Business B's data under any code path ... not because we hope the
+change, or delete Business B's data under any code path — not because we hope the
 code is correct, but because the system makes it structurally impossible.
 
 Three patterns exist for achieving this. A decision was required before writing a
@@ -27,13 +27,11 @@ every query, every middleware, and every test in the system.
 Every business table carries a `tenant_id UUID NOT NULL` column that references
 the `tenants` table. Two independent enforcement layers protect the boundary:
 
-1. **Application layer** 
-   Every query goes through a `withTenant(tenantId, sql,
+1. **Application layer** - every query goes through a `withTenant(tenantId, sql,
    params)` helper that requires `tenantId` as a mandatory argument. A query
    without it is a compile-time mistake, not a silent runtime bug.
 
-2. **Database layer** 
-   PostgreSQL Row-Level Security (RLS) is enabled on every
+2. **Database layer** - PostgreSQL Row-Level Security (RLS) is enabled on every
    tenant-owned table. A transaction-local variable (`SET LOCAL app.current_tenant
    = $1`) is set at the start of every request by the `tenantContext` middleware.
    The RLS policy filters every query by this variable automatically — even if the
@@ -45,33 +43,30 @@ the `tenants` table. Two independent enforcement layers protect the boundary:
 
 ### Positive
 
-1. **Fastest to build** 
-   One migration changes all tenants at once. No per-tenant
+1. **Fastest to build** — one migration changes all tenants at once. No per-tenant
    provisioning on signup. A new tenant is a new row in the `tenants` table, not a
    new schema or a new database.
 
-2. **Simplest to operate** 
-   One database to back up, monitor, restore, and patch.
+2. **Simplest to operate** — one database to back up, monitor, restore, and patch.
    One connection pool. One set of logs. Everything a solo developer can actually
    manage in a four-week capstone sprint.
 
-3. **Two independent enforcement layers**  
-   An application bug (missing`tenant_id` filter) cannot leak data on its own because the database RLS policy blocks it independently.
-   Both layers would have to fail simultaneously for a breach to occur.
+3. **Two independent enforcement layers** — an application bug (missing
+   `tenant_id` filter) cannot leak data on its own because the database RLS policy
+   blocks it independently. Both layers would have to fail simultaneously for a
+   breach to occur.
 
-4. **Scales well to the expected range** 
-   1 to 100 tenants on a single Postgres
+4. **Scales well to the expected range** — 1 to 100 tenants on a single Postgres
    instance is well within documented performance limits. Partitioning or sharding
    can be added later around existing module boundaries without a full rewrite.
 
-5. **Enables platform-level analytics** 
-   Cross-tenant aggregate queries (total platform revenue, usage patterns) are straightforward SQL  useful for the
+5. **Enables platform-level analytics** — cross-tenant aggregate queries (total
+   platform revenue, usage patterns) are straightforward SQL — useful for the
    platform admin dashboard.
 
 ### Negative
 
-1. **Data leak risk if both layers fail** 
-   If the `withTenant` helper is bypassed
+1. **Data leak risk if both layers fail** — if the `withTenant` helper is bypassed
    AND the RLS policy is misconfigured simultaneously, cross-tenant data could be
    exposed. Mitigation: the isolation test suite (`tenantIsolation.test.js`) runs on
    every push and blocks deploys on failure.
@@ -114,8 +109,8 @@ Each tenant gets their own Postgres database instance.
 
 **Why rejected:** Full database provisioning on every new signup requires
 infrastructure automation (Kubernetes, Terraform, managed Postgres services) that
-is out of scope for a solo capstone project. Operations overhead — N databases to
-back up, monitor, and patch — is unmanageable solo. Maximum safety is not worth
+is out of scope for a solo capstone project. Operations overhead - N databases to
+back up, monitor, and patch is unmanageable solo. Maximum safety is not worth
 the build cost at this stage.
 
 ---
