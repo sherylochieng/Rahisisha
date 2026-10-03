@@ -1,4 +1,4 @@
-# Multi-Tenancy Isolation Models — Comparison
+# Multi-Tenancy Isolation Models - Comparison
 
 This document compares the three main patterns for isolating tenant data in a
 multi-tenant SaaS. Written before choosing a pattern, based on the Mctaba Labs
