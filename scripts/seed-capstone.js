@@ -11,6 +11,7 @@
 // If any step fails the database stays clean.
 // =============================================================
 
+require('dotenv').config();
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const { randomUUID } = require('crypto');
