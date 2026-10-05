@@ -75,19 +75,20 @@ Owner opens dashboard → sees the sale, revenue, stock update
 | Messaging | WhatsApp Cloud API (Meta) |
 | Local dev | Docker Compose |
 | CI/CD | GitHub Actions |
+| Shared types | mctaba-shared-types (git submodule) |
 
 ---
 
 ## How to run locally
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/sherylochieng/rahisisha.git
+# 1. Clone the repo (with submodules)
+git clone --recurse-submodules https://github.com/sherylochieng/rahisisha.git
 cd rahisisha
 
 # 2. Copy environment variables
 cp .env.example .env
-# Fill in your values — see docs/secrets.md for what each variable does
+# Fill in your values — see .env.example for what each variable does
 
 # 3. Start Postgres + Redis
 docker-compose up -d
@@ -95,17 +96,45 @@ docker-compose up -d
 # 4. Load the schema
 psql -U rahisisha_user -d rahisisha -f sql/SCHEMA.sql
 
-# 5. Seed demo data (two tenants for isolation testing)
-node scripts/seed-demo.js
+# 5. Seed demo data
+node scripts/seed-capstone.js
 
-# 6. Start the backend
-cd server && npm install && npm run dev
+# 6. Start the API (Week 28+)
+cd apps/api && npm install && npm run dev
+# Runs on http://localhost:4000
 
-# 7. Start the frontend (new terminal)
-cd app && npm install && npm run dev
+# 7. Start the dashboard (new terminal, Week 28+)
+cd apps/web && npm install && npm run dev
+# Runs on http://localhost:3000
+```
 
-# 8. Open the dashboard
-# http://localhost:3000
+Demo tenant created by the seed script:
+- **Login:** +254700000001 / Demo1234!
+- **Business:** Amina's Boutique (5 products, 3 customers, 2 orders)
+
+---
+
+## Repo Structure
+
+```
+rahisisha/
+  apps/
+    web/              Next.js dashboard and public storefronts
+    api/              Express REST API and webhooks
+    workers/          BullMQ background jobs
+  packages/
+    db/               Database migrations and connection pool
+    types/            Shared Zod schemas
+    shared-types/     mctaba-shared-types submodule
+  infra/
+    nginx/            Reverse proxy config
+    docker-compose.yml
+  capstone/           Architecture and planning docs
+  sql/
+    migrations/       20 numbered migration files (001-020)
+    SCHEMA.sql        Full combined schema
+  scripts/            Seed script and utilities
+  docs/               API reference and build plan
 ```
 
 ---
@@ -116,12 +145,16 @@ cd app && npm install && npm run dev
 | --- | --- |
 | [`capstone/SPEC.md`](capstone/SPEC.md) | One-page product spec — tenant, core actions, monetisation, anti-scope |
 | [`capstone/ROADMAP.md`](capstone/ROADMAP.md) | Four-week day-by-day build roadmap |
+| [`capstone/api.md`](capstone/api.md) | All 35 API endpoints with method, URL, and error codes |
+| [`capstone/api-versioning.md`](capstone/api-versioning.md) | API versioning decisions and rules |
 | [`capstone/WILL_NOT_BUILD.md`](capstone/WILL_NOT_BUILD.md) | 12 explicit MVP exclusions |
 | [`capstone/stories.md`](capstone/stories.md) | 18 user stories grouped by role |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System design, multi-tenancy, data model |
+| [`capstone/tables.md`](capstone/tables.md) | All 20 database tables with one-line purposes |
+| [`capstone/indexes.md`](capstone/indexes.md) | Every index and the query it supports |
+| [`capstone/isolation-models.md`](capstone/isolation-models.md) | Three multi-tenancy models compared |
+| [`capstone/adr/ADR-0003-isolation.md`](capstone/adr/ADR-0003-isolation.md) | Multi-tenancy isolation decision record |
 | [`docs/API.md`](docs/API.md) | Full API spec with request/response shapes |
-| [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architecture Decision Records (ADR-001 to ADR-019) |
-| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Deployment, incident response, recovery |
+| [`docs/PLAN.md`](docs/PLAN.md) | Day by day build plan for Weeks 28-30 |
 | [`AI_AUDIT.md`](AI_AUDIT.md) | Weekly AI usage audit log |
 
 ---
@@ -137,5 +170,20 @@ The three tests that must always pass:
 
 These run in CI on every push. A failing test blocks the deploy.
 
+---
+
+## Week 27 Status
+
+Architecture and design week complete. No production code yet.
+
+- ✅ Full database schema — 20 tables, RLS on all tenant-owned tables
+- ✅ API designed — 35 endpoints documented before any code written
+- ✅ Repo scaffolded — monorepo with package.json in each service folder
+- ✅ Demo data — seed script creates Amina's Boutique end to end
+- ✅ Decisions documented — ADRs for every major architectural choice
+- ✅ Git submodule — mctaba-shared-types linked as packages/shared-types
+- ⏳ Week 28 — multi-tenant core + auth starts Monday
+
+---
 
 **Tagline:** Make business easy.
