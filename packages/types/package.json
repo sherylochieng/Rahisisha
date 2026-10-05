@@ -1,0 +1,9 @@
+{
+  "name": "rahisisha-types",
+  "version": "0.1.0",
+  "description": "Rahisisha shared Zod schemas and types — used by both api and web",
+  "main": "index.js",
+  "dependencies": {
+    "zod": "^3.22.4"
+  }
+}

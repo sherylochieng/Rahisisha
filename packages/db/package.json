@@ -1,0 +1,13 @@
+{
+  "name": "rahisisha-db",
+  "version": "0.1.0",
+  "description": "Rahisisha database package — migrations runner and connection pool shared across services",
+  "main": "index.js",
+  "scripts": {
+    "migrate": "node migrate.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.1",
+    "pg": "^8.11.3"
+  }
+}
