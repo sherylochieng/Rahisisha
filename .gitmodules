@@ -1,0 +1,3 @@
+[submodule "packages/shared-types"]
+	path = packages/shared-types
+	url = https://github.com/sherylochieng/mctaba-shared-types
