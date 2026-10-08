@@ -154,6 +154,7 @@ rahisisha/
 | [`docs/API.md`](docs/API.md) | Full API spec with request/response shapes |
 | [`docs/PLAN.md`](docs/PLAN.md) | Day by day build plan for Weeks 28-30 |
 | [`AI_AUDIT.md`](AI_AUDIT.md) | Weekly AI usage audit log |
+| [Trello Board](https://trello.com/b/CB8yGexS/rahisisha-capstone-sprint) | Sprint task board — Weeks 28–30 |
 
 ---
 
