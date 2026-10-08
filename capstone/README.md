@@ -4,11 +4,9 @@
 
 ## What is Rahisisha?
 
-Small business owners in Kenya do the work of three people they cannot afford to hire a marketer, a social media manager, and a customer service person. The result is inconsistent content, slow replies, double-selling, and no clear view of the business.
+**Rahisisha** is a multi-tenant SaaS platform built for small product businesses in Kenya ... boutiques, dress shops, and informal sellers who currently run their entire business through WhatsApp manually. A customer messages "iko stock?", the owner replies by hand, sends an M-Pesa number, waits for confirmation, and updates stock in a notebook. Rahisisha replaces that entire loop with one signup: the owner uploads a product photo, the AI enhances it in the business's own brand colours and adds real text layers ,,price, name, logo ...then automatically announces it on WhatsApp. The AI answers customer questions from the real catalog, the M-Pesa STK push fires automatically when a customer taps Buy, stock updates itself, and the owner sees everything on one dashboard , without touching a single customer chat. Instagram and Facebook auto-posting are planned for the growth phase after the MVP launch.
 
-Rahisisha fixes that in one signup.
-
-The owner uploads a product. Rahisisha enhances the real photo in the business's brand colours, publishes a branded storefront, announces new items on WhatsApp, answers customer questions from the real catalog, accepts M-Pesa payments, keeps stock accurate across every channel, and reports results on one dashboard without the owner touching a single customer chat.
+The architecture is built around strict multi-tenancy enforced at two independent layers .... application code and PostgreSQL Row-Level Security , so a bug in one layer cannot leak one business's data to another. Every critical path has a corresponding test that runs in CI on every push: tenant isolation, last-item concurrency, and payment idempotency. The stack is Next.js 16, Express, PostgreSQL 16, Redis, BullMQ, Anthropic Claude API, M-Pesa Daraja, and WhatsApp Cloud API , all running on Docker Compose locally and deploying to a single VPS in Week 30.
 
 **Who it's for:** Solo owners, introverts and small startups who cannot afford separate marketing, social-media, sales and support staff but need all of them to grow.
 
