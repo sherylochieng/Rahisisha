@@ -1,6 +1,7 @@
 {
   "name": "rahisisha-api",
   "version": "0.1.0",
+   "type": "module",
   "description": "Rahisisha Express API — multi-tenant backend",
   "main": "src/index.js",
   "scripts": {
