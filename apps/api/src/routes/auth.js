@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import pool from '../db/pool.js';
 
-const rouuter = Router();
+const router = Router();
 
 const signupSchema = z.object({
   phone:       z.string().min(10).max(20),
