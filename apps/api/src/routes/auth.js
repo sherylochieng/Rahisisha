@@ -13,6 +13,8 @@ const signupSchema = z.object({
   slug:        z.string().regex(/^[a-z0-9-]{3,30}$/, {
                  message: 'Slug must be 3-30 lowercase letters, digits, or hyphens',
                }),
+
+  name: z.string().min(2).max(100),
 });
 
 const RESERVED_SLUGS = new Set(['www', 'app', 'admin', 'api', 'staging']);
@@ -26,7 +28,7 @@ router.post('/signup', async (req, res) => {
     });
   }
 
-  const { phone, password, tenant_name, slug } = result.data;
+  const { phone, password, tenant_name, slug, name } = result.data;
 
   if (RESERVED_SLUGS.has(slug)) {
     return res.status(422).json({
@@ -50,10 +52,10 @@ router.post('/signup', async (req, res) => {
     const tenant_id = tenantResult.rows[0].id;
 
     const userResult = await client.query(
-      `INSERT INTO users (phone, password_hash)
-       VALUES ($1, $2)
+      `INSERT INTO users (phone, name, password_hash) 
+       VALUES ($1, $2 , $3)
        RETURNING id`,
-      [phone, password_hash],
+      [phone, name, password_hash],
     );
     const user_id = userResult.rows[0].id;
 
@@ -63,12 +65,7 @@ router.post('/signup', async (req, res) => {
       [tenant_id, user_id],
     );
 
-    await client.query(
-      `INSERT INTO wallet_entries (tenant_id, user_id, amount_cents, reason)
-       VALUES ($1, $2, 0, 'account_created')`,
-      [tenant_id, user_id],
-    );
-
+  
     await client.query('COMMIT');
 
     const token = jwt.sign(
