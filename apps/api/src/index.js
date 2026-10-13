@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
-import authRouter from './routes/auth.js';
+import authRouter from './routes/auth/auth.js';
 
 dotenv.config();
 
