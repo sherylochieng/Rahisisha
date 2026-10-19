@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Rahisisha Next.js frontend — owner dashboard and public storefronts",
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
