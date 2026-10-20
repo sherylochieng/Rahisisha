@@ -20,7 +20,6 @@ export default function SignupPage() {
       name:        formData.get('name'),
       password:    formData.get('password'),
       tenant_name: formData.get('tenant_name'),
-      slug:        formData.get('slug'),
     };
 
     try {
@@ -74,11 +73,6 @@ export default function SignupPage() {
           <input id="tenant_name" name="tenant_name" type="text" required />
         </div>
 
-        <div>
-          <label htmlFor="slug">Business slug</label>
-          <input id="slug" name="slug" type="text" required />
-          <small>Lowercase letters, digits, hyphens only. Example: aminas-boutique</small>
-        </div>
 
         <button type="submit" disabled={loading}>
           {loading ? 'Creating account...' : 'Create account'}
