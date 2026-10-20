@@ -1,0 +1,27 @@
+{
+  "devFiles": [],
+  "ampDevFiles": [],
+  "polyfillFiles": [],
+  "lowPriorityFiles": [],
+  "rootMainFiles": [],
+  "pages": {
+    "/_error": [
+      "static/chunks/0rrk_next_dist_compiled_1qw7i5xvca319._.js",
+      "static/chunks/0rrk_next_dist_shared_lib_16mxxx8sna7ah._.js",
+      "static/chunks/0rrk_next_dist_client_062-jujb8vags._.js",
+      "static/chunks/0rrk_next_dist_150_odxk8rvq4._.js",
+      "static/chunks/[next]_entry_page-loader_ts_0vr7sg1st_su0._.js",
+      "static/chunks/0rrk_react-dom_cjs_react-dom-client_development_1enj_7zq-ukrf.js",
+      "static/chunks/0rrk_react-dom_cjs_react-dom_development_0zf7vmmyci-oj.js",
+      "static/chunks/0rrk_react-dom_0n9gk7e6woh6k._.js",
+      "static/chunks/0rrk_1cxt-eapl2ipn._.js",
+      "static/chunks/[root-of-the-server]__0nu-1gmnouzp9._.js",
+      "static/chunks/apps_web_pages__error_0j5xxd1ee8zey._.js",
+      "static/chunks/turbopack-apps_web_pages__error_1i28rfgp6qr_e._.js"
+    ]
+  },
+  "ampFirstPages": [],
+  "rootMainFilesTree": {},
+  "pagesChunkGroupBootstrapParams": {},
+  "chunkLoadingGlobal": "TURBOPACK"
+}

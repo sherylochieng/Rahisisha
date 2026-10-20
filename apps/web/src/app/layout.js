@@ -1,3 +1,5 @@
+import './globals.css';
+
 export const metadata = {
   title: 'Rahisisha Biashara',
   description: 'Simplify your business',
