@@ -11,12 +11,30 @@ const signupSchema = z.object({
   name:        z.string().min(2).max(100),
   password:    z.string().min(8).max(72),
   tenant_name: z.string().min(2).max(100),
-  slug:        z.string().regex(/^[a-z0-9-]{3,30}$/, {
-                 message: 'Slug must be 3-30 lowercase letters, digits, or hyphens',
-               }),
 });
 
-const RESERVED_SLUGS = new Set(['www', 'app', 'admin', 'api', 'staging']);
+
+function slugify(name) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 30);
+}
+
+async function findUniqueSlug(client, base) {
+  let attempt = 0;
+  while (true) {
+    const candidate = attempt === 0 ? base : `${base}-${attempt}`;
+    const { rows } = await client.query(
+      'SELECT id FROM tenants WHERE slug = $1',
+      [candidate],
+    );
+    if (rows.length === 0) return candidate;
+    attempt++;
+    if (attempt > 100) throw new Error('Could not find unique slug');
+  }
+}
 
 router.post('/signup', async (req, res) => {
   const result = signupSchema.safeParse(req.body);
@@ -27,25 +45,21 @@ router.post('/signup', async (req, res) => {
     });
   }
 
-  const { phone, password, tenant_name, slug, name } = result.data;
-
-  if (RESERVED_SLUGS.has(slug)) {
-    return res.status(422).json({
-      error: `"${slug}" is a reserved slug and cannot be used`,
-    });
-  }
+  const { phone, password, tenant_name, name } = result.data;
 
   const password_hash = await bcrypt.hash(password, 12);
   const client = await pool.connect();
-
   try {
     await client.query('BEGIN');
 
+    const baseSlug = slugify(tenant_name);
+  const uniqueSlug = await findUniqueSlug(client, baseSlug);
+
     const tenantResult = await client.query(
-      `INSERT INTO tenants (name, slug) VALUES ($1, $2) RETURNING id`,
-      [tenant_name, slug],
+  `INSERT INTO tenants (name, slug) VALUES ($1, $2) RETURNING id`,
+  [tenant_name, uniqueSlug],
     );
-    const tenant_id = tenantResult.rows[0].id;
+  const tenant_id = tenantResult.rows[0].id;
 
     const userResult = await client.query(
       `INSERT INTO users (phone, name, password_hash) VALUES ($1, $2, $3) RETURNING id`,
