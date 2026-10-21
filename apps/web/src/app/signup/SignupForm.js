@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { api } from '../../lib/api';
 
 export default function SignupForm() {
   const router = useRouter();
@@ -23,25 +24,10 @@ export default function SignupForm() {
     };
 
     try {
-      const res = await fetch('http://localhost:3000/v1/signup', {
-        method:      'POST',
-        headers:     { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body:        JSON.stringify(body),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Signup failed');
-        setLoading(false);
-        return;
-      }
-
-      router.push('/dashboard');
-
-    } catch (err) {
-      setError('Could not connect to server');
+  await api.signup(body);
+  router.push('/dashboard');
+       } catch (err) {
+      setError(err.message || 'Could not connect to server');
       setLoading(false);
     }
   }
