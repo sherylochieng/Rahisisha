@@ -33,7 +33,7 @@ export default function SignupForm() {
   }
 
   return (
-    <div className="min-h-screen bg-blue-950 flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-blue-900 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-4xl flex rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Left side — brand messaging */}
@@ -41,8 +41,8 @@ export default function SignupForm() {
           <div>
             {/* Logo */}
             <div className="flex items-center gap-3 mb-10">
-              <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center">
-                <span className="text-white font-bold text-lg">R</span>
+              <div className="w-10 h-10 rounded-full bg-whiteflex items-center justify-center">
+                <span className="text-orange-500 font-bold text-lg">R</span>
               </div>
               <span className="font-bold text-lg">Rahisisha Biashara</span>
             </div>
@@ -51,23 +51,23 @@ export default function SignupForm() {
             <h2 className="text-3xl font-bold leading-tight mb-4">
               Simplify your business.
             </h2>
-            <p className="text-blue-200 text-sm leading-relaxed mb-8">
+            <p className="text-orange-100 text-sm leading-relaxed mb-8">
               Rahisisha Biashara gives small businesses in Kenya the tools
               to manage customers, track sales, and grow all in one place.
             </p>
 
             {/* Feature list */}
-            <ul className="space-y-3 text-sm text-blue-100">
+            <ul className="space-y-3 text-sm text-orange-100">
               <li className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center text-xs">✓</span>
+                <span className="w-5 h-5 rounded-full bg-blue-900 flex items-center justify-center text-xs">✓</span>
                 Manage your customers
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center text-xs">✓</span>
+                <span className="w-5 h-5 rounded-full bg-blue-900 flex items-center justify-center text-xs">✓</span>
                 Track your sales and revenue
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center text-xs">✓</span>
+                <span className="w-5 h-5 rounded-full bg-blue-900 flex items-center justify-center text-xs">✓</span>
                 Grow your business with AI
               </li>
             </ul>
@@ -76,7 +76,7 @@ export default function SignupForm() {
           {/* Bottom link */}
           <p className="text-blue-300 text-sm">
             Already have an account?{' '}
-            <a href="/login" className="text-orange-400 hover:underline font-medium">
+            <a href="/login" className="text-white hover:underline font-medium">
               Log in
             </a>
           </p>
