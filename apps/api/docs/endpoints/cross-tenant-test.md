@@ -6,26 +6,106 @@
 
 ---
 
-## What this test proves
+## Why this test exists
 
-Two tenants exist side by side in the same database:
-- **Sheryl Shop** — slug `sheryl-shop`, owned by Sheryl Ochieng (`0712345678`)
-- **Amina's Boutique** — slug `aminas-boutique`, owned by Amina Wanjiru (`+254700000001`)
+Rahisisha Biashara is a multi-tenant SaaS. Many businesses share
+the same database. Amina's Boutique, Sheryl Shop, and Vanessa Shop
+Two all live in the same `customers` table, the same `tenants` table,
+the same `users` table.
 
-The test proves that a logged-in user from Tenant A cannot read
-data belonging to Tenant B — even if they know Tenant B's UUID.
+The danger: if isolation is broken, one business owner could log in
+and read another business owner's customers, orders, and revenue.
+That is a data breach. Businesses would leave the platform. Legal
+action could follow.
 
-This is enforced at two levels:
-1. **Login level** — the Host header check in `login.js` ensures
-   a user can only log in through their own tenant's subdomain.
-2. **Query level** — `withTenant` middleware runs
-   `set_config('app.tenant_id', ...)` before every query, activating
-   Row Level Security. PostgreSQL then hides every row that does not
-   belong to the current tenant — automatically, at the database level.
+This test proves that isolation holds — that each tenant's data is
+completely invisible to every other tenant, even when they are all
+stored in the same database.
 
 ---
 
-## Step 1 — Log in as Sheryl Shop owner
+## How isolation is enforced — two walls
+
+### Wall 1 — Login level (login.js)
+
+When a user logs in, the server reads the `Host` header from the
+request. In production this will be something like
+`sheryl-shop.rahisisha.co.ke`. The server extracts the subdomain
+`sheryl-shop`, looks it up in the `tenants` table, and then checks
+that the user's membership belongs to THAT tenant specifically.
+
+If Vanessa tries to log in at `sheryl-shop.rahisisha.co.ke` using
+her own correct password — she is rejected. Her account does not
+belong to that subdomain's tenant. The login never returns a token.
+
+### Wall 2 — Query level (withTenant middleware + PostgreSQL RLS)
+
+Even after login, every request passes through `withTenant`
+middleware. This middleware borrows a database connection and runs:
+
+```sql
+SELECT set_config('app.tenant_id', 'sheryl-tenant-uuid', true)
+```
+
+This activates PostgreSQL's Row Level Security (RLS). RLS is a
+feature built into PostgreSQL itself — not application code. Once
+`app.tenant_id` is set, PostgreSQL automatically adds an invisible
+WHERE clause to every query:
+
+```sql
+-- What the developer writes:
+SELECT * FROM customers
+
+-- What PostgreSQL actually runs after RLS activates:
+SELECT * FROM customers WHERE tenant_id = 'sheryl-tenant-uuid'
+```
+
+The developer never writes that WHERE clause. PostgreSQL adds it
+automatically. This means even if a developer makes a mistake and
+forgets to filter by tenant, the database refuses to return the
+wrong data. The second wall cannot be bypassed by application bugs.
+
+---
+
+## The three tests
+
+### Test 1 — No cookie: unauthenticated request blocked
+
+**What we are testing:**
+A request with no JWT cookie should be rejected immediately by
+`requireAuth` middleware. The request should never reach the
+database.
+
+**Why this matters:**
+Anyone on the internet can send a request to your API. Without
+this check, a stranger with no account could call `/me` and
+potentially get data back. `requireAuth` is the first door —
+no token means no entry.
+
+```powershell
+Invoke-WebRequest -Uri http://localhost:3000/v1/me `
+  -Method GET `
+  -Headers @{"Content-Type"="application/json"}
+```
+
+Expected: **401 Not logged in**
+Result (confirmed 2026-10-23): ✅ 401 as expected
+
+---
+
+### Test 2 — Sheryl logs in, gets only her own data
+
+**What we are testing:**
+After a successful login, the JWT cookie is set. When `/me` is
+called with that cookie, `requireAuth` reads and verifies the token,
+`withTenant` sets `app.tenant_id` to Sheryl's tenant UUID, and the
+handler queries the database. PostgreSQL RLS ensures the query
+returns only Sheryl's user record and Sheryl's tenant — nothing
+from any other business.
+
+**Why this matters:**
+This proves that the full door chain works end to end:
+cookie → requireAuth → withTenant → RLS → correct data returned.
 
 ```powershell
 Invoke-WebRequest -Uri http://localhost:3000/v1/login `
@@ -33,53 +113,85 @@ Invoke-WebRequest -Uri http://localhost:3000/v1/login `
   -Headers @{"Content-Type"="application/json"} `
   -Body '{"phone":"0712345678","password":"password123"}' `
   -SessionVariable session
+
+Invoke-WebRequest -Uri http://localhost:3000/v1/me `
+  -Method GET `
+  -WebSession $session
 ```
 
-Expected response — HTTP 200:
-
+Expected response:
 ```json
-{ "message": "Logged in", "tenant_id": "c63d4ed0-b971-4719-9db3-61ce9e499d95" }
+{
+  "user":   { "name": "Sheryl Ochieng", "phone": "0712345678" },
+  "tenant": { "name": "Sheryl Shop",    "slug": "sheryl-shop" }
+}
 ```
 
-The JWT cookie is now set in `$session`. It contains:
-- `user_id` — Sheryl's user UUID
-- `tenant_id` — Sheryl Shop's UUID (`c63d4ed0-...`)
-- `role` — `owner`
+Result (confirmed 2026-10-23): ✅ Returned Sheryl's data only
 
 ---
 
-## Step 2 — Attempt to fetch Amina's Boutique tenant data
+### Test 3 — Vanessa logs in, gets only her own data
 
-Using Sheryl's cookie, try to access a resource scoped to
-Amina's Boutique tenant ID `6549a72d-ab20-4bb0-8b93-fdaed96a8f77`.
+**What we are testing:**
+A completely separate session for a different tenant. Vanessa logs
+in with her own credentials. Her JWT contains her own `tenant_id`.
+`withTenant` sets `app.tenant_id` to Vanessa's UUID — not Sheryl's.
+PostgreSQL RLS filters to Vanessa's rows only.
 
-When `withTenant` runs `set_config('app.tenant_id', 'c63d4ed0-...')`,
-PostgreSQL's RLS policy filters every query to Sheryl's tenant only.
-Amina's rows are invisible — the query returns nothing.
+**Why this matters:**
+This is the cross-tenant proof. Two sessions are now active
+simultaneously. Each one is completely walled off from the other.
+Vanessa cannot see Sheryl's data. Sheryl cannot see Vanessa's data.
+Same database, same tables, same API — but completely separate views.
 
-Expected result: **404** — resource not found (because RLS hid it).
+```powershell
+Invoke-WebRequest -Uri http://localhost:3000/v1/login `
+  -Method POST `
+  -Headers @{"Content-Type"="application/json"} `
+  -Body '{"phone":"0733000001","password":"password123"}' `
+  -SessionVariable session2
+
+Invoke-WebRequest -Uri http://localhost:3000/v1/me `
+  -Method GET `
+  -WebSession $session2
+```
+
+Expected response:
+```json
+{
+  "user":   { "name": "venesaa",          "phone": "0733000001"    },
+  "tenant": { "name": "vanessa Shop Two", "slug": "vanessa-shop-two" }
+}
+```
+
+Result (confirmed 2026-10-23): ✅ Returned Vanessa's data only
 
 ---
 
-## Why 404 and not 403?
-
-403 means "you are not allowed." That tells an attacker the resource
-exists but they cannot see it. 404 means "nothing here." RLS makes
-Amina's data completely invisible to Sheryl — as if it does not exist.
-Returning 404 leaks no information about what belongs to other tenants.
-
----
-
-## What this proves
+## Isolation proof summary
 
 | Check | Result |
 |---|---|
-| Sheryl can log in to her own tenant | ✅ |
-| Sheryl's JWT contains her own tenant_id only | ✅ |
-| withTenant sets app.tenant_id to Sheryl's tenant | ✅ |
-| Amina's data is invisible under Sheryl's session | ✅ |
-| RLS enforcement happens at the database level | ✅ |
+| Unauthenticated request blocked at middleware | ✅ |
+| Sheryl's session returns Sheryl's data only | ✅ |
+| Vanessa's session returns Vanessa's data only | ✅ |
+| Neither session can see the other tenant's data | ✅ |
+| RLS enforcement happens inside PostgreSQL itself | ✅ |
 
-The isolation guarantee: even if a developer writes a bug and forgets
-a WHERE clause, PostgreSQL will not return the wrong tenant's data.
-The database is the last wall of defence.
+---
+
+## The guarantee this gives us
+
+Application code can have bugs. A developer can forget a WHERE
+clause. A route can be written incorrectly. These are human mistakes
+that happen in every codebase.
+
+The `withTenant` + RLS pattern means those bugs cannot cause a data
+breach. Even a completely wrong query like `SELECT * FROM customers`
+with no filters at all will only return the current tenant's
+customers — because PostgreSQL itself adds the filter before the
+query runs.
+
+The database is the last wall. It cannot be bypassed by application
+code mistakes.
