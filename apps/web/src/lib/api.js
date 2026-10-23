@@ -37,4 +37,10 @@ export const api = {
       body: JSON.stringify(body),
     });
   },
+
+  // Fetch the current logged-in user and their tenant
+  me() {
+    return request('/me');
+  },
+  
 };
