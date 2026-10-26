@@ -1,5 +1,5 @@
 // Base URL for all API requests — change this one line when deploying to production
-const API_URL = 'http://localhost:3000/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // Central fetch wrapper — every API call goes through here
 // Handles: setting headers, sending cookies, parsing JSON, throwing errors
