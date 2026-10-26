@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { api } from '../../lib/api';
 
 export default function SignupForm() {
@@ -164,9 +165,9 @@ export default function SignupForm() {
           {/* Mobile only — show login link */}
           <p className="text-center text-sm text-gray-500 mt-5 md:hidden">
             Already have an account?{' '}
-            <a href="/login" className="text-orange-500 hover:underline font-medium">
+            <Link href="/login" className="text-orange-500 hover:underline font-medium">
               Log in
-            </a>
+            </Link>
           </p>
         </div>
 
