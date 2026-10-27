@@ -149,4 +149,152 @@ export async function listProducts(req, res) {
 // =============================================================
 
 export async function createProduct(req, res) {
-  // safeParse
+  // safeParse does NOT throw — it returns { success, data } or { success, error }
+  // This is safer than .parse() which throws and crashes if input is wrong
+  const result = ProductCreate.safeParse(req.body);
+
+  // If validation failed, send the error envelope and stop here
+  // The 'return' is important — without it, the code below would still run
+  if (!result.success) return validationError(res, result.error);
+
+  // result.data is the clean, validated input — safe to use
+  // Default values: sku=null, description=null, status='draft'
+  const {
+    name,
+    priceCents,
+    sku         = null,
+    description = null,
+    status      = 'draft',
+  } = result.data;
+
+  try {
+    // RETURNING * tells Postgres to give us back the full created row
+    // This saves us doing a second SELECT after the INSERT
+    const { rows } = await req.db.query(
+      `INSERT INTO products (name, price_cents, sku, description, status)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [name, priceCents, sku, description, status]
+    );
+
+    // 201 Created — not 200. 201 means "a new thing was created"
+    res.status(201).json({ data: rows[0], error: null });
+
+  } catch (err) {
+    // Postgres error code 23505 = unique constraint violation
+    // Our schema has: UNIQUE (tenant_id, sku) — so duplicate SKU within
+    // the same tenant triggers this. Different tenants can share SKUs.
+    if (err.code === '23505') {
+      return res.status(409).json({
+        data: null,
+        error: { message: 'Duplicate SKU for this tenant' },
+      });
+    }
+
+    // For any other unexpected error, rethrow it
+    // Express will catch it and return a 500
+    throw err;
+  }
+}
+
+// =============================================================
+// HANDLER: getProduct
+// Route:   GET /v1/products/:id
+//
+// Fetches a single product by id.
+// Returns 404 if not found OR if soft-deleted.
+// =============================================================
+
+export async function getProduct(req, res) {
+  // req.params.id = the :id part of the URL
+  // AND deleted_at IS NULL — soft-deleted products are invisible
+  const { rows } = await req.db.query(
+    `SELECT * FROM products WHERE id = $1 AND deleted_at IS NULL`,
+    [req.params.id]
+  );
+
+  // rows[0] is undefined if nothing matched
+  if (!rows[0]) {
+    return res.status(404).json({ data: null, error: { message: 'Not found' } });
+  }
+
+  res.json({ data: rows[0], error: null });
+}
+
+// =============================================================
+// HANDLER: updateProduct
+// Route:   PATCH /v1/products/:id
+//
+// Partially updates a product — only the fields sent are changed.
+// This is a PATCH (partial update), not a PUT (full replace).
+//
+// COALESCE($1, name) means:
+//   "use $1 if it's not null, otherwise keep the existing value"
+// So if the caller only sends { name: "New Name" },
+// price_cents and status are untouched.
+// =============================================================
+
+export async function updateProduct(req, res) {
+  // .partial() makes every field in ProductCreate optional
+  // So PATCH can receive any subset of fields
+  const result = ProductCreate.partial().safeParse(req.body);
+  if (!result.success) return validationError(res, result.error);
+
+  const { name, priceCents, sku, description, status } = result.data;
+
+  const { rows } = await req.db.query(
+    `UPDATE products
+     SET name        = COALESCE($1, name),
+         price_cents = COALESCE($2, price_cents),
+         sku         = COALESCE($3, sku),
+         description = COALESCE($4, description),
+         status      = COALESCE($5, status),
+         updated_at  = NOW()
+     WHERE id = $6
+       AND deleted_at IS NULL
+     RETURNING *`,
+    // ?? null converts undefined to null so COALESCE works correctly
+    // undefined would break the query — null is what Postgres expects
+    [name ?? null, priceCents ?? null, sku ?? null, description ?? null, status ?? null, req.params.id]
+  );
+
+  if (!rows[0]) {
+    return res.status(404).json({ data: null, error: { message: 'Not found' } });
+  }
+
+  res.json({ data: rows[0], error: null });
+}
+
+// =============================================================
+// HANDLER: deleteProduct
+// Route:   DELETE /v1/products/:id
+//
+// SOFT DELETE — does NOT remove the row from the database.
+// Sets deleted_at = NOW() instead.
+//
+// Why soft delete?
+//   Orders reference products. If we hard-deleted a product,
+//   every historical order that referenced it would break.
+//   Soft delete keeps the row alive for history but hides it
+//   from all normal queries (which filter WHERE deleted_at IS NULL).
+// =============================================================
+
+export async function deleteProduct(req, res) {
+  const { rows } = await req.db.query(
+    // We UPDATE instead of DELETE — this is the soft delete pattern
+    `UPDATE products
+     SET deleted_at = NOW()
+     WHERE id = $1
+       AND deleted_at IS NULL
+     RETURNING id`,
+    [req.params.id]
+  );
+
+  // If nothing was returned, the product didn't exist (or was already deleted)
+  if (rows.length === 0) {
+    return res.status(404).json({ data: null, error: { message: 'Not found' } });
+  }
+
+  // 204 No Content — success, but nothing to return
+  res.status(204).end();
+}
