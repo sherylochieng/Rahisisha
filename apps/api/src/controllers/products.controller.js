@@ -276,7 +276,7 @@ export async function updateProduct(req, res) {
 //   Orders reference products. If we hard-deleted a product,
 //   every historical order that referenced it would break.
 //   Soft delete keeps the row alive for history but hides it
-//   from all normal queries (which filter WHERE deleted_at IS NULL).
+//   from all normal queries (which filter WHERE deleted_at IS NULL)....
 // =============================================================
 
 export async function deleteProduct(req, res) {
