@@ -140,12 +140,12 @@ export async function createOrder(req, res) {
     // ON CONFLICT means: if this phone already exists for this tenant,
     // just return their existing id instead of throwing an error
     const { rows: custRows } = await client.query(
-      `INSERT INTO customers (phone, channel)
-       VALUES ($1, $2)
+           `INSERT INTO customers (tenant_id, phone, channel)
+       VALUES ($1, $2, $3)
        ON CONFLICT (tenant_id, phone)
        DO UPDATE SET updated_at = NOW()
        RETURNING id`,
-      [customerPhone, channel]
+      [req.tenantId, customerPhone, channel]
     );
     const customerId = custRows[0].id;
 
@@ -183,10 +183,10 @@ export async function createOrder(req, res) {
     // STEP 4: Create the order row
     // Status starts at 'created' — the state machine begins here
     const { rows: orderRows } = await client.query(
-      `INSERT INTO orders (customer_id, total_cents, channel, status)
-       VALUES ($1, $2, $3, 'created')
+           `INSERT INTO orders (tenant_id, customer_id, total_cents, channel, status)
+       VALUES ($1, $2, $3, $4, 'created')
        RETURNING *`,
-      [customerId, totalCents, channel]
+      [req.tenantId, customerId, totalCents, channel]
     );
     const order = orderRows[0];
 
@@ -197,10 +197,10 @@ export async function createOrder(req, res) {
     for (const item of items) {
       const product = productMap[item.productId];
       await client.query(
-        `INSERT INTO order_items
-           (order_id, product_name, unit_price_cents, quantity)
-         VALUES ($1, $2, $3, $4)`,
-        [order.id, product.name, product.price_cents, item.quantity]
+               `INSERT INTO order_items
+           (tenant_id, order_id, product_name, unit_price_cents, quantity)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [req.tenantId, order.id, product.name, product.price_cents, item.quantity]
       );
     }
 
