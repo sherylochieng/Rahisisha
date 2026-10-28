@@ -79,3 +79,36 @@ app.get('/health', (_req, res) => {
 // index.js calls listen() for the real server.
 // Test files import this directly and use supertest to send fake requests.
 export default app;
+
+
+//NOTES
+
+
+// =============================================================================
+// app.js — Express app setup, exported for both server and tests
+// =============================================================================
+//
+// WHY THIS FILE EXISTS:
+// - Splits Express app creation from server startup (app.listen)
+// - app.js = kitchen (builds the app), index.js = dining room (starts server)
+// - Tests import app.js directly without triggering a port conflict
+//
+// SYSTEM DESIGN PRINCIPLE: Separation of Concerns
+// - One file does ONE thing
+// - app.js configures middleware and routes, nothing else
+// - This is standard in every professional Node.js/Express codebase
+//
+// WHERE YOU WILL USE THIS IN FUTURE PROJECTS:
+// - Every Express API you ever build — always separate app from listen
+// - Serverless deployments (AWS Lambda, Vercel) import app without listen
+// - Integration testing with supertest always needs this pattern
+// - Microservices — each service exports its app the same way
+//
+// TRADEOFFS:
+// + Tests can run without port conflicts
+// + App logic is reusable and importable
+// + Easier to test middleware and routes in isolation
+// - One extra file to maintain (very small tradeoff)
+// - Developers new to the pattern may look for listen() in app.js and not find it
+//
+// =============================================================================
