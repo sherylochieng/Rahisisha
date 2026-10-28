@@ -107,7 +107,7 @@
 //   npm test
 // =============================================================================
 
- request: supertest — sends fake HTTP requests to our app without
+ //request: supertest — sends fake HTTP requests to our app without
 // starting a real server on port 3000
 import request from 'supertest';
 
