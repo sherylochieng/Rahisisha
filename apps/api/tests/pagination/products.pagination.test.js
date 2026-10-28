@@ -101,6 +101,26 @@ function makeCookie(tenantId, userId = 1, role = 'owner') {
   return `token=${token}`;
 }
 
+// deleteAsTenant: runs a cleanup query WITH tenant context set
+// WHY: testPool connects as rahisisha_user, so RLS applies to it.
+// Without app.current_tenant it sees zero rows and deletes nothing.
+// We use BEGIN ... COMMIT so the setting lasts for the whole cleanup.
+// Here `true` (transaction-local) is CORRECT because we opened a transaction.
+async function deleteAsTenant(tenantId, sql, params = []) {
+  const client = await testPool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+    await client.query(sql, params);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 
 // beforeAll: runs ONCE before any test in this file
@@ -126,9 +146,7 @@ beforeAll(async () => {
 // SAFE: we only delete products whose name starts with "Test Product"
 // Real products (from seeds or manual entry) are never touched
 afterAll(async () => {
-  await testPool.query(
-    "DELETE FROM products WHERE name LIKE 'Test Product%'"
-  );
+   await deleteAsTenant(acmeTenantId, "DELETE FROM products WHERE name LIKE 'Test Product%'");
   // Close the test database connection — never leave connections open
   await testPool.end();
 });
@@ -159,7 +177,7 @@ describe('GET /v1/products — cursor pagination', () => {
 
       // If any product creation fails, stop immediately and show the error
       expect(res.status).toBe(201);
-      createdIds.push(res.body.id);
+      createdIds.push(res.body.data.id);
     }
   });
 
@@ -167,10 +185,7 @@ describe('GET /v1/products — cursor pagination', () => {
   // WHY: delete exactly the 30 products we created — no more, no less
   // Without this, products stack up between tests and pagination counts break
   afterEach(async () => {
-    await testPool.query(
-      'DELETE FROM products WHERE id = ANY($1)',
-      [createdIds]
-    );
+    await deleteAsTenant(acmeTenantId, 'DELETE FROM products WHERE id = ANY($1)', [createdIds]);
     createdIds = [];
   });
 
@@ -215,63 +230,37 @@ describe('GET /v1/products — cursor pagination', () => {
     expect(page2.body.nextCursor).not.toBeNull();
   });
 
-  // TEST 3: Page 3 gives us the final 10 and NO cursor (we are done)
-  test('page 3 returns final 10 products and no nextCursor', async () => {
-    // Get page 1
-    const page1 = await request(app)
-      .get('/v1/products?limit=10')
-      .set('Cookie', acmeCookie);
+  // TEST 3: Follow the cursor through EVERY page until it ends
+  // WHY: we don't know how many products the tenant has (seed data + our 30),
+  // so we keep asking for the next page until the API says "no more pages"
+  test('walking every page returns all 30 test products once, and the cursor ends', async () => {
+    const allIds = [];
+    let cursor = null;
+    let pages = 0;
 
-    // Get page 2 using cursor from page 1
-    const page2 = await request(app)
-      .get(`/v1/products?limit=10&cursor=${page1.body.nextCursor}`)
-      .set('Cookie', acmeCookie);
+    do {
+      const url = cursor
+        ? `/v1/products?limit=10&cursor=${cursor}`
+        : '/v1/products?limit=10';
 
-    // Get page 3 using cursor from page 2
-    const page3 = await request(app)
-      .get(`/v1/products?limit=10&cursor=${page2.body.nextCursor}`)
-      .set('Cookie', acmeCookie);
+      const res = await request(app).get(url).set('Cookie', acmeCookie);
+      expect(res.status).toBe(200);
 
-    expect(page3.status).toBe(200);
+      allIds.push(...res.body.data.map(p => p.id));
+      cursor = res.body.nextCursor;
+      pages++;
 
-    // Final 10 products
-    expect(page3.body.data.length).toBe(10);
+      // Safety net: a broken cursor must FAIL the test, not loop forever
+      if (pages > 10) throw new Error('nextCursor never became null');
+    } while (cursor !== null);
 
-    // No more pages — nextCursor must be null
-    // If it is not null here, the pagination never ends — infinite loop bug
-    expect(page3.body.nextCursor).toBeNull();
-  });
+    // No duplicates: every ID appears exactly once
+    expect(new Set(allIds).size).toBe(allIds.length);
 
-  // TEST 4: No product appears on more than one page — no duplicates
-  test('no product appears on multiple pages — no duplicates, total is 30', async () => {
-    // Fetch all 3 pages
-    const page1 = await request(app)
-      .get('/v1/products?limit=10')
-      .set('Cookie', acmeCookie);
-
-    const page2 = await request(app)
-      .get(`/v1/products?limit=10&cursor=${page1.body.nextCursor}`)
-      .set('Cookie', acmeCookie);
-
-    const page3 = await request(app)
-      .get(`/v1/products?limit=10&cursor=${page2.body.nextCursor}`)
-      .set('Cookie', acmeCookie);
-
-    // Collect IDs from all 3 pages
-    const page1Ids = page1.body.data.map(p => p.id);
-    const page2Ids = page2.body.data.map(p => p.id);
-    const page3Ids = page3.body.data.map(p => p.id);
-
-    // Check every possible overlap — any duplicate = pagination bug
-    const duplicates = [
-      ...page1Ids.filter(id => page2Ids.includes(id)),
-      ...page1Ids.filter(id => page3Ids.includes(id)),
-      ...page2Ids.filter(id => page3Ids.includes(id)),
-    ];
-    expect(duplicates).toHaveLength(0);
-
-    // Total across all 3 pages must be exactly 30 — nothing skipped
-    expect(page1Ids.length + page2Ids.length + page3Ids.length).toBe(30);
+    // Nothing skipped: every product we created is somewhere in the pages
+    for (const id of createdIds) {
+      expect(allIds).toContain(id);
+    }
   });
 
 });
