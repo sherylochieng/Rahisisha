@@ -171,10 +171,10 @@ export async function createProduct(req, res) {
     // RETURNING * tells Postgres to give us back the full created row
     // This saves us doing a second SELECT after the INSERT
     const { rows } = await req.db.query(
-      `INSERT INTO products (name, price_cents, sku, description, status)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO products (tenant_id, name, price_cents, sku, description, status)
+        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name, priceCents, sku, description, status]
+      [req.tenantId, name, priceCents, sku, description, status]
     );
 
     // 201 Created — not 200. 201 means "a new thing was created"
