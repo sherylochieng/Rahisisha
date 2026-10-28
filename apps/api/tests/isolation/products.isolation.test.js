@@ -107,7 +107,7 @@
 //   npm test
 // =============================================================================
 
- //request: supertest — sends fake HTTP requests to our app without
+//request: supertest — sends fake HTTP requests to our app without
 // starting a real server on port 3000
 import request from 'supertest';
 
@@ -151,7 +151,7 @@ let brioTenantId; // The real UUID of Brio tenant from the database
 // These are the fake login cookies
 // Format: "token=<jwt>" — exactly what a browser sends automatically
 let acmeCookie; // Amina's login — scoped to Acme
-let brioCookie;  // Brian's login — scoped to Brio
+let brioCookie; // Brian's login — scoped to Brio
 
 // acmeProductId: every order needs a product to reference
 // We create one product in beforeAll and reuse it for every order test
@@ -181,7 +181,7 @@ function makeCookie(tenantId, userId = 1, role = 'owner') {
     process.env.JWT_SECRET,
 
     // OPTIONS: token expires in 1 hour — long enough for tests to finish
-    { expiresIn: '1h' }
+    { expiresIn: '1h' },
   );
 
   // Return the cookie string in the format the browser sends
@@ -195,19 +195,18 @@ function makeCookie(tenantId, userId = 1, role = 'owner') {
 // WHY: we need real tenant IDs and a real product before tests can run
 // Think of this as "opening the restaurant before customers arrive"
 beforeAll(async () => {
-
   // Query the database for the first 2 tenants
   // ORDER BY created_at ensures we always get the same 2 tenants
   // These tenants must already exist — created by your migrations/seed script
   const result = await testPool.query(
-    'SELECT id FROM tenants ORDER BY created_at LIMIT 2'
+    'SELECT id FROM tenants ORDER BY created_at LIMIT 2',
   );
 
   // Safety check: if fewer than 2 tenants exist, the isolation test
   // cannot run — we need 2 separate tenants to prove isolation
   if (result.rows.length < 2) {
     throw new Error(
-      'Need at least 2 tenants in the database. Run your seed script first.'
+      'Need at least 2 tenants in the database. Run your seed script first.',
     );
   }
 
@@ -217,7 +216,7 @@ beforeAll(async () => {
 
   // Create fake login cookies for each tenant
   acmeCookie = makeCookie(acmeTenantId);
-  brioCookie  = makeCookie(brioTenantId);
+  brioCookie = makeCookie(brioTenantId);
 
   // Create one product for Acme — every order needs a product_id
   // We create it once here and reuse it in every test via acmeProductId
@@ -229,7 +228,7 @@ beforeAll(async () => {
   // If product creation fails, all order tests will fail too
   // Better to know here immediately than to get confusing errors later
   expect(productRes.status).toBe(201);
-  acmeProductId = productRes.body.id;
+  acmeProductId = productRes.body.data.id;
 });
 
 // afterAll: runs ONCE after ALL tests in this file finish
@@ -238,12 +237,12 @@ beforeAll(async () => {
 afterAll(async () => {
   // Delete the product we created in beforeAll
   await testPool.query(
-    "DELETE FROM products WHERE name = 'Test Product For Orders'"
+    "DELETE FROM products WHERE name = 'Test Product For Orders'",
   );
 
   // Delete any test orders — orders created during tests
   await testPool.query(
-    "DELETE FROM orders WHERE id IN (SELECT id FROM orders LIMIT 100)"
+    'DELETE FROM orders WHERE id IN (SELECT id FROM orders LIMIT 100)',
   );
 
   // ALWAYS close the database connection when done
@@ -254,7 +253,6 @@ afterAll(async () => {
 // ─── TESTS ───────────────────────────────────────────────────────────────────
 
 describe('Cross-tenant isolation — /v1/orders', () => {
-
   // acmeOrderId: stores the ID of the order Acme creates before each test
   // Brio will try to fetch this exact order — they must always get 404
   let acmeOrderId;
@@ -269,11 +267,15 @@ describe('Cross-tenant isolation — /v1/orders', () => {
       .send({
         // customer: the person who placed the order
         // phone is required and must be unique per tenant
-        customer: { phone: '+254700000001', name: 'Test Customer' },
+        // customerPhone: flat string — matches OrderCreate schema in orders.controller.js
+        // The controller does NOT accept a nested { customer: { phone } } object
+        customerPhone: '+254700000001',
 
         // items: list of products in the order
         // product_id references the product we created in beforeAll
-        items: [{ product_id: acmeProductId, quantity: 1 }],
+        // items: productId must be camelCase — matches OrderCreate schema
+        // snake_case product_id fails Zod validation and returns 400
+        items: [{ productId: acmeProductId, quantity: 1 }],
 
         // channel: how the order came in (whatsapp/web/ussd)
         channel: 'web',
@@ -283,7 +285,7 @@ describe('Cross-tenant isolation — /v1/orders', () => {
     expect(res.status).toBe(201);
 
     // Save the order ID so tests can reference it
-    acmeOrderId = res.body.id;
+    acmeOrderId = res.body.data.id;
   });
 
   // afterEach: runs after EVERY test inside this describe block
@@ -291,10 +293,7 @@ describe('Cross-tenant isolation — /v1/orders', () => {
   // Without this, orders stack up and the customer phone UNIQUE constraint
   // would fail on the second test (same phone number already exists)
   afterEach(async () => {
-    await testPool.query(
-      'DELETE FROM orders WHERE id = $1',
-      [acmeOrderId]
-    );
+    await testPool.query('DELETE FROM orders WHERE id = $1', [acmeOrderId]);
   });
 
   // TEST 1: The most important test — Brian tries to steal Amina's order
@@ -319,14 +318,12 @@ describe('Cross-tenant isolation — /v1/orders', () => {
 
   // TEST 2: Brian lists ALL his orders — Amina's must never appear
   test('Brio order list never contains Acme orders', async () => {
-    const res = await request(app)
-      .get('/v1/orders')
-      .set('Cookie', brioCookie); // logged in as Brio
+    const res = await request(app).get('/v1/orders').set('Cookie', brioCookie); // logged in as Brio
 
     expect(res.status).toBe(200);
 
     // Extract just the IDs from Brio's order list
-    const ids = res.body.data.map(o => o.id);
+    const ids = res.body.data.map((o) => o.id);
 
     // Acme's order ID must not be anywhere in this list
     // toContain checks the whole array — fails if it finds the ID anywhere
@@ -346,7 +343,6 @@ describe('Cross-tenant isolation — /v1/orders', () => {
     expect(res.status).toBe(200);
 
     // And it must be the exact same order we created
-    expect(res.body.id).toBe(acmeOrderId);
+    expect(res.body.data.id).toBe(acmeOrderId);
   });
-
 });
