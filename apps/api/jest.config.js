@@ -35,5 +35,13 @@ export default {
 
   // Where Jest looks for test files
   // Any file ending in .test.js inside the tests/ folder will be picked up
-  testMatch: ['**/tests/**/*.test.js'],
+ testMatch: ['**/tests/**/*.test.js'],
+
+  // How long (ms) a single test or hook can run before Jest gives up
+  // Default is 5000 (5 seconds) — too short for 30 real HTTP requests
+  // 30 products × ~200ms each = ~6 seconds minimum, so we give 30 seconds
+  // testTimeout: 30000,
+
+//   // This tells Jest to treat .js files as ES modules
+//   extensionsToTreatAsEsm: ['.js'],
 };
