@@ -18,19 +18,20 @@ import {
   updateProduct,
   deleteProduct,
 } from '../controllers/products.controller.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const router = Router();
 
 // GET  /v1/products       → list all products (paginated)
 // POST /v1/products       → create a new product
-router.get('/',    listProducts);
-router.post('/',   createProduct);
+router.get('/',    asyncHandler(listProducts));
+router.post('/',   asyncHandler(createProduct));
 
 // GET    /v1/products/:id → fetch one product
 // PATCH  /v1/products/:id → partially update a product
 // DELETE /v1/products/:id → soft delete a product
-router.get('/:id',    getProduct);
-router.patch('/:id',  updateProduct);
-router.delete('/:id', deleteProduct);
+router.get('/:id',    asyncHandler(getProduct));
+router.patch('/:id', asyncHandler(updateProduct));
+router.delete('/:id', asyncHandler(deleteProduct));
 
 export default router;
