@@ -8,7 +8,7 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "test": "node --experimental-vm-modules node_modules/jest-cli/bin/jest.js --runInBand",
-    "test:isolation": "jest tests/isolation.test.js --runInBand"
+    "test:isolation": "node --experimental-vm-modules node_modules/jest-cli/bin/jest.js --runInBand tests/isolation"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
