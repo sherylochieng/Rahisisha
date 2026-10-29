@@ -17,12 +17,12 @@ const router = Router();
 
 // GET  /v1/orders     → list orders (paginated)
 // POST /v1/orders     → create a new order
-router.get('/',    listOrders);
-router.post('/',   createOrder);
+router.get('/', listOrders);
+router.post('/', createOrder);
 
 // GET   /v1/orders/:id         → fetch one order
-// PATCH /v1/orders/:id/status  → update status only (state machine)
-router.get('/:id',          getOrder);
-router.patch('/:id/status', updateOrderStatus);
+// PATCH /v1/orders/:id/status  → update status only (state machine)..removed nt compatible with assifgnmnt
+router.get('/:id', getOrder);
+router.patch('/:id', updateOrderStatus);
 
 export default router;
