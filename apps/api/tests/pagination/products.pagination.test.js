@@ -70,6 +70,7 @@ import jwt     from 'jsonwebtoken';
 import dotenv  from 'dotenv';
 import pg      from 'pg';
 import app     from '../../src/app.js';
+import { pool } from '../../src/db/pool.js';
 
 dotenv.config();
 
@@ -149,6 +150,7 @@ afterAll(async () => {
    await deleteAsTenant(acmeTenantId, "DELETE FROM products WHERE name LIKE 'Test Product%'");
   // Close the test database connection — never leave connections open
   await testPool.end();
+  await pool.end();
 });
 
 // ─── TESTS ───────────────────────────────────────────────────────────────────
