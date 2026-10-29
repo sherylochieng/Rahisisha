@@ -22,7 +22,7 @@ AI is never used for cross-tenant guarantees.
 | `src/app.js` | Generated app/server split pattern |
 | `src/index.js` | Generated slim server entry point |
 | `tests/pagination/products.pagination.test.js` | Generated full pagination test suite |
-| `tests/isolation/products.isolation.test.js` | Generated test structure and assertions |
+| `tests/isolation/orders.isolation.test.js` | Generated test structure and assertions (file was originally named `products.isolation.test.js`) |
 | `docs/INDEX.md` | Generated API documentation |
 | `jest.config.js` | Generated Jest ES module config |
 | `CLAUDE.md` | Generated standing instructions file |
@@ -32,7 +32,7 @@ AI is never used for cross-tenant guarantees.
 | Code | Why it must be hand-written |
 |---|---|
 | `src/middleware/requireAuth.js` | Auth logic — AI cannot be trusted with authentication |
-| `src/middleware/withTenant.js` | Tenant isolation — the most critical security boundary in the app (see the 2026-10-28 entry below for one disclosed AI-suggested guard) |
+| `src/middleware/withTenant.js` | Tenant isolation — the most critical security boundary in the app (see the 2026-10-28 and 2026-10-29 entries below for disclosed AI-written parts) |
 | All `req.db` usage in controllers | Every query must use the scoped connection — hand-verified line by line |
 | Cross-tenant test assertions | The human must understand and own what isolation means — not delegate it (see 2026-10-29 entry: the products cross-tenant assertions were AI-written and are disclosed there) |
 | All RLS policies in SQL migrations | Row Level Security is the last line of defence — always hand-written |
@@ -56,7 +56,7 @@ AI is never used for cross-tenant guarantees.
 ### AI Boundary Compliance
 
 - Auth middleware: ✅ hand-written
-- Tenant isolation middleware: ✅ hand-written (see 2026-10-28 disclosure)
+- Tenant isolation middleware: ✅ hand-written originally (see later disclosures)
 - RLS policies: ✅ hand-written in SQL migrations
 - CRUD scaffolding: ✅ AI assisted (allowed per assignment)
 - Test structure: ✅ AI assisted, isolation assertions reviewed and understood by hand
@@ -109,13 +109,6 @@ AI is never used for cross-tenant guarantees.
   cleanup leaves nothing behind.
 - Cross-tenant isolation tests pass (Brio cannot read Acme's order).
 
-### Follow-ups
-
-- Reset `app.current_tenant` before releasing a connection to the pool.
-- Catch errors in controllers and call `next(err)` so failures return 500
-  instead of hanging.
-- Fix the `test:isolation` script in `package.json`.
-
 ### AI Boundary Compliance (2026-10-28)
 
 - Root cause found by AI diagnosis; the one-word fix in `withTenant`
@@ -127,10 +120,12 @@ AI is never used for cross-tenant guarantees.
 
 ---
 
-## 2026-10-29 — Assignment gap review (Day 3 rubric check)
+## 2026-10-29 — Assignment gap review and hardening
 
-**Area:** orders controller and routes, products cross-tenant test, docs
-**Boundary class:** CRUD and tests: AI allowed. Isolation logic: untouched.
+**Area:** orders controller and routes, error handling, products cross-tenant
+test, `withTenant` middleware, docs
+**Boundary class:** CRUD, tests and docs: AI allowed. Isolation middleware:
+AI-written parts disclosed below.
 
 ### What was found
 
@@ -142,48 +137,23 @@ AI is never used for cross-tenant guarantees.
   check and returned 409 from the state machine instead of a 400 validation
   error.
 - Task 5 asks for a cross-tenant test on products AND orders. Only orders was
-  covered (`products.isolation.test.js` actually tests `/v1/orders`).
+  covered (`products.isolation.test.js` actually tested `/v1/orders`).
+- Express 4 does not catch errors thrown in async handlers. A malformed ID such
+  as `/v1/orders/not-a-uuid` made the query throw, the request hung, and the
+  pooled connection was never released.
+- In `withTenant`, `pool.connect()` sat outside the `try`, so a failed borrow
+  could also hang the request.
+- A connection returned to the pool still carried the previous request's
+  `app.current_tenant`.
 
 ### What AI did
 
 - Claude found the validation bug by tracing the line with a sample input, and
   explained it. Claude recommended `Object.hasOwn` over `in` because `in` also
   matches inherited names such as `constructor`.
-- Claude wrote the full `tests/isolation/products.cross-tenant.test.js`,
-  including its assertions, and updated `docs/INDEX.md` and this audit file.
+- Claude wrote `tests/isolation/products.cross-tenant.test.js` and
+  `tests/errors/error-handling.test.js`, including all assertions.
   DISCLOSURE: this deviates from the hard rule that cross-tenant test
-  assertions are hand-written. The tests only VERIFY isolation; they do not
-  implement it (`withTenant` and RLS stay hand-written and were not changed).
-  I read each test and can explain why it expects 404.
-
-### What I did by hand
-
-- Renamed the route to `PATCH /v1/orders/:id` in `orders.routes.js` and
-  updated the comments and docs.
-- Replaced the broken validation line with the `Object.hasOwn` check.
-- Typed in the new test file, ran it, and committed everything.
-
-### Verification
-
-- `npm test`: 3 suites, 11 tests passing (3 pagination, 3 orders isolation,
-  5 products cross-tenant).
-- Cross-tenant checks for products: Brio gets 404 on fetch, update and delete;
-  Brio's list never contains the Acme product; Acme can still fetch her own
-  product and its name is unchanged.
-
-### Follow-ups
-
-- Catch errors in controllers and call `next(err)`.
-- Reset `app.current_tenant` before releasing a connection to the pool.
-- Rename `products.isolation.test.js` to `orders.isolation.test.js`.
-- Fix the `test:isolation` script in `package.json`.
-
-### AI Boundary Compliance (2026-10-29)
-
-- `withTenant`, `requireAuth`, RLS policies: ✅ not touched today
-- Order status validation fix: ✅ AI diagnosed, I made the change
-- Products cross-tenant test: ⚠️ AI-written assertions, disclosed above,
-  isolation behaviour itself hand-written and unchanged
-- Docs (`INDEX.md`, this file): ✅ AI assisted (allowed per assignment)
-
----
+  assertions are hand-written. The tests only VERIFY isolation and error
+  behaviour; they do not implement it.
+-
