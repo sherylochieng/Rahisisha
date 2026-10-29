@@ -30,11 +30,13 @@ apps/api/
 ├── src/
 │   ├── index.js                    Entry point. Starts the server, mounts all routes.
 │   ├── app.js                      The Express app (no server start), so tests can import it.
+│   │                               Also holds the central error handler.
 │   ├── db/
 │   │   └── pool.js                 One shared Postgres connection pool for the whole app.
 │   ├── middleware/
 │   │   ├── requireAuth.js          Checks the JWT token. Rejects requests with no/bad token.
-│   │   └── withTenant.js           Reads tenant from JWT, sets req.db to tenant-scoped connection.
+│   │   ├── withTenant.js           Reads tenant from JWT, sets req.db to tenant-scoped connection.
+│   │   └── asyncHandler.js         Wraps async controllers so thrown errors reach the error handler.
 │   ├── routes/
 │   │   ├── auth/
 │   │   │   ├── auth.js             Combines signup + login + me into one router.
@@ -49,9 +51,11 @@ apps/api/
 ├── tests/
 │   ├── pagination/
 │   │   └── products.pagination.test.js     Cursor pagination returns every product once.
-│   └── isolation/
-│       ├── products.isolation.test.js      Cross-tenant checks for orders.
-│       └── products.cross-tenant.test.js   Cross-tenant checks for products.
+│   ├── isolation/
+│   │   ├── orders.isolation.test.js        Cross-tenant checks for orders.
+│   │   └── products.cross-tenant.test.js   Cross-tenant checks for products.
+│   └── errors/
+│       └── error-handling.test.js          Bad input gets a clean answer and no connection leaks.
 └── docs/
     └── INDEX.md                    This file.
 ```
@@ -78,12 +82,21 @@ Incoming request
   withTenant        sets req.db (tenant-scoped DB connection)
       |
       v
+  asyncHandler(     runs the controller; if it throws, the error is
+    Controller )    passed on with next(err)
+      |
+      v
   Controller        validates input, queries DB, sends response
 ```
 
 If any step fails (bad JWT, unknown tenant, invalid input),
 the chain stops there and an error is returned.
 The controller only runs if every step above it passed.
+
+If a controller throws, the error travels past the routes to the
+**central error handler** at the bottom of `app.js`, which always sends a
+response. Once the response finishes, the database connection goes back
+to the pool.
 
 ---
 
@@ -116,6 +129,19 @@ The controller only runs if every step above it passed.
 | GET    | /v1/orders/:id            | Fetch one order                          |
 | PATCH  | /v1/orders/:id            | Update order status (state machine only) |
 
+### Status codes you will see
+
+| Code | Meaning                                                               |
+|------|-----------------------------------------------------------------------|
+| 200  | OK                                                                    |
+| 201  | Created (new product or order)                                       |
+| 204  | Deleted (soft delete, nothing to return)                              |
+| 400  | Validation failed, unknown order status, or malformed ID              |
+| 401  | Not logged in, or the session expired                                 |
+| 404  | Not found. Also what another tenant's record looks like (RLS hides it)|
+| 409  | Conflict: duplicate SKU, or an illegal order status change            |
+| 500  | Unexpected server error (details are logged, never sent to the caller)|
+
 ---
 
 ## Key Patterns
@@ -133,6 +159,11 @@ const { rows } = await pool.query('SELECT * FROM products')
 `req.db` is set by `withTenant` middleware. It holds a connection
 where Postgres knows which tenant is active. RLS uses this to
 filter every query automatically.
+
+`withTenant` sets `app.current_tenant` for the whole connection
+(`set_config(..., false)`). The transaction-only form (`true`) loses the
+setting after one query when no transaction is open, and the next query then
+fails with `invalid input syntax for type uuid: ""`.
 
 ### 2. Validation before database
 
@@ -209,6 +240,30 @@ INSERT INTO products (name, ...) VALUES ($1, ...)
 `req.tenantId` comes from the signed JWT, never from the request body,
 so a caller cannot pick another tenant.
 
+### 8. Errors always get an answer
+
+This project uses Express 4, which does NOT catch errors thrown inside
+`async` functions. Without help, a failed database query makes the request hang
+and the pooled connection is never given back. Enough of those freeze the API
+for every tenant.
+
+The fix has two parts:
+
+1. **`asyncHandler`** wraps every controller in the route files:
+   ```js
+   router.get('/:id', asyncHandler(getOrder));
+   ```
+   If the controller throws, the error is passed on with `next(err)`.
+
+2. **The central error handler** at the bottom of `app.js` (after all routes)
+   answers every error:
+   - Postgres code `22P02` (malformed ID like `/v1/orders/not-a-uuid`) -> 400
+     with the standard `validation` envelope
+   - Anything else -> the real error is logged on the server, and the caller
+     gets a generic 500 (`Something went wrong`), so no database details leak
+
+Rule for new routes: wrap every async controller in `asyncHandler`.
+
 ---
 
 ## Money Rule
@@ -229,15 +284,29 @@ The frontend divides by 100 when displaying to users.
 ## Tests
 
 Run from `apps/api`: `npm test`
+Run only the isolation suites: `npm run test:isolation`
 
 | File | What it proves |
 |------|----------------|
 | `tests/pagination/products.pagination.test.js` | Cursor pagination returns every product exactly once and the cursor ends |
-| `tests/isolation/products.isolation.test.js` | Brio cannot read Acme's orders (404) |
+| `tests/isolation/orders.isolation.test.js` | Brio cannot read Acme's orders (404) |
 | `tests/isolation/products.cross-tenant.test.js` | Brio cannot read, list, edit or delete Acme's products (404) |
+| `tests/errors/error-handling.test.js` | Malformed IDs return 400, unknown statuses return 400, and 25 failing requests do not exhaust the pool |
 
 Test cleanup uses a helper that sets the tenant first, because RLS applies to
 the test database user too. A plain DELETE would silently delete nothing.
+
+Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
+
+---
+
+## Known Follow-Ups
+
+| Item | Why |
+|------|-----|
+| Move `await pool.connect()` inside the `try` in `withTenant` | If the pool is exhausted, that line can fail before the error handling starts |
+| Reset `app.current_tenant` before releasing a connection to the pool | Stops a tenant setting from lingering on a reused connection |
+| Use a strong `JWT_SECRET` and database password before deployment | The current values are development placeholders |
 
 ---
 
