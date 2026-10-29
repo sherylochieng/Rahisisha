@@ -84,6 +84,7 @@ import pg      from 'pg';
 // app: the Express app WITHOUT app.listen(), so importing it does not start
 // a server or cause a port conflict
 import app     from '../../src/app.js';
+import { pool } from '../../src/db/pool.js';
 
 // Load the .env file into process.env (must run before we read process.env)
 dotenv.config();
@@ -197,6 +198,7 @@ afterAll(async () => {
     "DELETE FROM products WHERE name = 'Test Product Cross Tenant'"
   );
   await testPool.end();
+  await pool.end();
 });
 
 // ─── TESTS ───────────────────────────────────────────────────────────────────
