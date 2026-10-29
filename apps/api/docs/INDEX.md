@@ -26,24 +26,34 @@ This isolation is enforced at two levels:
 ## Folder Structure
 
 ```
-apps/api/src/
-├── index.js                    Entry point. Starts the server, mounts all routes.
-├── db/
-│   └── pool.js                 One shared Postgres connection pool for the whole app.
-├── middleware/
-│   ├── requireAuth.js          Checks the JWT token. Rejects requests with no/bad token.
-│   └── withTenant.js           Reads tenant from JWT, sets req.db to tenant-scoped connection.
-├── routes/
-│   ├── auth/
-│   │   ├── auth.js             Combines signup + login + me into one router.
-│   │   ├── signup.js           POST /v1/signup — creates a new tenant + owner account.
-│   │   ├── login.js            POST /v1/login — returns a signed JWT cookie.
-│   │   └── me.js               GET /v1/me — returns the logged-in user's profile.
-│   ├── products.routes.js      Maps product URLs to controller functions.
-│   └── orders.routes.js        Maps order URLs to controller functions.
-└── controllers/
-    ├── products.controller.js  All product business logic and database queries.
-    └── orders.controller.js    All order business logic, state machine, transactions.
+apps/api/
+├── src/
+│   ├── index.js                    Entry point. Starts the server, mounts all routes.
+│   ├── app.js                      The Express app (no server start), so tests can import it.
+│   ├── db/
+│   │   └── pool.js                 One shared Postgres connection pool for the whole app.
+│   ├── middleware/
+│   │   ├── requireAuth.js          Checks the JWT token. Rejects requests with no/bad token.
+│   │   └── withTenant.js           Reads tenant from JWT, sets req.db to tenant-scoped connection.
+│   ├── routes/
+│   │   ├── auth/
+│   │   │   ├── auth.js             Combines signup + login + me into one router.
+│   │   │   ├── signup.js           POST /v1/signup — creates a new tenant + owner account.
+│   │   │   ├── login.js            POST /v1/login — returns a signed JWT cookie.
+│   │   │   └── me.js               GET /v1/me — returns the logged-in user's profile.
+│   │   ├── products.routes.js      Maps product URLs to controller functions.
+│   │   └── orders.routes.js        Maps order URLs to controller functions.
+│   └── controllers/
+│       ├── products.controller.js  All product business logic and database queries.
+│       └── orders.controller.js    All order business logic, state machine, transactions.
+├── tests/
+│   ├── pagination/
+│   │   └── products.pagination.test.js     Cursor pagination returns every product once.
+│   └── isolation/
+│       ├── products.isolation.test.js      Cross-tenant checks for orders.
+│       └── products.cross-tenant.test.js   Cross-tenant checks for products.
+└── docs/
+    └── INDEX.md                    This file.
 ```
 
 ---
@@ -62,7 +72,7 @@ Incoming request
   cors()            allows requests from the frontend
       |
       v
-  requireAuth       verifies the JWT, sets req.user
+  requireAuth       verifies the JWT, sets req.userId, req.tenantId, req.role
       |
       v
   withTenant        sets req.db (tenant-scoped DB connection)
@@ -104,7 +114,7 @@ The controller only runs if every step above it passed.
 | POST   | /v1/orders                | Create a new order (with transaction)    |
 | GET    | /v1/orders                | List orders (cursor paginated)           |
 | GET    | /v1/orders/:id            | Fetch one order                          |
-| PATCH  | /v1/orders/:id/status     | Update order status (state machine only) |
+| PATCH  | /v1/orders/:id            | Update order status (state machine only) |
 
 ---
 
@@ -159,6 +169,7 @@ cancelled  cancelled cancelled cancelled
 ```
 
 Illegal transitions (e.g. created -> delivered) are rejected with 409.
+Unknown status values (e.g. "bananas") are rejected with 400 validation.
 Enforced in `orders.controller.js` via the `STATUS_TRANSITIONS` object.
 
 ### 5. Cursor pagination (not offset)
@@ -182,6 +193,22 @@ Creating an order touches multiple tables:
 If any step fails, `BEGIN/ROLLBACK` undoes everything.
 If all steps succeed, `COMMIT` saves everything at once.
 
+### 7. Every INSERT includes tenant_id
+
+RLS filters reads automatically, but it never fills in `tenant_id` on writes.
+Every INSERT must pass `req.tenantId` explicitly.
+
+```js
+// Correct
+INSERT INTO products (tenant_id, name, ...) VALUES ($1, $2, ...)  -- [req.tenantId, name, ...]
+
+// Wrong — row has no owner, and the insert fails or lands in no tenant
+INSERT INTO products (name, ...) VALUES ($1, ...)
+```
+
+`req.tenantId` comes from the signed JWT, never from the request body,
+so a caller cannot pick another tenant.
+
 ---
 
 ## Money Rule
@@ -196,6 +223,21 @@ KES 3,500   ->  stored as 350000
 **Why?** `0.1 + 0.2 = 0.30000000000000004` in floating point.
 Integer cents have no rounding errors.
 The frontend divides by 100 when displaying to users.
+
+---
+
+## Tests
+
+Run from `apps/api`: `npm test`
+
+| File | What it proves |
+|------|----------------|
+| `tests/pagination/products.pagination.test.js` | Cursor pagination returns every product exactly once and the cursor ends |
+| `tests/isolation/products.isolation.test.js` | Brio cannot read Acme's orders (404) |
+| `tests/isolation/products.cross-tenant.test.js` | Brio cannot read, list, edit or delete Acme's products (404) |
+
+Test cleanup uses a helper that sets the tenant first, because RLS applies to
+the test database user too. A plain DELETE would silently delete nothing.
 
 ---
 
