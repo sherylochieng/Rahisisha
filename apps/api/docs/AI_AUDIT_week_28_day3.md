@@ -34,7 +34,7 @@ AI is never used for cross-tenant guarantees.
 | `src/middleware/requireAuth.js` | Auth logic — AI cannot be trusted with authentication |
 | `src/middleware/withTenant.js` | Tenant isolation — the most critical security boundary in the app (see the 2026-10-28 entry below for one disclosed AI-suggested guard) |
 | All `req.db` usage in controllers | Every query must use the scoped connection — hand-verified line by line |
-| Cross-tenant test assertions | The human must understand and own what isolation means — not delegate it |
+| Cross-tenant test assertions | The human must understand and own what isolation means — not delegate it (see 2026-10-29 entry: the products cross-tenant assertions were AI-written and are disclosed there) |
 | All RLS policies in SQL migrations | Row Level Security is the last line of defence — always hand-written |
 
 ### Engineering decisions made by hand
@@ -124,5 +124,66 @@ AI is never used for cross-tenant guarantees.
   above. Not the cause of the bug.
 - RLS policies: ✅ untouched, hand-written in SQL migrations
 - Test helper and loop test: ✅ AI assisted (tests only, allowed per assignment)
+
+---
+
+## 2026-10-29 — Assignment gap review (Day 3 rubric check)
+
+**Area:** orders controller and routes, products cross-tenant test, docs
+**Boundary class:** CRUD and tests: AI allowed. Isolation logic: untouched.
+
+### What was found
+
+- `PATCH /v1/orders/:id/status` did not match the assignment's
+  `PATCH /v1/orders/:id`.
+- `updateOrderStatus` validated the status with
+  `!STATUS_TRANSITIONS[nextStatus] === undefined`, which compares a boolean to
+  `undefined` and is always false. Unknown statuses skipped the validation
+  check and returned 409 from the state machine instead of a 400 validation
+  error.
+- Task 5 asks for a cross-tenant test on products AND orders. Only orders was
+  covered (`products.isolation.test.js` actually tests `/v1/orders`).
+
+### What AI did
+
+- Claude found the validation bug by tracing the line with a sample input, and
+  explained it. Claude recommended `Object.hasOwn` over `in` because `in` also
+  matches inherited names such as `constructor`.
+- Claude wrote the full `tests/isolation/products.cross-tenant.test.js`,
+  including its assertions, and updated `docs/INDEX.md` and this audit file.
+  DISCLOSURE: this deviates from the hard rule that cross-tenant test
+  assertions are hand-written. The tests only VERIFY isolation; they do not
+  implement it (`withTenant` and RLS stay hand-written and were not changed).
+  I read each test and can explain why it expects 404.
+
+### What I did by hand
+
+- Renamed the route to `PATCH /v1/orders/:id` in `orders.routes.js` and
+  updated the comments and docs.
+- Replaced the broken validation line with the `Object.hasOwn` check.
+- Typed in the new test file, ran it, and committed everything.
+
+### Verification
+
+- `npm test`: 3 suites, 11 tests passing (3 pagination, 3 orders isolation,
+  5 products cross-tenant).
+- Cross-tenant checks for products: Brio gets 404 on fetch, update and delete;
+  Brio's list never contains the Acme product; Acme can still fetch her own
+  product and its name is unchanged.
+
+### Follow-ups
+
+- Catch errors in controllers and call `next(err)`.
+- Reset `app.current_tenant` before releasing a connection to the pool.
+- Rename `products.isolation.test.js` to `orders.isolation.test.js`.
+- Fix the `test:isolation` script in `package.json`.
+
+### AI Boundary Compliance (2026-10-29)
+
+- `withTenant`, `requireAuth`, RLS policies: ✅ not touched today
+- Order status validation fix: ✅ AI diagnosed, I made the change
+- Products cross-tenant test: ⚠️ AI-written assertions, disclosed above,
+  isolation behaviour itself hand-written and unchanged
+- Docs (`INDEX.md`, this file): ✅ AI assisted (allowed per assignment)
 
 ---
