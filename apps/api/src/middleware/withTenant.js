@@ -116,14 +116,17 @@
 //   fail (we hit this bug: `set_config(..., true)` outside a transaction)
 // - Example 2: the connection is never released, so the pool fills up and the
 //   API freezes for EVERY shop
-// - Example 3: a connection keeps a stale tenant and the next request reuses it
-//   (this is why the tenant is set again on every single request)
+// - Example 3: a connection keeps a stale tenant and the next request reuses it.
+//   Two defences stop this: the tenant is set again on every request, AND the
+//   setting is wiped when the connection goes back to the pool
 //
 // SYSTEM DESIGN PRINCIPLE: Resource lifecycle management
 // - The connection must stay open for the ENTIRE request, then be released
 // - We release it when the response is done ('finish' / 'close'), not in a
 //   `finally` block, because next() is synchronous and returns BEFORE the
 //   controller's database queries are complete
+// - Clean up before returning a shared resource, like cleaning a hotel room
+//   before the next guest arrives
 //
 // WHERE YOU WILL USE THIS IN FUTURE PROJECTS:
 // - Any multi-tenant app that uses Postgres Row Level Security
@@ -136,10 +139,10 @@
 // TRADEOFFS:
 // + The connection is held for exactly as long as the request needs it
 // + The tenant setting stays active for the full request
+// + The setting is wiped on release, so a reused connection starts clean
 // - One connection per request, so it does not scale to thousands of
 //   simultaneous users (a pooler such as PgBouncer solves that in production)
-// - The setting lasts for the whole connection, so it must be overwritten on
-//   every request (it is) and ideally reset on release (a known follow-up)
+// - One extra small query (RESET) per request
 // =============================================================================
 
 import { pool } from '../db/pool.js';
@@ -161,12 +164,22 @@ export async function withTenant(req, res, next) {
   // same connection twice would corrupt the pool.
   let released = false;
 
-  // release: gives the connection back to the pool, at most once.
+  // release: cleans the connection and gives it back to the pool, at most once
   // `&& client` makes it do nothing if the borrow never happened
   function release() {
     if (!released && client) {
       released = true;
-      client.release();
+
+      // Wipe the tenant setting BEFORE the connection goes back to the pool,
+      // so the next request can never inherit this request's tenant.
+      // If the wipe succeeds, return the connection normally.
+      // If it fails (broken connection, or an unfinished transaction),
+      // release(true) throws the connection away instead of reusing it,
+      // so a connection we could not clean never goes back into the pool
+      client.query('RESET app.current_tenant').then(
+        () => client.release(),
+        () => client.release(true)
+      );
     }
   }
 
@@ -184,7 +197,7 @@ export async function withTenant(req, res, next) {
     //   throw the setting away after this one query. The next query would see
     //   an empty tenant and fail with: invalid input syntax for type uuid: ""
     // Because the setting lasts for the connection, it is set again on every
-    // request, so a reused connection never keeps the previous tenant.
+    // request, and wiped again in release() when the request is over.
     await client.query(
       "SELECT set_config('app.current_tenant', $1, false)",
       [req.tenantId]
