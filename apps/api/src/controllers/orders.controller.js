@@ -236,8 +236,8 @@ export async function getOrder(req, res) {
 }
 
 // =============================================================
-// HANDLER: updateOrderStatus
-// Route:   PATCH /v1/orders/:id/status
+// HANDLER: updateOrderStatus...change made as per assignment
+// Route:   PATCH /v1/orders/:id
 //
 // The ONLY thing you can update on an order is its status.
 // And status can only move in directions the state machine allows.
@@ -251,7 +251,7 @@ export async function updateOrderStatus(req, res) {
   const { status: nextStatus } = req.body;
 
   // Validate that nextStatus is a real status value
-  if (!nextStatus || !STATUS_TRANSITIONS[nextStatus] === undefined) {
+  if (!nextStatus || !Object.hasOwn(STATUS_TRANSITIONS, nextStatus)) {
     return res.status(400).json({
       error: { code: 'validation', message: 'Invalid status value', details: {} },
     });
