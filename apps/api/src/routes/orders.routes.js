@@ -21,7 +21,7 @@ router.get('/', listOrders);
 router.post('/', createOrder);
 
 // GET   /v1/orders/:id         → fetch one order
-// PATCH /v1/orders/:id/status  → update status only (state machine)..removed nt compatible with assifgnmnt
+   // PATCH /v1/orders/:id         → update status only (state machine)..removed nt compatible with assifgnmnt
 router.get('/:id', getOrder);
 router.patch('/:id', updateOrderStatus);
 
