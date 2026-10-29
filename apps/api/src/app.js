@@ -78,6 +78,38 @@ app.get('/health', (_req, res) => {
 // Export the configured app — no listen() call here.
 // index.js calls listen() for the real server.
 // Test files import this directly and use supertest to send fake requests.
+
+// ── Error Handler ─────────────────────────────────────────────────────────────
+// WHAT: the "manager". Every error passed with next(err) ends up here
+// WHY:  without it, errors in async controllers vanish, the request hangs, and
+//       the database connection is never released
+// RULE: it must come AFTER all routes, because Express runs middleware in order
+//       and an error handler only catches errors from things above it.
+//       It must have exactly 4 parameters, or Express won't treat it as one
+app.use((err, req, res, next) => {
+  // If a response was already started, we can't send another. Let Express
+  // close the connection
+  if (res.headersSent) return next(err);
+
+  // Postgres error 22P02 = "invalid text representation".
+  // It happens when someone sends a malformed ID like /v1/orders/not-a-uuid.
+  // That is the caller's mistake, so we answer 400, not 500
+  if (err.code === '22P02') {
+    return res.status(400).json({
+      data: null,
+      error: { code: 'validation', message: 'Invalid ID format', details: {} },
+    });
+  }
+
+  // Anything else is our fault. Log the real error for us, but send the caller
+  // a generic message (never leak database details to the outside)
+  console.error(err);
+  res.status(500).json({
+    data: null,
+    error: { code: 'internal', message: 'Something went wrong' },
+  });
+});
+
 export default app;
 
 
