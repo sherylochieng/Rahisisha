@@ -97,7 +97,11 @@ app.use((err, req, res, next) => {
   if (err.code === '22P02') {
     return res.status(400).json({
       data: null,
-      error: { code: 'validation', message: 'Invalid ID format', details: {} },
+      error: { 
+         code: 'validation',
+         message: 'Request validation failed',
+         details: { id: 'must be a valid UUID' },
+        },
     });
   }
 
