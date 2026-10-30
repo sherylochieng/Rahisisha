@@ -3,6 +3,9 @@
 This file documents what the API does, how it is structured,
 and why decisions were made. Update it every time you add something new.
 
+For a deeper, file-by-file explanation, see the guides in `docs/src/` and
+`docs/tests/` and the reading order in `apps/api/README.md`.
+
 ---
 
 ## What This API Does
@@ -27,27 +30,28 @@ This isolation is enforced at two levels:
 
 ```
 apps/api/
+├── README.md                           Reading order and permanent rules for the guides.
 ├── src/
-│   ├── index.js                    Entry point. Starts the server, mounts all routes.
-│   ├── app.js                      The Express app (no server start), so tests can import it.
-│   │                               Also holds the central error handler.
+│   ├── index.js                        Entry point. Starts the server, mounts all routes.
+│   ├── app.js                          The Express app (no server start), so tests can import it.
+│   │                                   Also holds the central error handler.
 │   ├── db/
-│   │   └── pool.js                 One shared Postgres connection pool for the whole app.
+│   │   └── pool.js                     One shared Postgres connection pool for the whole app.
 │   ├── middleware/
-│   │   ├── requireAuth.js          Checks the JWT token. Rejects requests with no/bad token.
-│   │   ├── withTenant.js           Reads tenant from JWT, sets req.db to tenant-scoped connection.
-│   │   └── asyncHandler.js         Wraps async controllers so thrown errors reach the error handler.
+│   │   ├── requireAuth.js              Checks the JWT token. Rejects requests with no/bad token.
+│   │   ├── withTenant.js               Reads tenant from JWT, sets req.db to tenant-scoped connection.
+│   │   └── asyncHandler.js             Wraps async controllers so thrown errors reach the error handler.
 │   ├── routes/
 │   │   ├── auth/
-│   │   │   ├── auth.js             Combines signup + login + me into one router.
-│   │   │   ├── signup.js           POST /v1/signup — creates a new tenant + owner account.
-│   │   │   ├── login.js            POST /v1/login — returns a signed JWT cookie.
-│   │   │   └── me.js               GET /v1/me — returns the logged-in user's profile.
-│   │   ├── products.routes.js      Maps product URLs to controller functions.
-│   │   └── orders.routes.js        Maps order URLs to controller functions.
+│   │   │   ├── auth.js                 Combines signup + login + me into one router.
+│   │   │   ├── signup.js               POST /v1/signup — creates a new tenant + owner account.
+│   │   │   ├── login.js                POST /v1/login — returns a signed JWT cookie.
+│   │   │   └── me.js                   GET /v1/me — returns the logged-in user's profile.
+│   │   ├── products.routes.js          Maps product URLs to controller functions.
+│   │   └── orders.routes.js            Maps order URLs to controller functions.
 │   └── controllers/
-│       ├── products.controller.js  All product business logic and database queries.
-│       └── orders.controller.js    All order business logic, state machine, transactions.
+│       ├── products.controller.js      All product business logic and database queries.
+│       └── orders.controller.js        All order business logic, state machine, transactions.
 ├── tests/
 │   ├── pagination/
 │   │   └── products.pagination.test.js     Cursor pagination returns every product once.
@@ -57,7 +61,10 @@ apps/api/
 │   └── errors/
 │       └── error-handling.test.js          Bad input gets a clean answer and no connection leaks.
 └── docs/
-    └── INDEX.md                    This file.
+    ├── INDEX.md                        This file.
+    ├── AI_AUDIT_week_28_day3.md        Record of what AI wrote and what was done by hand.
+    ├── src/                            One guide per source file (same folders as src/).
+    └── tests/                          One guide per test file (same folders as tests/).
 ```
 
 ---
@@ -95,8 +102,8 @@ The controller only runs if every step above it passed.
 
 If a controller throws, the error travels past the routes to the
 **central error handler** at the bottom of `app.js`, which always sends a
-response. Once the response finishes, the database connection goes back
-to the pool.
+response. Once the response finishes, `withTenant` resets the tenant setting
+and returns the database connection to the pool.
 
 ---
 
@@ -131,16 +138,16 @@ to the pool.
 
 ### Status codes you will see
 
-| Code | Meaning                                                               |
-|------|-----------------------------------------------------------------------|
-| 200  | OK                                                                    |
-| 201  | Created (new product or order)                                       |
-| 204  | Deleted (soft delete, nothing to return)                              |
-| 400  | Validation failed, unknown order status, or malformed ID              |
-| 401  | Not logged in, or the session expired                                 |
-| 404  | Not found. Also what another tenant's record looks like (RLS hides it)|
-| 409  | Conflict: duplicate SKU, or an illegal order status change            |
-| 500  | Unexpected server error (details are logged, never sent to the caller)|
+| Code | Meaning                                                                |
+|------|------------------------------------------------------------------------|
+| 200  | OK                                                                     |
+| 201  | Created (new product or order)                                        |
+| 204  | Deleted (soft delete, nothing to return)                               |
+| 400  | Validation failed, unknown order status, or malformed ID               |
+| 401  | Not logged in, or the session expired                                  |
+| 404  | Not found. Also what another tenant's record looks like (RLS hides it) |
+| 409  | Conflict: duplicate SKU, or an illegal order status change             |
+| 500  | Unexpected server error (details are logged, never sent to the caller) |
 
 ---
 
@@ -165,6 +172,10 @@ filter every query automatically.
 setting after one query when no transaction is open, and the next query then
 fails with `invalid input syntax for type uuid: ""`.
 
+Because the setting lasts for the connection, `withTenant` runs
+`RESET app.current_tenant` before giving the connection back. If the reset
+fails, the connection is destroyed instead of reused.
+
 ### 2. Validation before database
 
 Every POST and PATCH runs Zod validation before touching the database.
@@ -181,6 +192,12 @@ If input is invalid, the request is rejected immediately with this shape:
   }
 }
 ```
+
+Every validation failure uses this same shape, with the same `message`.
+Each broken field gets its own entry in `details`. Nested fields use a dotted
+path, for example `items.0.quantity`, so two bad items never overwrite each
+other. An unknown order status returns `details: { status: ... }` and a
+malformed ID returns `details: { id: ... }`.
 
 ### 3. Soft delete on products
 
@@ -201,7 +218,9 @@ cancelled  cancelled cancelled cancelled
 
 Illegal transitions (e.g. created -> delivered) are rejected with 409.
 Unknown status values (e.g. "bananas") are rejected with 400 validation.
-Enforced in `orders.controller.js` via the `STATUS_TRANSITIONS` object.
+Enforced in `orders.controller.js` via the `STATUS_TRANSITIONS` object,
+checked with `Object.hasOwn` so inherited names like `constructor` are
+not accepted as statuses.
 
 ### 5. Cursor pagination (not offset)
 
@@ -212,6 +231,7 @@ Cursor:  SELECT ... WHERE id > $lastId LIMIT 10  always stable
 
 All list endpoints return `nextCursor`.
 Pass it as `?cursor=<id>` on the next request.
+The query fetches `limit + 1` rows; the extra row tells us a next page exists.
 
 ### 6. Transactions on orders
 
@@ -258,11 +278,12 @@ The fix has two parts:
 2. **The central error handler** at the bottom of `app.js` (after all routes)
    answers every error:
    - Postgres code `22P02` (malformed ID like `/v1/orders/not-a-uuid`) -> 400
-     with the standard `validation` envelope
+     with the standard `validation` envelope and `details: { id: ... }`
    - Anything else -> the real error is logged on the server, and the caller
      gets a generic 500 (`Something went wrong`), so no database details leak
 
-Rule for new routes: wrap every async controller in `asyncHandler`.
+Rule for new routes: wrap every async controller in `asyncHandler`
+(and import it in that routes file).
 
 ---
 
@@ -304,9 +325,9 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 
 | Item | Why |
 |------|-----|
-| Move `await pool.connect()` inside the `try` in `withTenant` | If the pool is exhausted, that line can fail before the error handling starts |
-| Reset `app.current_tenant` before releasing a connection to the pool | Stops a tenant setting from lingering on a reused connection |
 | Use a strong `JWT_SECRET` and database password before deployment | The current values are development placeholders |
+| Fix two stale comments in `orders.controller.js` | A `FOR UPDATE` mention in `createOrder` and `?status`/`?channel` filters on `listOrders` that do not exist yet |
+| Consider re-writing the AI-assisted parts of `withTenant.js` by hand | Keeps the "hand-written isolation" rule honest (see the AI audit) |
 
 ---
 
