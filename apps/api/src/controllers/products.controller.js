@@ -70,7 +70,7 @@ function validationError(res, zodError) {
   //   issue.path[0]  = the field name e.g. "priceCents"
   //   issue.message  = what was wrong e.g. "Expected number"
   for (const issue of zodError.issues) {
-    details[issue.path[0]] = issue.message;
+   details[issue.path.join('.')] = issue.message;
   }
 
   return res.status(400).json({
