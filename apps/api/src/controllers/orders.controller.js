@@ -59,7 +59,7 @@ const OrderCreate = z.object({
 function validationError(res, zodError) {
   const details = {};
   for (const issue of zodError.issues) {
-    details[issue.path[0]] = issue.message;
+    details[issue.path.join('.')] = issue.message;
   }
   return res.status(400).json({
     error: {
@@ -251,9 +251,13 @@ export async function updateOrderStatus(req, res) {
   const { status: nextStatus } = req.body;
 
   // Validate that nextStatus is a real status value
-  if (!nextStatus || !Object.hasOwn(STATUS_TRANSITIONS, nextStatus)) {
+    if (!nextStatus || !Object.hasOwn(STATUS_TRANSITIONS, nextStatus)) {
     return res.status(400).json({
-      error: { code: 'validation', message: 'Invalid status value', details: {} },
+      error: {
+        code: 'validation',
+        message: 'Request validation failed',
+        details: { status: 'must be one of the valid statuses' },
+      },
     });
   }
 
