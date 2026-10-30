@@ -476,9 +476,9 @@ CREATE INDEX webhook_events_unprocessed_idx
 CREATE TABLE IF NOT EXISTS wallet_entries (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id    UUID        NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  amount_cents INTEGER     NOT NULL,      -- positive = credit, negative = debit
-  reason       TEXT        NOT NULL,      -- 'sale' | 'refund' | 'commission' | 'payout'
-  reference_id UUID,                      -- order_id or payment_id
+  amount_cents BIGINT      NOT NULL,      -- positive = credit, negative = debit
+  reason       TEXT        NOT NULL CHECK (reason IN ('sale', 'refund', 'commission', 'payout')),
+  reference    TEXT,                      -- order id or M-Pesa receipt code
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
