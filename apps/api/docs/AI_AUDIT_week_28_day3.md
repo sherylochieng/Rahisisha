@@ -156,4 +156,9 @@ AI-written parts disclosed below.
   DISCLOSURE: this deviates from the hard rule that cross-tenant test
   assertions are hand-written. The tests only VERIFY isolation and error
   behaviour; they do not implement it.
+
+  - Error handler in app.js: validation response for malformed IDs was AI-assisted;
+  message and details (id) were changed by hand to match Task 3.
+- validationError helpers: issue.path.join('.') and the status-check details
+  were written by hand.
 -
