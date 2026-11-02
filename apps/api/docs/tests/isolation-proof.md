@@ -1,6 +1,6 @@
 # Isolation Proof — Week 28 Day 4
 
-**Location:** `apps/api/tests/isolation-proof.md`
+**Location:** `apps/api/docs/tests/isolation-proof.md`
 **Date of evidence:** 2 November 2026
 **Database:** `rahisisha` (PostgreSQL), connected as `rahisisha_user`
 
