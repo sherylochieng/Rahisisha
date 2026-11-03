@@ -1,5 +1,5 @@
 // =============================================================
-// wallet.js
+// wallet.service.js
 //
 // WHY THIS FILE EXISTS
 //   Every wallet money movement goes through these three helpers,
