@@ -55,7 +55,7 @@ The "Re-read" column is for Sheryl to tick (✔) after she has genuinely re-read
 | `reason TEXT NOT NULL CHECK (reason IN (...))` | Same four-reason rule | SELF (typed from AI instruction) | ☐ |
 | `reference TEXT` | Same as 021 | SELF (typed from AI instruction) | ☐ |
 
-### `apps/api/src/wallet/wallet.js`
+### `apps/api/src/services/wallet.service.js`
 
 | Lines | What it does | Who | Re-read |
 |---|---|---|---|
