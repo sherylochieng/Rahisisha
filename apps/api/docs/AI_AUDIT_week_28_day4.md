@@ -14,7 +14,8 @@ This audit says what actually happened, including where the AI help went beyond 
 |---|---|---|
 | Ledger table fix | `sql/migrations/021_fix_wallet_entries.sql` | AI wrote the shape and comments. Sheryl filled in `BIGINT` and `TEXT` and typed the file. Sheryl's first attempt at the reason list was `credit, debit`; the AI corrected it to `sale, refund, commission, payout`. |
 | Schema sync | `sql/SCHEMA.sql` (wallet section) | AI described the three changes. Sheryl typed them. |
-| Wallet helpers | `apps/api/src/wallet/wallet.js` | AI wrote the headers, comments, function structure and SQL text. Sheryl filled in the money rules (see the Money Audit). |
+| Wallet helpers | `apps/api/src/services/wallet.service.js` | AI wrote the headers, comments, function structure and SQL text. Sheryl filled in the money rules (see the Money Audit). |
+| Wallet helper tests | `apps/api/tests/wallet.service.test.js` | AI wrote the tests and the expected values (test scaffolding, allowed). Sheryl ran them: 16 passed. She did not write them. |
 | Isolation test suite | `apps/api/tests/isolation.test.js` | AI wrote it: setup, seed inserts, coverage guards, the attack queries, and the expected values (0, 0, 0, 1). Sheryl explained in her own words what each attack must find before the values were supplied. |
 | Isolation proof | `apps/api/docs/tests/isolation-proof.md` | AI wrote the document, including the explanations and the conclusion. Sheryl ran both queries and the test run; the results in the document are her real output. |
 | Guides | `apps/api/docs/tests/isolation.test.md` | AI wrote it (documentation, allowed). |
@@ -25,7 +26,7 @@ This audit says what actually happened, including where the AI help went beyond 
 ## 2. Honest assessment against the 40/60 rule
 
 - The manual share on Day 4 is **clearly below 40%**.
-- **Ledger logic (not allowed for AI):** the AI wrote the structure, comments and SQL text of `wallet.js`. Sheryl wrote the six money-rule values. The rule says ledger logic should be hand-written, so this is only partly within the rule.
+- **Ledger logic (not allowed for AI):** the AI wrote the structure, comments and SQL text of `wallet.service.js`. Sheryl wrote the six money-rule values. The rule says ledger logic should be hand-written, so this is only partly within the rule.
 - **Isolation proof (not allowed for AI):** the AI wrote the test suite and the proof document. Sheryl ran everything and supplied the real results, but did not write the proof herself. This is outside the rule.
 - Where Sheryl understood the idea and where she did not is recorded in section 5.
 
@@ -105,12 +106,14 @@ Note: the attack queries are written once and run for all 16 tables. The wallet 
 | Query: RLS enabled and forced | 16 tables `t` / `t`. 4 tables `f` / `f` by design (`tenants`, `users`, `webhook_events`, `audit_logs`) |
 | Query: policies | 16 policies, all `tenant_isolation`, all reading `app.current_tenant` |
 | Isolation suite (`npm test -- tests/isolation.test.js`) | 66 passed, 66 total, 3.619 s |
+| Wallet helper tests (`npm test -- tests/wallet.service.test.js`) | 16 passed: credit adds, debit subtracts, bad amounts refused, refused credit writes nothing, balance is a number, unknown reason refused by the database |
+| Full suite after the changes (3 Nov 2026) | 6 suites, 100 tests passed |
 | Day 3 HTTP tests (still passing) | Products: 404 on read, update, delete. Orders: 404 on read |
 
 **Wallet specifics:**
 
 - `wallet_entries` has `ENABLE` and `FORCE ROW LEVEL SECURITY` and the standard policy. Migration 021 did not change them.
-- `wallet.js` takes the tenant from the connection's `app.current_tenant`, never from a caller or a request body.
+- `wallet.service.js` takes the tenant from the connection's `app.current_tenant`, never from a caller or a request body.
 - Day 4 changed **no** isolation or authentication code.
 
 **Known exceptions and risks (also in the proof document):**
@@ -137,17 +140,16 @@ Note: the attack queries are written once and run for all 16 tables. The wallet 
 
 ## 6. What would raise the manual share (next steps)
 
-1. Re-type the two `INSERT` statements in `wallet.js` by hand, then update the table above.
+1. Re-type the two `INSERT` statements in `wallet.service.js` by hand, then update the table above.
 2. Write the proof document's conclusion in her own words.
-3. Write the helper tests for `credit`, `debit` and `balance` by hand.
+3. Re-type the helper tests in `wallet.service.test.js` by hand (the AI wrote the first version).
 4. Tick the "Re-read" boxes only after genuinely re-reading each line.
 
 ---
 
 ## 7. Still open
 
-- Helper tests for `credit`, `debit`, `balance` (not written yet).
 - `INDEX.md` and file guides for the wallet (not updated yet).
 - Fix or formally accept the `audit_logs` exception.
 - Use a non-owner database role for the app so wallet rows are truly append-only.
-- Replace the development `JWT_SECRET` and database password with strong values before deployment.
+- `JWT_SECRET` was replaced on 3 November 2026 with a strong random value. The database password is still the development one and **must be replaced before deployment**.
