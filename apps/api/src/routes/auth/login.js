@@ -146,18 +146,40 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Find this user's membership
-    const membershipQuery = tenantResult
-      ? // Production: must belong to THIS specific tenant
-        await pool.query(
-          'SELECT tenant_id, role FROM memberships WHERE user_id = $1 AND tenant_id = $2 LIMIT 1',
-          [user.id, tenantResult.rows[0].id],
-        )
-      : // Development: take their first membership
-        await pool.query(
-          'SELECT tenant_id, role FROM memberships WHERE user_id = $1 LIMIT 1',
-          [user.id],
-        );
+       // Find this user's membership.
+    // memberships is locked by shop, and at login no shop is stamped yet. So we
+    // open a short transaction and tell the database WHO is logging in. This
+    // happens ONLY AFTER the password was verified above. The migration 022 rule
+    // (login_lookup) then lets this one person see their OWN membership rows.
+    // true = the note disappears by itself when the transaction ends, so it can
+    // never leak to another request that reuses this connection
+    const client = await pool.connect();
+    let membershipQuery;
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.login_user', $1, true)", [user.id]);
+
+      membershipQuery = tenantResult
+        ? // Production: must belong to THIS specific tenant
+          await client.query(
+            'SELECT tenant_id, role FROM memberships WHERE user_id = $1 AND tenant_id = $2 LIMIT 1',
+            [user.id, tenantResult.rows[0].id],
+          )
+        : // Development: take their first membership
+          await client.query(
+            'SELECT tenant_id, role FROM memberships WHERE user_id = $1 LIMIT 1',
+            [user.id],
+          );
+
+      await client.query('COMMIT');
+    } catch (err) {
+      // Something failed: undo, then let the outer catch answer 500
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      // Always give the connection back to the pool, exactly once
+      client.release();
+    }
 
     if (membershipQuery.rows.length === 0) {
       // User exists but does not belong to this tenant — REJECT
