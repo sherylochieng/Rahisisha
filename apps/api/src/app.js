@@ -29,8 +29,10 @@ import dotenv       from 'dotenv';
 import authRouter     from './routes/auth/auth.js';
 import productsRouter from './routes/products.routes.js';
 import ordersRouter   from './routes/orders.routes.js';
+import dashboardRouter from './routes/dashboard.routes.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { withTenant }  from './middleware/withTenant.js';
+
 
 // Load .env variables (DATABASE_URL, JWT_SECRET, etc.) into process.env
 // Must be called before any code that reads process.env
@@ -67,6 +69,12 @@ app.use('/v1/products', requireAuth, withTenant, productsRouter);
 
 // Order routes — same double guard as products
 app.use('/v1/orders', requireAuth, withTenant, ordersRouter);
+
+// Dashboard route: same double guard as products and orders.
+// requireAuth checks the login cookie, withTenant gives us the shop-scoped
+// database connection (req.db). The controller never sees a request that
+// skipped either one
+app.use('/v1/dashboard', requireAuth, withTenant, dashboardRouter);
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 // Used by monitoring tools (and your tests) to confirm the server is alive
