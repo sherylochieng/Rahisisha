@@ -89,6 +89,11 @@ router.post('/signup', async (req, res) => {
       httpOnly: true,
       secure:   process.env.NODE_ENV === 'production',
       sameSite: 'strict',
+       // domain: which addresses the badge is valid for.
+      // ".lvh.me" = lvh.me AND every shop address under it (skirt-shirt.lvh.me).
+      // If COOKIE_DOMAIN is not set, this stays undefined and the badge works
+      // only at the address that gave it, exactly like before
+      domain:   process.env.COOKIE_DOMAIN || undefined,
       maxAge:   7 * 24 * 60 * 60 * 1000,
     });
 
