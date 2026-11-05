@@ -97,9 +97,19 @@ CREATE INDEX        memberships_tenant_idx          ON memberships (tenant_id);
 
 ALTER TABLE memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE memberships FORCE  ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON memberships
-  USING (tenant_id = current_setting('app.current_tenant', TRUE)::UUID);
 
+-- Rule 1: you see rows for the shop stamped on your connection.
+-- NULLIF turns an EMPTY setting (left by a reused connection) into NULL,
+-- because '' cannot be cast to uuid and would crash the lock (migration 022)
+CREATE POLICY tenant_isolation ON memberships
+  USING (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID);
+
+-- Rule 2 (migration 022): LOGIN may read the user's OWN membership rows.
+-- Read-only (FOR SELECT). Works only while the login step has set
+-- app.login_user, after the password was verified, inside a transaction
+CREATE POLICY login_lookup ON memberships
+  FOR SELECT
+  USING (user_id = NULLIF(current_setting('app.login_user', TRUE), '')::UUID);
 
 -- =============================================================
 -- TABLE 4: brand_profiles
