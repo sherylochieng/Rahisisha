@@ -1,7 +1,7 @@
-# Isolation Proof — Week 28 Day 4
+# Isolation Proof — Week 28 (Day 4, updated on Day 5)
 
 **Location:** `apps/api/docs/tests/isolation-proof.md`
-**Date of evidence:** 2 November 2026
+**Date of evidence:** Evidence A and the first run of Evidence C: 2 November 2026. Evidence B and the re-run of Evidence C: 5 November 2026, after migration 022.
 **Database:** `rahisisha` (PostgreSQL), connected as `rahisisha_user`
 
 ---
@@ -43,7 +43,7 @@ Every project where users must not see each other's data: invoicing, booking, sc
 ## THE ROUTINE IN ONE PICTURE
 
 ```
-  1. LOCK every table     RLS in each migration (003 to 019)
+  1. LOCK every table     RLS in each migration (003 to 019, plus 022)
           │
   2. CHECK the locks      Evidence A + B  (ask the database)
           │
@@ -114,6 +114,10 @@ ORDER BY c.relname;
 (20 rows)
 ```
 
+### Note on dates
+
+This result is from 2 November 2026. Migration 022 (5 November) only changed policies. It did not enable or disable RLS on any table. Re-run Query A after any migration to refresh this evidence.
+
 ### What it shows
 
 - **16 tables** have RLS on **and** forced: brand_profiles, content_posts, conversations, customers, inventory_movements, memberships, messages, order_items, orders, product_media, product_variants, products, stock_reservations, subscriptions, usage_counters, wallet_entries.
@@ -126,7 +130,7 @@ ORDER BY c.relname;
 ### The query
 
 ```sql
-SELECT tablename, policyname, qual FROM pg_policies WHERE schemaname = 'public' ORDER BY tablename;
+SELECT tablename, policyname, cmd, qual FROM pg_policies WHERE schemaname = 'public' ORDER BY tablename, policyname;
 ```
 
 ### What the query means
@@ -135,7 +139,8 @@ SELECT tablename, policyname, qual FROM pg_policies WHERE schemaname = 'public' 
 |---|---|
 | `pg_policies` | PostgreSQL's own list of every RLS rule |
 | `tablename` | The table the rule protects |
-| `policyname` | The rule's name (ours is `tenant_isolation`) |
+| `policyname` | The rule's name (`tenant_isolation` on every table; `login_lookup` as well on `memberships`) |
+| `cmd` | Which commands the rule covers. `ALL` = read and write. `SELECT` = read only |
 | `qual` | The rule itself: the condition a row must meet to be visible |
 
 ### Where and how to use it
@@ -144,43 +149,55 @@ SELECT tablename, policyname, qual FROM pg_policies WHERE schemaname = 'public' 
 - **When:** together with Evidence A. Evidence A shows the lock is on. This shows the lock has the right rule.
 - **Why both:** a lock turned on with a wrong or missing rule would hide everything or nothing. A typo in the setting name (for example `app.tenant_id` instead of `app.current_tenant`) would silently break isolation.
 
-### Expected result
+### Expected result (updated for migration 022)
 
-One row per tenant table, each with the policy `tenant_isolation` and this exact rule:
+**17 rows.**
+
+- 15 tables: one `tenant_isolation` rule (`ALL`) with this exact text:
 
 ```
 (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
 ```
 
-### Result (run on 2 November 2026)
+- `memberships`: **two** rules.
+  - `tenant_isolation` (`ALL`): the same rule, made safe against an empty setting with `NULLIF`.
+  - `login_lookup` (`SELECT` only): a user may read their own membership rows, only while `app.login_user` is set.
+
+### Result (run on 5 November 2026)
 
 ```
-      tablename      |    policyname    |                                  qual
----------------------+------------------+-------------------------------------------------------------------------
- brand_profiles      | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- content_posts       | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- conversations       | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- customers           | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- inventory_movements | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- memberships         | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- messages            | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- order_items         | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- orders              | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- product_media       | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- product_variants    | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- products            | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- stock_reservations  | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- subscriptions       | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- usage_counters      | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
- wallet_entries      | tenant_isolation | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
-(16 rows)
+      tablename      |    policyname    |  cmd   |                                           qual
+---------------------+------------------+--------+-------------------------------------------------------------------------------------------
+ brand_profiles      | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ content_posts       | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ conversations       | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ customers           | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ inventory_movements | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ memberships         | login_lookup     | SELECT | (user_id = (NULLIF(current_setting('app.login_user'::text, true), ''::text))::uuid)
+ memberships         | tenant_isolation | ALL    | (tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''::text))::uuid)
+ messages            | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ order_items         | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ orders              | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ product_media       | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ product_variants    | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ products            | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ stock_reservations  | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ subscriptions       | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ usage_counters      | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+ wallet_entries      | tenant_isolation | ALL    | (tenant_id = (current_setting('app.current_tenant'::text, true))::uuid)
+(17 rows)
 ```
 
 ### What it shows
 
-- Exactly **16 policies**, matching the 16 tables in Evidence A.
-- Every policy has the **same name** and the **same rule**, reading `app.current_tenant`, the setting that `withTenant.js` writes on every request.
-- The `true` inside `current_setting(..., true)` means "if no tenant is set, return nothing instead of crashing".
+- **17 rules**: 16 `tenant_isolation` (one per tenant table) plus the one extra `login_lookup` on `memberships`.
+- 15 tables still use the **same name** and the **same rule**, reading `app.current_tenant`, the setting that `withTenant.js` writes on every request.
+- `memberships` is the only table with a different rule text. `NULLIF(..., '')` turns an empty setting into NULL. A reused database connection leaves an empty string behind, and an empty string cannot be read as a uuid, so without `NULLIF` the lock would crash instead of hiding rows.
+- `login_lookup` is `SELECT` only. It cannot be used to insert, update or delete a membership.
+
+### Why `login_lookup` exists
+
+At login, nobody has a shop stamped on the connection yet, because login is how we find out which shop a person belongs to. The shop rule therefore hid every membership row, and correct passwords were refused with 403. After the password is verified, `login.js` opens a short transaction and sets `app.login_user` to that user (transaction-only). The new rule then shows that one person's own rows and nothing else.
 
 ---
 
@@ -238,6 +255,26 @@ Time:        3.619 s
 
 All 16 tables: a second shop found nothing, changed nothing and deleted nothing, and the owner's row was intact afterwards.
 
+### Re-run on 5 November 2026 (after migration 022 and the login change)
+
+```
+Isolation tests only (npm run test:isolation):
+Test Suites: 3 passed, 3 total
+Tests:       74 passed, 74 total
+
+Whole project (npm test):
+Test Suites: 6 passed, 6 total
+Tests:       100 passed, 100 total
+```
+
+`tests/isolation.test.js` (the 66-test suite, which includes `memberships`) was among the passing suites. Changing the `memberships` rules did not break isolation for any of the 16 tables.
+
+### Manual check on 5 November 2026 (live, through the website)
+
+- Shop "skirt Shirt" had two products. Its dashboard listed them.
+- A second shop, "Brio Hardware", signed up and logged in. Its dashboard showed "No products yet" and zero for orders and wallet. It never showed the other shop's products.
+- This was done through the real login, so it also exercised `login_lookup`.
+
 ### Related earlier evidence (Day 3, through the HTTP API)
 
 - `tests/isolation/products.cross-tenant.test.js`: Brio gets **404** when reading, updating or deleting an Acme product.
@@ -261,18 +298,25 @@ All 16 tables: a second shop found nothing, changed nothing and deleted nothing,
 1. **`audit_logs` exception.** Before any endpoint exposes it, add RLS or use a separate admin role.
 2. **The app's database user owns the tables.** `rahisisha_user` owns them, so in theory it could run `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` or edit wallet rows. Guard 2 in the test would catch a disabled RLS. A future hardening step: run the app as a non-owner role with only the permissions it needs (for the wallet: read and insert only).
 3. **Attacks are tested "by id".** Policies without a `WITH CHECK` clause use the same rule for writes. A dedicated test that Brio cannot insert a row with Acme's `tenant_id` is a good next addition.
+4. **`login_lookup` has no dedicated automated test yet.** The isolation suite shows that a second shop cannot read another shop's membership when `app.login_user` is NOT set. It does not yet try to abuse the new rule directly (for example: set `app.login_user` to a user id and confirm that only that user's rows appear, and that update and insert are refused). The rule was checked on a scratch database and by the live Brio login, but a permanent test should be added. Also, `login_lookup` is only as safe as the code that sets `app.login_user`: it must be set only after the password is verified, inside a transaction, with `set_config(..., true)`.
 
 ---
 
 ## CONCLUSION
 
+### Day 4 conclusion (2 November 2026, written by the AI)
+
 On 2 November 2026: all 16 tenant-owned tables have Row Level Security enabled and forced (Evidence A), each with the identical `tenant_isolation` rule reading `app.current_tenant` (Evidence B), and a 66-test suite showed that a second shop could neither read, change nor delete another shop's row in any of them (Evidence C). Four tables have no RLS by design, and each is documented above. The two main things to improve next are the `audit_logs` exception and running the app as a non-owner database role.
+
+### Day 5 update (5 November 2026): write this in your own words
+
+_Sheryl: write 2 or 3 sentences here. Say what changed (the extra `login_lookup` rule on `memberships`), why it was needed (login could not find the user's shop), and what still protects the other shops (the lock stayed on, the suite still passes, the new rule is read-only). Delete this italic paragraph when you have written it._
 
 ---
 
 ## HOW TO REPEAT THIS PROOF
 
-1. Run Query A and Query B in `psql`.
-2. Run `npm test -- tests/isolation.test.js`.
+1. Run Query A and Query B in `psql`. Query B should return 17 rows.
+2. Run `npm test` (all suites) or `npm test -- tests/isolation.test.js` (the isolation suite).
 3. Compare with the expected results above.
 4. Any difference is a finding. Fix it before shipping.
