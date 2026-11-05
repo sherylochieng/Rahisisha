@@ -52,7 +52,10 @@ app.use(cookieParser());
 // cors() → allows our frontend (port 3001) to talk to this API (port 3000)
 // credentials: true is required when the frontend sends cookies with requests
 app.use(cors({
-  origin: 'http://localhost:3001',
+  // The one website address allowed to call this API with cookies.
+  // Set WEB_ORIGIN in .env (for example http://lvh.me:3001). If it is missing,
+  // we keep the old default, so nothing breaks
+  origin: process.env.WEB_ORIGIN || 'http://localhost:3001',
   credentials: true,
 }));
 
