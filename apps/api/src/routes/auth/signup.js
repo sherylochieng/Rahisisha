@@ -60,6 +60,11 @@ router.post('/signup', async (req, res) => {
   [tenant_name, uniqueSlug],
     );
   const tenant_id = tenantResult.rows[0].id;
+      // Stamp this transaction with the new shop, so the memberships lock lets us in.
+    // true = the stamp lasts only until COMMIT or ROLLBACK, so it can never leak
+    // into another request that reuses this connection
+      // true = the stamp disappears by itself when signup finishes
+    await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenant_id]);
 
     const userResult = await client.query(
       `INSERT INTO users (phone, name, password_hash) VALUES ($1, $2, $3) RETURNING id`,
