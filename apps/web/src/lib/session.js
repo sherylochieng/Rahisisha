@@ -66,4 +66,17 @@ export async function requireSession() {
   if (!token) redirect('/login');
 
   // STEP 4: show the note to the API. We pass it along as a Cookie header,
-  //
+  // exactly like a browser would
+  const res = await fetch(`${API_URL}/me`, {
+    headers: { Cookie: `token=${token}` },
+    cache: 'no-store',
+  });
+
+  // STEP 5: the API did not accept the note (expired, fake, tampered with).
+  // Send the visitor to the login page
+  if (!res.ok) redirect('/login');
+
+  // STEP 6: the API said yes. It answers { user, tenant }
+  const { user, tenant } = await res.json();
+  return { user, tenant };
+}
