@@ -177,6 +177,9 @@ router.post('/login', async (req, res) => {
       httpOnly: true,
       secure:   process.env.NODE_ENV === 'production',
       sameSite: 'strict',
+            // domain: which addresses the badge is valid for. ".lvh.me" covers lvh.me
+      // and every shop address under it. Unset = works only at the giving address
+      domain:   process.env.COOKIE_DOMAIN || undefined,
       maxAge:   7 * 24 * 60 * 60 * 1000,
     });
 
