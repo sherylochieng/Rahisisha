@@ -65,6 +65,17 @@
 //    - The same envelope the other endpoints use, so the web page handles all
 //      responses in one way
 //
+// 7. The balance comes from balance() in wallet.service.js, not a new query
+//    - One rule for "how a balance is counted", in one place. The dashboard
+//      and the wallet page can never disagree
+//
+// 8. "Latest 5 products" means the 5 newest that are not deleted
+//    - We hide soft-deleted products (deleted_at IS NOT NULL), exactly like
+//      the products list does. Drafts and archived ones are included, and
+//      each row carries its status so the page can label it
+//    - Rows keep the database's names (price_cents, created_at), the same
+//      shape GET /v1/products already returns
+//
 // -----------------------------------------------------------------------------
 // PRACTICAL EXAMPLES — where to use this file and how
 // -----------------------------------------------------------------------------
@@ -78,12 +89,15 @@
 // EXAMPLE 2: trying it by hand (after logging in, in the same browser)
 //   Open  http://localhost:3000/v1/dashboard  → you see the JSON answer
 //
-// EXAMPLE 3: what the answer looks like at the end of Day 5
+// EXAMPLE 3: what the answer looks like
 //   { "data": { "ordersToday": 7,
 //               "balanceCents": 350000,
-//               "latestProducts": [ { "id": "...", "name": "Dress" } ] } }
-//   Right now (step 9a) only "ordersToday" is there. The other two are added
-//   in the next small steps
+//               "latestProducts": [
+//                 { "id": "...", "name": "Dress", "price_cents": 250000,
+//                   "status": "active", "created_at": "2026-11-05T09:12:00Z" }
+//               ] } }
+//   A brand-new shop gets:
+//   { "data": { "ordersToday": 0, "balanceCents": 0, "latestProducts": [] } }
 //
 // EXAMPLE 4: a test for it (later)
 //   Log in as Acme, create 2 orders, call GET /v1/dashboard, expect
@@ -99,13 +113,18 @@
 // TRADEOFFS:
 // + One request, one lock, easy to test
 // - The page gets all three numbers or none (one error hides everything)
-// - Queries run one after the other. Fine now; very large tables might need
-//   indexes or caching later (created_at is already indexed on orders)
+// - Queries run one after the other, because one database connection handles
+//   one query at a time. Fine now; very large tables might need indexes or
+//   caching later (created_at is already indexed on orders and products)
 //
 // HOW TO USE:
 // - Mounted in app.js:  app.use('/v1/dashboard', requireAuth, withTenant, ...)
 // - Called by the dashboard page with the login cookie
 // =============================================================================
+
+// balance: your Day 4 function. It adds up every line in the wallet ledger and
+// returns a number in cents. We pass it req.db, so it only sees this shop's lines
+import { balance } from '../services/wallet.service.js';
 
 // -----------------------------------------------------------------------------
 // getDashboard — handles GET /v1/dashboard
@@ -141,8 +160,39 @@ export async function getDashboard(req, res) {
   const ordersToday = Number(ordersResult.rows[0].count);
 
   // ---------------------------------------------------------------------------
-  // TEMPORARY answer: only the first question for now.
-  // The wallet balance and the latest products are added in the next steps.
+  // QUESTION 2: how much money is in this shop's wallet?
+  //
+  // We do NOT write a new SUM here. balance() already knows the rule (the
+  // ledger total, in cents), so the dashboard can never disagree with the
+  // wallet (Decision 7). It returns a plain number, so no conversion is needed
   // ---------------------------------------------------------------------------
-  res.json({ data: { ordersToday } });
+  const balanceCents = await balance(req.db);
+
+  // ---------------------------------------------------------------------------
+  // QUESTION 3: what are the 5 newest products?
+  //
+  // Reading the query:
+  //   SELECT id, name, ...        = only the columns the dashboard card needs
+  //   WHERE deleted_at IS NULL    = skip soft-deleted products (Decision 8)
+  //   ORDER BY created_at DESC    = newest first
+  //   LIMIT 5                     = never more than five rows
+  // Again no tenant filter: RLS does it (Decision 4)
+  // ---------------------------------------------------------------------------
+  const productsResult = await req.db.query(
+    `SELECT id, name, price_cents, status, created_at
+     FROM products
+     WHERE deleted_at IS NULL
+     ORDER BY created_at DESC
+     LIMIT 5`
+  );
+
+  // .rows is already a list of plain objects. An empty list means "no products
+  // yet", which the page can show as a friendly "Add your first product" message
+  const latestProducts = productsResult.rows;
+
+  // ---------------------------------------------------------------------------
+  // THE ANSWER: all three questions in one packet, wrapped in { data: ... }
+  // (Decision 6). Money is still in whole cents (Rules)
+  // ---------------------------------------------------------------------------
+  res.json({ data: { ordersToday, balanceCents, latestProducts } });
 }
