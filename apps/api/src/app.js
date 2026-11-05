@@ -30,6 +30,7 @@ import authRouter     from './routes/auth/auth.js';
 import productsRouter from './routes/products.routes.js';
 import ordersRouter   from './routes/orders.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
+import tenantsRouter from './routes/tenants.routes.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { withTenant }  from './middleware/withTenant.js';
 
@@ -75,6 +76,12 @@ app.use('/v1/orders', requireAuth, withTenant, ordersRouter);
 // database connection (req.db). The controller never sees a request that
 // skipped either one
 app.use('/v1/dashboard', requireAuth, withTenant, dashboardRouter);
+
+// Tenants lookup: PUBLIC on purpose. No requireAuth, no withTenant.
+// The website's gate guard (proxy.js) calls this BEFORE anyone is logged in,
+// to turn an address word (skirt-shirt) into a shop. It only returns the
+// shop's id, name and slug. Never add private routes to this router
+app.use('/v1/tenants', tenantsRouter);
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 // Used by monitoring tools (and your tests) to confirm the server is alive
