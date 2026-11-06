@@ -403,6 +403,7 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 | Match the subdomain against the login token at deployment | Today the dashboard runs at plain `localhost`, so this check is deferred |
 | Run the app as a non-owner database role; decide RLS for `audit_logs` | See the known limitations in `docs/tests/isolation-proof.md` |
 | Make the dashboard success envelope match the others (`error: null`) | Small inconsistency with `/v1/products` |
+| Write guides for the web layout, sidebar and dashboard page | `apps/web/docs/` has guides for `proxy.js`, `session.js` and `serverApi.js` only |
 
 ---
 
