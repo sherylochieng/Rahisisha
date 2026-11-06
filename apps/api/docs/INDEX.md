@@ -404,6 +404,7 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 | Run the app as a non-owner database role; decide RLS for `audit_logs` | See the known limitations in `docs/tests/isolation-proof.md` |
 | Make the dashboard success envelope match the others (`error: null`) | Small inconsistency with `/v1/products` |
 | Write guides for the web layout, sidebar and dashboard page | `apps/web/docs/` has guides for `proxy.js`, `session.js` and `serverApi.js` only |
+| Fix slugify (cut, then trim dashes); add a reserved-slug check (admin, www, api); make session.js treat an API outage like serverApi.js | Found on Day 5, planned after Day 6 |
 
 ---
 
