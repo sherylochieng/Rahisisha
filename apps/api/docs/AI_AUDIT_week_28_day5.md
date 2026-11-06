@@ -33,6 +33,8 @@ For every file, the AI explained the idea in small steps and gave me the code. I
 | 9 | `wallet.service.js` move and its tests | AI | Sheryl | Allowed |
 | 10 | `isolation-proof.md`, `demo-week28.md` | AI drafted | Sheryl typed, wrote own conclusion | Documentation: allowed |
 
+- Added and ran the login_lookup isolation test (7 checks, passing). AI drafted it, I typed it and ran it.
+
 **Honest statement:** items 7 and 8 touch authentication, which the rule says AI must not write. The AI drafted them. I typed them, ran them, and checked the result, but I did not design them myself. I am recording this openly instead of hiding it.
 
 ---
