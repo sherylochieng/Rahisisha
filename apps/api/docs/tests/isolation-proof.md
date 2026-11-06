@@ -1,7 +1,7 @@
 # Isolation Proof — Week 28 (Day 4, updated on Day 5)
 
 **Location:** `apps/api/docs/tests/isolation-proof.md`
-**Date of evidence:** Evidence A and the first run of Evidence C: 2 November 2026. Evidence B and the re-run of Evidence C: 5 November 2026, after migration 022.
+**Date of evidence:** Evidence A and the first run of Evidence C: 2 November 2026. Evidence B and the first re-run of Evidence C: 5 November 2026, after migration 022. Latest re-run: 6 November 2026.
 **Database:** `rahisisha` (PostgreSQL), connected as `rahisisha_user`
 
 ---
@@ -269,6 +269,20 @@ Tests:       100 passed, 100 total
 
 `tests/isolation.test.js` (the 66-test suite, which includes `memberships`) was among the passing suites. Changing the `memberships` rules did not break isolation for any of the 16 tables.
 
+### Re-run on 6 November 2026 (after adding the login_lookup test)
+
+```
+Isolation tests only (npm run test:isolation):
+Test Suites: 4 passed, 4 total
+Tests:       81 passed, 81 total
+
+Whole project (npm test):
+Test Suites: 7 passed, 7 total
+Tests:       107 passed, 107 total
+```
+
+The 7 new tests come from `tests/isolation/login-lookup.isolation.test.js` (74 + 7 = 81 isolation tests, 100 + 7 = 107 in total).
+
 ### Manual check on 5 November 2026 (live, through the website)
 
 - Shop "skirt Shirt" had two products. Its dashboard listed them.
@@ -279,6 +293,10 @@ Tests:       100 passed, 100 total
 
 - `tests/isolation/products.cross-tenant.test.js`: Brio gets **404** when reading, updating or deleting an Acme product.
 - `tests/isolation/orders.isolation.test.js`: Brio gets **404** on an Acme order.
+
+### Added on Day 5 (directly at the database)
+
+- `tests/isolation/login-lookup.isolation.test.js`: attacks the `login_lookup` rule directly (7 checks: nothing visible without a login name, only the named person's row with one, and UPDATE, DELETE and INSERT all fail).
 
 ---
 
@@ -298,7 +316,7 @@ Tests:       100 passed, 100 total
 1. **`audit_logs` exception.** Before any endpoint exposes it, add RLS or use a separate admin role.
 2. **The app's database user owns the tables.** `rahisisha_user` owns them, so in theory it could run `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` or edit wallet rows. Guard 2 in the test would catch a disabled RLS. A future hardening step: run the app as a non-owner role with only the permissions it needs (for the wallet: read and insert only).
 3. **Attacks are tested "by id".** Policies without a `WITH CHECK` clause use the same rule for writes. A dedicated test that Brio cannot insert a row with Acme's `tenant_id` is a good next addition.
-4. **`login_lookup` has no dedicated automated test yet.** The isolation suite shows that a second shop cannot read another shop's membership when `app.login_user` is NOT set. It does not yet try to abuse the new rule directly (for example: set `app.login_user` to a user id and confirm that only that user's rows appear, and that update and insert are refused). The rule was checked on a scratch database and by the live Brio login, but a permanent test should be added. Also, `login_lookup` is only as safe as the code that sets `app.login_user`: it must be set only after the password is verified, inside a transaction, with `set_config(..., true)`.
+4. **`login_lookup` is now tested, but only at the database level.** `tests/isolation/login-lookup.isolation.test.js` (7 checks, added 6 November 2026) proves that with no login name nothing is visible, with a login name only that person's row is visible, and UPDATE, DELETE and INSERT all fail. It does not test `login.js` itself. `login_lookup` is only as safe as the code that sets `app.login_user`: it must be set only after the password is verified, inside a transaction, with `set_config(..., true)`. A test of the real login endpoint is still a good next addition.
 
 ---
 
@@ -308,10 +326,9 @@ Tests:       100 passed, 100 total
 
 On 2 November 2026: all 16 tenant-owned tables have Row Level Security enabled and forced (Evidence A), each with the identical `tenant_isolation` rule reading `app.current_tenant` (Evidence B), and a 66-test suite showed that a second shop could neither read, change nor delete another shop's row in any of them (Evidence C). Four tables have no RLS by design, and each is documented above. The two main things to improve next are the `audit_logs` exception and running the app as a non-owner database role.
 
-### Day 5 update (5 November 2026): write this in your own words
+### Day 5 update (6 November 2026)
 
-_Sheryl: write 2 or 3 sentences here. Say what changed (the extra `login_lookup` rule on `memberships`), why it was needed (login could not find the user's shop), and what still protects the other shops (the lock stayed on, the suite still passes, the new rule is read-only). Delete this italic paragraph when you have written it._
-
+On 5 November 2026 I found that login refused correct passwords, because the shop rule on `memberships` hid every row before the shop was known. I fixed it with migration 022, which adds a second rule, `login_lookup`. It is read-only (`SELECT` only), and it shows a person only their own rows, only while `app.login_user` is set after the password is verified, inside a short transaction. The other 15 tables were not changed. Evidence B now shows 17 rules, and on 6 November 2026 the full suite passed (7 suites, 107 tests), including 7 new checks that attack `login_lookup` directly: nothing is visible without a login name, only the named person's row is visible with one, and update, delete and insert all fail. One gap remains: these tests check the database rule, not `login.js`, so the rule is only as safe as the code that sets `app.login_user`.
 ---
 
 ## HOW TO REPEAT THIS PROOF
