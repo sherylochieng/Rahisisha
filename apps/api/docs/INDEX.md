@@ -48,24 +48,39 @@ apps/api/
 │   │   │   ├── login.js                POST /v1/login — returns a signed JWT cookie.
 │   │   │   └── me.js                   GET /v1/me — returns the logged-in user's profile.
 │   │   ├── products.routes.js          Maps product URLs to controller functions.
-│   │   └── orders.routes.js            Maps order URLs to controller functions.
+│   │   ├── orders.routes.js            Maps order URLs to controller functions.
+│   │   ├── dashboard.routes.js         GET /v1/dashboard (protected).
+│   │   └── tenants.routes.js           GET /v1/tenants/by-slug/:slug (public).
+│   ├── services/
+│   │   └── wallet.service.js           Append-only money ledger: credit, debit, balance.
 │   └── controllers/
 │       ├── products.controller.js      All product business logic and database queries.
-│       └── orders.controller.js        All order business logic, state machine, transactions.
+│       ├── orders.controller.js        All order business logic, state machine, transactions.
+│       ├── dashboard.controller.js     Dashboard numbers: orders today, wallet balance, latest products.
+│       └── tenants.controller.js       Public shop lookup by slug (used by the web proxy).
 ├── tests/
 │   ├── pagination/
 │   │   └── products.pagination.test.js     Cursor pagination returns every product once.
+│   ├── isolation.test.js                   Attacks all 16 tenant tables at the database level.
+│   ├── wallet.service.test.js              Wallet ledger: credit, debit, bad amounts, balance.
 │   ├── isolation/
 │   │   ├── orders.isolation.test.js        Cross-tenant checks for orders.
-│   │   └── products.cross-tenant.test.js   Cross-tenant checks for products.
+│   │   ├── products.cross-tenant.test.js   Cross-tenant checks for products.
+│   │   └── login-lookup.isolation.test.js  Attacks the login_lookup rule on memberships.
 │   └── errors/
 │       └── error-handling.test.js          Bad input gets a clean answer and no connection leaks.
 └── docs/
     ├── INDEX.md                        This file.
     ├── AI_AUDIT_week_28_day3.md        Record of what AI wrote and what was done by hand.
+    ├── AI_AUDIT_week_28_day4.md        Same, for Day 4 (isolation suite, wallet).
+    ├── AI_AUDIT_week_28_day5.md        Same, for Day 5 (dashboard, login_lookup, hooks).
     ├── src/                            One guide per source file (same folders as src/).
     └── tests/                          One guide per test file (same folders as tests/).
+        └── isolation-proof.md          Evidence that every tenant table is locked (RLS).
 ```
+
+Database files live outside `apps/api`: migrations in `sql/migrations/` (latest:
+`022_login_membership_lookup.sql`) and the full schema in `sql/SCHEMA.sql`.
 
 ---
 
@@ -96,6 +111,13 @@ Incoming request
   Controller        validates input, queries DB, sends response
 ```
 
+Two kinds of route skip part of this chain:
+
+- **Public routes** (`/v1/signup`, `/v1/login`, `/v1/tenants/by-slug/:slug`) run
+  without `requireAuth` and `withTenant`.
+- **Dashboard** (`/v1/dashboard`) runs the full chain: `requireAuth`, then
+  `withTenant`, then the controller.
+
 If any step fails (bad JWT, unknown tenant, invalid input),
 the chain stops there and an error is returned.
 The controller only runs if every step above it passed.
@@ -116,6 +138,18 @@ and returns the database connection to the pool.
 | POST   | /v1/signup   | Create a new tenant and owner account |
 | POST   | /v1/login    | Log in, receive a JWT cookie          |
 | GET    | /v1/me       | Get the logged-in user's profile      |
+
+### Tenants (public — no JWT required)
+
+| Method | URL                          | What it does                                                    |
+|--------|------------------------------|-----------------------------------------------------------------|
+| GET    | /v1/tenants/by-slug/:slug    | Find an active shop by its slug (404 if unknown). Used by the web proxy. |
+
+### Dashboard (protected — JWT + tenant required)
+
+| Method | URL           | What it does                                                                 |
+|--------|---------------|------------------------------------------------------------------------------|
+| GET    | /v1/dashboard | Returns `{ data: { ordersToday, balanceCents, latestProducts } }` for the logged-in shop |
 
 ### Products (protected — JWT + tenant required)
 
@@ -285,6 +319,36 @@ The fix has two parts:
 Rule for new routes: wrap every async controller in `asyncHandler`
 (and import it in that routes file).
 
+### 9. Login has its own read-only rule (login_lookup)
+
+At login nobody has a shop stamped on the connection yet, so the shop rule hides
+every membership row. Migration 022 added a second rule, `login_lookup`, on
+`memberships`:
+
+- It is `FOR SELECT` only (read, never write).
+- It shows a person only their own rows, while `app.login_user` is set.
+- `login.js` sets `app.login_user` **only after the password is verified**, inside
+  a short transaction, with `set_config(..., true)`. It disappears at `COMMIT`.
+- The policies use `NULLIF(current_setting(...), '')::UUID`. After a `RESET`, a
+  custom setting returns `''` (not NULL), and `''::uuid` would crash.
+
+Tested by `tests/isolation/login-lookup.isolation.test.js`. That test checks the
+database rule, not `login.js`, so the rule is only as safe as the code that sets
+`app.login_user`.
+
+### 10. Signup stamps the shop before writing the membership
+
+`memberships` has RLS, so `signup.js` runs
+`set_config('app.current_tenant', <new shop id>, true)` right after inserting the
+tenant. Without it, the membership insert is refused.
+
+### 11. Money lives in an append-only ledger
+
+`wallet_entries` is never edited. `services/wallet.service.js` exposes `credit`,
+`debit` (stored as a negative number) and `balance` (the sum, returned as a
+Number). Balances are never stored, because sums cannot drift. Bad amounts are
+refused before anything is written.
+
 ---
 
 ## Money Rule
@@ -307,8 +371,14 @@ The frontend divides by 100 when displaying to users.
 Run from `apps/api`: `npm test`
 Run only the isolation suites: `npm run test:isolation`
 
+Current result (6 November 2026): 7 suites, 107 tests passing. Isolation only: 4 suites, 81 tests.
+A Husky `pre-push` hook runs `npm run test:isolation` before every push.
+
 | File | What it proves |
 |------|----------------|
+| `tests/isolation.test.js` | A second shop cannot read, update or delete another shop's row in any of the 16 tenant tables, and RLS is enabled and forced on all of them |
+| `tests/isolation/login-lookup.isolation.test.js` | The `login_lookup` rule shows only the named person's row, and UPDATE, DELETE and INSERT all fail |
+| `tests/wallet.service.test.js` | Credit and debit work, bad amounts are refused and write nothing, balance is a number, unknown reasons are refused by the database |
 | `tests/pagination/products.pagination.test.js` | Cursor pagination returns every product exactly once and the cursor ends |
 | `tests/isolation/orders.isolation.test.js` | Brio cannot read Acme's orders (404) |
 | `tests/isolation/products.cross-tenant.test.js` | Brio cannot read, list, edit or delete Acme's products (404) |
@@ -328,6 +398,30 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 | Use a strong `JWT_SECRET` and database password before deployment | The current values are development placeholders |
 | Fix two stale comments in `orders.controller.js` | A `FOR UPDATE` mention in `createOrder` and `?status`/`?channel` filters on `listOrders` that do not exist yet |
 | Consider re-writing the AI-assisted parts of `withTenant.js` by hand | Keeps the "hand-written isolation" rule honest (see the AI audit) |
+| Add a test for the real login endpoint | `login-lookup.isolation.test.js` covers the database rule, not `login.js` |
+| Add a test for `GET /v1/dashboard` | The dashboard numbers have no automated test yet |
+| Match the subdomain against the login token at deployment | Today the dashboard runs at plain `localhost`, so this check is deferred |
+| Run the app as a non-owner database role; decide RLS for `audit_logs` | See the known limitations in `docs/tests/isolation-proof.md` |
+| Make the dashboard success envelope match the others (`error: null`) | Small inconsistency with `/v1/products` |
+
+---
+
+## The Web App (apps/web) — short map
+
+The web app has no database. It calls this API (`NEXT_PUBLIC_API_URL`, which
+already ends in `/v1`).
+
+| File | What it does |
+|------|--------------|
+| `src/proxy.js` | Next.js 16 proxy (the old "middleware"): works out which shop the visitor wants from the subdomain |
+| `src/lib/session.js` | `requireSession`: reads the login cookie, redirects to login if missing |
+| `src/lib/serverApi.js` | `serverGet`: calls this API from server pages, forwarding the login cookie |
+| `src/components/Sidebar.js` | Left menu (Products, Orders, Wallet, Settings are marked "soon") |
+| `src/app/(authed)/layout.js` | Login check, sidebar and header for every logged-in page |
+| `src/app/(authed)/dashboard/page.js` | Dashboard home: real numbers and latest products |
+
+The layout does not re-run on every client-side click, so the API's own cookie
+check is the second lock.
 
 ---
 
@@ -335,7 +429,7 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 
 | Feature                             | Week            |
 |-------------------------------------|-----------------|
-| Dashboard UI (products, orders)     | Week 28 Day 4-5 |
+| Dashboard pages: products, orders, wallet, settings | Week 29 |
 | M-Pesa STK push integration         | Week 29         |
 | WhatsApp Cloud API                  | Week 29         |
 | AI product enhancement (Claude API) | Week 29         |
@@ -344,5 +438,5 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 
 ---
 
-*Last updated: Week 28 Day 3*  
+*Last updated: Week 28 Day 5*  
 *Update this file every time a new endpoint or pattern is added.*
