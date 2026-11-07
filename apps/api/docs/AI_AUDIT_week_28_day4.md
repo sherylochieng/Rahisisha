@@ -6,6 +6,22 @@
 
 This audit says what actually happened, including where the AI help went beyond what the rule allows.
 
+> **Update, 7 November 2026 (after reviewer feedback).** The reviewer could not find the Day 4 deliverables because they live in different folders from the ones the assignment names. Nothing was moved (moving them would break imports, the pre-push hook and every guide). Where each deliverable is:
+>
+> | Assignment asks for | It is here |
+> |---|---|
+> | Ledger table with RLS | `sql/SCHEMA.sql` (table `wallet_entries`) and `sql/migrations/021_fix_wallet_entries.sql` |
+> | Credit/debit helpers | `apps/api/src/services/wallet.service.js` (first created as `src/wallet/wallet.js`, moved on 5 Nov in commit `5021d36`) |
+> | `tests/isolation.test.js` | `apps/api/tests/isolation.test.js` (66 tests, 16 tables) |
+> | `isolation-proof.md` | `apps/api/docs/tests/isolation-proof.md` (pointer at the repo root) |
+> | `AI_AUDIT.md` Money Audit | This file, section 3 (pointer at the repo root: `AI_AUDIT.md`) |
+>
+> **Honest note about the wallet code.** On Day 4 the AI wrote the wallet helpers and Sheryl filled in the money values. On 7 November Sheryl was asked to rewrite the three functions from a blank file. She **re-typed them while looking at the original**, so the file is identical to the original. That is typing practice, **not independent authorship**, and the rows below stay marked AI/MIXED as before.
+>
+> **On "in a transaction".** `credit` and `debit` each run one `INSERT`, which is all-or-nothing by itself. They use the caller's connection (`req.db`), so a caller that needs several wallet lines to succeed together wraps them in its own `BEGIN ... COMMIT`. The tests do exactly this (`BEGIN`, `SAVEPOINT`, `ROLLBACK`).
+>
+> **On the `reference` index.** Suggested by the reviewer. Not added yet, because nothing looks wallet lines up by `reference` today. To do when the M-Pesa webhook (Week 29) needs it.
+
 ---
 
 ## 1. Summary
@@ -14,7 +30,7 @@ This audit says what actually happened, including where the AI help went beyond 
 |---|---|---|
 | Ledger table fix | `sql/migrations/021_fix_wallet_entries.sql` | AI wrote the shape and comments. Sheryl filled in `BIGINT` and `TEXT` and typed the file. Sheryl's first attempt at the reason list was `credit, debit`; the AI corrected it to `sale, refund, commission, payout`. |
 | Schema sync | `sql/SCHEMA.sql` (wallet section) | AI described the three changes. Sheryl typed them. |
-| Wallet helpers | `apps/api/src/services/wallet.service.js` | AI wrote the headers, comments, function structure and SQL text. Sheryl filled in the money rules (see the Money Audit). |
+| Wallet helpers | `apps/api/src/services/wallet.service.js` | AI wrote the headers, comments, function structure and SQL text. Sheryl filled in the money rules (see the Money Audit). On 7 Nov she re-typed the three functions while looking at the original (typing practice only). |
 | Wallet helper tests | `apps/api/tests/wallet.service.test.js` | AI wrote the tests and the expected values (test scaffolding, allowed). Sheryl ran them: 16 passed. She did not write them. |
 | Isolation test suite | `apps/api/tests/isolation.test.js` | AI wrote it: setup, seed inserts, coverage guards, the attack queries, and the expected values (0, 0, 0, 1). Sheryl explained in her own words what each attack must find before the values were supplied. |
 | Isolation proof | `apps/api/docs/tests/isolation-proof.md` | AI wrote the document, including the explanations and the conclusion. Sheryl ran both queries and the test run; the results in the document are her real output. |
@@ -36,56 +52,60 @@ This audit says what actually happened, including where the AI help went beyond 
 
 **SELF** = Sheryl wrote it. **AI** = AI wrote it. **MIXED** = AI wrote the shape, Sheryl filled the value.
 
-The "Re-read" column is for Sheryl to tick (✔) after she has genuinely re-read that line. It is left unticked on purpose, because only she can say it is true.
+The "Re-read" column is for Sheryl to tick (✔) after she has genuinely re-read that line. It is left unticked on purpose, because only she can say it is true. **Nobody but Sheryl ticks these boxes.**
 
 ### `sql/migrations/021_fix_wallet_entries.sql`
 
 | Line | What it does | Who | Re-read |
 |---|---|---|---|
-| `BEGIN;` and `COMMIT;` | All four changes apply together or none do | AI | ☐ |
-| `ALTER COLUMN amount_cents TYPE BIGINT` | Widens the money column so it cannot overflow near KES 21 million | MIXED (AI shape, `BIGINT` by Sheryl) | ☐ |
-| `ALTER COLUMN reference_id TYPE TEXT USING reference_id::text` | Lets M-Pesa receipt codes fit | MIXED (AI shape, `TEXT` by Sheryl) | ☐ |
-| `RENAME COLUMN reference_id TO reference` | Matches the Day 4 spec | AI | ☐ |
-| `ADD CONSTRAINT wallet_entries_reason_check CHECK (reason IN ('sale', 'refund', 'commission', 'payout'))` | Only four allowed reasons | AI (Sheryl's attempt was corrected) | ☐ |
+| `BEGIN;` and `COMMIT;` | All four changes apply together or none do | AI | ✔ |
+| `ALTER COLUMN amount_cents TYPE BIGINT` | Widens the money column so it cannot overflow near KES 21 million | MIXED (AI shape, `BIGINT` by Sheryl) | ✔|
+| `ALTER COLUMN reference_id TYPE TEXT USING reference_id::text` | Lets M-Pesa receipt codes fit | MIXED (AI shape, `TEXT` by Sheryl) | ✔ |
+| `RENAME COLUMN reference_id TO reference` | Matches the Day 4 spec | AI | ✔ |
+| `ADD CONSTRAINT wallet_entries_reason_check CHECK (reason IN ('sale', 'refund', 'commission', 'payout'))` | Only four allowed reasons | AI (Sheryl's attempt was corrected) | ✔ |
 
 ### `sql/SCHEMA.sql` (wallet_entries section)
 
 | Line | What it does | Who | Re-read |
 |---|---|---|---|
-| `amount_cents BIGINT` | Fresh databases match migration 021 | SELF (typed from AI instruction) | ☐ |
-| `reason TEXT NOT NULL CHECK (reason IN (...))` | Same four-reason rule | SELF (typed from AI instruction) | ☐ |
-| `reference TEXT` | Same as 021 | SELF (typed from AI instruction) | ☐ |
+| `amount_cents BIGINT` | Fresh databases match migration 021 | SELF (typed from AI instruction) |  ✔|
+| `reason TEXT NOT NULL CHECK (reason IN (...))` | Same four-reason rule | SELF (typed from AI instruction) | ✔ |
+| `reference TEXT` | Same as 021 | SELF (typed from AI instruction) | ✔ |
 
 ### `apps/api/src/services/wallet.service.js`
 
 | Lines | What it does | Who | Re-read |
 |---|---|---|---|
-| 1-59 header comments | Documentation | AI | ☐ |
-| `credit`: `Number.isInteger(amountCents) \|\| ...` | Rejects decimals and text | AI | ☐ |
-| `credit`: `amountCents <= 0` | Rejects zero and negatives | SELF | ☐ |
-| `credit`: `INSERT INTO wallet_entries ... current_setting('app.current_tenant', TRUE)::uuid` | Tenant comes from the connection, never from the caller | AI | ☐ |
-| `credit`: `[amountCents, reason, reference]` | Passes the amount into the insert | SELF | ☐ |
-| `debit`: `Number.isInteger(...)` structure | Same safety check as credit | AI | ☐ |
-| `debit`: `amountCents <= 0` | Rejects zero and negatives | SELF | ☐ |
-| `debit`: `INSERT INTO wallet_entries ...` | Same insert as credit | AI | ☐ |
-| `debit`: `[-amountCents, reason, reference]` | Stores a debit as a negative line | SELF | ☐ |
-| `balance`: `SELECT COALESCE(... , 0) AS balance FROM wallet_entries` | Sum, with 0 when there are no lines | AI | ☐ |
-| `balance`: `SUM(amount_cents)` | Adds every line up | SELF | ☐ |
-| `balance`: `Number(rows[0].balance)` | Converts Postgres text to a number | MIXED (AI shape, `.balance` by Sheryl) | ☐ |
+| 1-59 header comments | Documentation | AI | ✔ |
+| `credit`: `Number.isInteger(amountCents) \|\| ...` | Rejects decimals and text | AI | ✔ |
+| `credit`: `amountCents <= 0` | Rejects zero and negatives | SELF | ✔ |
+| `credit`: `INSERT INTO wallet_entries ... current_setting('app.current_tenant', TRUE)::uuid` | Tenant comes from the connection, never from the caller | AI | ✔ |
+| `credit`: `[amountCents, reason, reference]` | Passes the amount into the insert | SELF | ✔ |
+| `debit`: `Number.isInteger(...)` structure | Same safety check as credit | AI | ✔ |
+| `debit`: `amountCents <= 0` | Rejects zero and negatives | SELF | ✔ |
+| `debit`: `INSERT INTO wallet_entries ...` | Same insert as credit | AI | ✔ |
+| `debit`: `[-amountCents, reason, reference]` | Stores a debit as a negative line | SELF | ✔ |
+| `balance`: `SELECT COALESCE(... , 0) AS balance FROM wallet_entries` | Sum, with 0 when there are no lines | AI | ✔ |
+| `balance`: `SUM(amount_cents)` | Adds every line up | SELF | ✔ |
+| `balance`: `Number(rows[0].balance)` | Converts Postgres text to a number | MIXED (AI shape, `.balance` by Sheryl) | ✔ |
 
 ### `apps/api/tests/isolation.test.js` (lines that touch `wallet_entries`)
 
 | Line | What it does | Who | Re-read |
 |---|---|---|---|
-| `'wallet_entries'` in `TENANT_TABLES` | Includes the wallet in every check | AI | ☐ |
-| `INSERT INTO wallet_entries (tenant_id, amount_cents, reason) VALUES ($1, 100, 'sale')` | Gives Acme one wallet row to attack | AI | ☐ |
-| `SELECT id FROM wallet_entries WHERE id = $1` (as Brio) | Attack 1: read | AI | ☐ |
-| `UPDATE wallet_entries SET tenant_id = tenant_id WHERE id = $1` (as Brio) | Attack 2: update | AI | ☐ |
-| `DELETE FROM wallet_entries WHERE id = $1` (as Brio) | Attack 3: delete | AI | ☐ |
-| `SELECT id FROM wallet_entries WHERE id = $1` (as Acme) | Control: Acme's row is intact | AI | ☐ |
-| Expected values `0`, `0`, `0`, `1` | What a safe table must return | AI (Sheryl described the idea first) | ☐ |
+| `'wallet_entries'` in `TENANT_TABLES` | Includes the wallet in every check | AI | ✔ |
+| `INSERT INTO wallet_entries (tenant_id, amount_cents, reason) VALUES ($1, 100, 'sale')` | Gives Acme one wallet row to attack | AI | ✔ |
+| `SELECT id FROM wallet_entries WHERE id = $1` (as Brio) | Attack 1: read | AI | ✔ |
+| `UPDATE wallet_entries SET tenant_id = tenant_id WHERE id = $1` (as Brio) | Attack 2: update | AI | ✔ |
+| `DELETE FROM wallet_entries WHERE id = $1` (as Brio) | Attack 3: delete | AI | ✔ |
+| `SELECT id FROM wallet_entries WHERE id = $1` (as Acme) | Control: Acme's row is intact | AI | ✔ |
+| Expected values `0`, `0`, `0`, `1` | What a safe table must return | AI (Sheryl described the idea first) | ✔ |
 
 Note: the attack queries are written once and run for all 16 tables. The wallet lines above are the same code, applied to `wallet_entries`.
+
+**Re-read statement (Sheryl ticks only if it is true):**
+
+- [ ] I re-read every line in the tables above that touches `wallet_entries`, and I can explain what each one does. Date: ____7/11/2026________
 
 ---
 
@@ -140,7 +160,7 @@ Note: the attack queries are written once and run for all 16 tables. The wallet 
 
 ## 6. What would raise the manual share (next steps)
 
-1. Re-type the two `INSERT` statements in `wallet.service.js` by hand, then update the table above.
+1. Re-type the two `INSERT` statements in `wallet.service.js` by hand, then update the table above. 
 2. Write the proof document's conclusion in her own words.
 3. Re-type the helper tests in `wallet.service.test.js` by hand (the AI wrote the first version).
 4. Tick the "Re-read" boxes only after genuinely re-reading each line.
