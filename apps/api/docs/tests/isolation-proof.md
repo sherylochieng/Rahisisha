@@ -1,7 +1,7 @@
 # Isolation Proof — Week 28 (Day 4, updated on Day 5)
 
 **Location:** `apps/api/docs/tests/isolation-proof.md`
-**Date of evidence:** Evidence A and the first run of Evidence C: 2 November 2026. Evidence B and the first re-run of Evidence C: 5 November 2026, after migration 022. Latest re-run: 6 November 2026.
+**Date of evidence:** Evidence A and the first run of Evidence C: 2 November 2026. Evidence B and the first re-run of Evidence C: 5 November 2026, after migration 022. Evidence 0 (table list): 7 November 2026. Latest test re-run: 6 November 2026.
 **Database:** `rahisisha` (PostgreSQL), connected as `rahisisha_user`
 
 ---
@@ -45,12 +45,62 @@ Every project where users must not see each other's data: invoicing, booking, sc
 ```
   1. LOCK every table     RLS in each migration (003 to 019, plus 022)
           │
-  2. CHECK the locks      Evidence A + B  (ask the database)
+  2. CHECK the locks      Evidence 0 + A + B  (ask the database)
           │
   3. TRY the locks        Evidence C      (isolation.test.js attacks all 16)
           │
   4. WRITE IT DOWN        this file
 ```
+
+---
+
+## EVIDENCE 0: the list of tables (the assignment's own query)
+
+### The query
+
+```sql
+SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
+```
+
+### What it means
+
+It lists every table in our database. It is the starting point: every table must be accounted for in Evidence A (is RLS on?) and Evidence B (what is the rule?).
+
+### Result (run on 7 November 2026)
+
+```
+      tablename
+---------------------
+ audit_logs
+ brand_profiles
+ content_posts
+ conversations
+ customers
+ inventory_movements
+ memberships
+ messages
+ order_items
+ orders
+ product_media
+ product_variants
+ products
+ stock_reservations
+ subscriptions
+ tenants
+ usage_counters
+ users
+ wallet_entries
+ webhook_events
+(20 rows)
+```
+
+### What it shows
+
+- **20 tables** in total.
+- **16** are tenant-owned and have RLS on and forced (Evidence A).
+- **4** have no RLS by design: `audit_logs`, `tenants`, `users`, `webhook_events` (see "Tables without RLS").
+
+Evidence A is a stronger check than `\d` on each table: one query shows `relrowsecurity` and `relforcerowsecurity` for all 20 tables at once.
 
 ---
 
@@ -329,6 +379,7 @@ On 2 November 2026: all 16 tenant-owned tables have Row Level Security enabled a
 ### Day 5 update (6 November 2026)
 
 On 5 November 2026 I found that login refused correct passwords, because the shop rule on `memberships` hid every row before the shop was known. I fixed it with migration 022, which adds a second rule, `login_lookup`. It is read-only (`SELECT` only), and it shows a person only their own rows, only while `app.login_user` is set after the password is verified, inside a short transaction. The other 15 tables were not changed. Evidence B now shows 17 rules, and on 6 November 2026 the full suite passed (7 suites, 107 tests), including 7 new checks that attack `login_lookup` directly: nothing is visible without a login name, only the named person's row is visible with one, and update, delete and insert all fail. One gap remains: these tests check the database rule, not `login.js`, so the rule is only as safe as the code that sets `app.login_user`.
+
 ---
 
 ## HOW TO REPEAT THIS PROOF
