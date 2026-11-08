@@ -33,6 +33,7 @@ import dashboardRouter from './routes/dashboard.routes.js';
 import tenantsRouter from './routes/tenants.routes.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { withTenant }  from './middleware/withTenant.js';
+import { isDatabaseDown } from './utils/dbDown.js';
 
 
 // Load .env variables (DATABASE_URL, JWT_SECRET, etc.) into process.env
@@ -120,6 +121,28 @@ app.use((err, req, res, next) => {
          message: 'Request validation failed',
          details: { id: 'must be a valid UUID' },
         },
+    });
+  }
+
+    // DATABASE DOWN (503).
+  // WHAT: Postgres is off, restarting, full, or unreachable.
+  // WHY 503, not 500: 500 means "our code has a bug". 503 means
+  //   "the service is temporarily unavailable, try again". Browsers,
+  //   monitors and load balancers treat the two very differently.
+  // WHY a friendly message: the user should not see a vague
+  //   "Something went wrong" or a raw database error.
+  // Retry-After: 10 tells the caller "try again in about 10 seconds".
+  // We log ONLY the short code or message, not the whole error, so a
+  //   long outage does not flood the log with giant stack traces.
+  if (isDatabaseDown(err)) {
+    console.error('Database unavailable:', err.code || err.message);
+    res.set('Retry-After', '10');
+    return res.status(503).json({
+      data: null,
+      error: {
+        code: 'service_unavailable',
+        message: "We're having trouble right now. Please try again in a moment.",
+      },
     });
   }
 

@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { pool } from '../../db/pool.js';
+import { isDatabaseDown } from '../../utils/dbDown.js';
 
 const router = Router();
 
@@ -48,10 +49,13 @@ router.post('/signup', async (req, res) => {
   const { phone, password, tenant_name, name } = result.data;
 
   const password_hash = await bcrypt.hash(password, 12);
-  const client = await pool.connect();
+  // `client` starts empty. If the database is down, pool.connect() fails
+  // and `client` stays empty, so the code below knows there is nothing
+  // to roll back or release.
+  let client;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
-
     const baseSlug = slugify(tenant_name);
   const uniqueSlug = await findUniqueSlug(client, baseSlug);
 
@@ -103,8 +107,27 @@ router.post('/signup', async (req, res) => {
       user_id,
     });
 
-  } catch (err) {
-    await client.query('ROLLBACK');
+    } catch (err) {
+    // Undo half-finished work, but only if we ever got a connection.
+    // If the connection is already dead, ROLLBACK fails too. We ignore
+    // that on purpose: a dead connection has nothing left to undo.
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // connection already dead, nothing to undo
+      }
+    }
+
+    // DATABASE DOWN: friendly 503 instead of a hang or a vague 500.
+    // Same { error: 'text' } style as the other signup errors.
+    if (isDatabaseDown(err)) {
+      console.error('[signup] database unavailable:', err.code || err.message);
+      res.set('Retry-After', '10');
+      return res.status(503).json({
+        error: "We're having trouble right now. Please try again in a moment.",
+      });
+    }
 
     if (err.code === '23505') {
       if (err.constraint && err.constraint.includes('slug'))
@@ -118,7 +141,8 @@ router.post('/signup', async (req, res) => {
     return res.status(500).json({ error: 'Signup failed — please try again' });
 
   } finally {
-    client.release();
+    // Only give back a connection we actually borrowed
+    if (client) client.release();
   }
 });
 

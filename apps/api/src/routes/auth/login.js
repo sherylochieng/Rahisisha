@@ -83,6 +83,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { pool } from '../../db/pool.js';
+import { isDatabaseDown } from '../../utils/dbDown.js';
 
 const router = Router();
 
@@ -207,7 +208,19 @@ router.post('/login', async (req, res) => {
 
     return res.status(200).json({ message: 'Logged in', tenant_id, user_id: user.id });
 
-  } catch (err) {
+    } catch (err) {
+    // DATABASE DOWN: answer 503 with a friendly message, not a vague 500.
+    // We keep login's own reply style ({ error: 'text' }) so the login
+    // page can show it exactly like the other login errors.
+    if (isDatabaseDown(err)) {
+      console.error('[login] database unavailable:', err.code || err.message);
+      res.set('Retry-After', '10');
+      return res.status(503).json({
+        error: "We're having trouble right now. Please try again in a moment.",
+      });
+    }
+
+    // Anything else is our own bug: keep the old 500 behaviour
     console.error('[login] failed:', err);
     return res.status(500).json({ error: 'Login failed — please try again' });
   }
