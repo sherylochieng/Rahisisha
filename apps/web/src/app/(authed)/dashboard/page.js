@@ -22,8 +22,7 @@
 // - It calls GET /v1/dashboard through serverGet. The API answers through the
 //   tenant-scoped connection (req.db), so only this shop's rows come back
 // - This is a Server Component: the page is drawn on the server and the
-//   browser receives finished HTML. No loading flicker, no data fetching code
-//   shipped to the browser
+//   browser receives finished HTML. No data fetching code shipped to the browser
 //
 // RULES:
 // - No 'use client' here. This page reads private data on the server
@@ -31,6 +30,7 @@
 // - Money arrives in whole cents. Turn it into KES only for DISPLAY
 // - If the API fails, serverGet THROWS, so we never draw a page of zeros that
 //   look real
+// - Empty lists use the shared <EmptyState>. Never leave a blank box
 //
 // PRACTICAL EXAMPLES:
 // - New shop:      Orders 0, Wallet KES 0.00, "No products yet"
@@ -45,10 +45,38 @@
 //
 // HOW TO USE:
 // - Open /dashboard while logged in. The (authed) layout runs the login check
+//
+// -----------------------------------------------------------------------------
+// THE STORY: BEFORE AND AFTER (Week 28 Weekend, Task 3)
+// -----------------------------------------------------------------------------
+//   BEFORE (how we first designed it)
+//     - The empty "latest products" message was a plain <p> written by hand
+//       inside this page.
+//     - While the API answered, the page was a blank white screen.
+//
+//   WHY WE CHANGED IT
+//     The weekend assignment asked for loading states and empty states on
+//     the existing pages (no new features). A brand-new shop sees an empty
+//     list on its very first visit, so this is the first impression of every
+//     new customer.
+//
+//   AFTER (how it works now)
+//     1. The empty message uses the shared <EmptyState> (same words, a
+//        dashed "slot waiting to be filled" look, and screen reader support).
+//     2. A new file next to this one, loading.js, shows grey placeholder
+//        boxes while this page waits for the API. Next.js uses it by itself.
+//        THIS file needs no loading code at all.
+//     3. The status tag markup is written out in full (one `>` was missing
+//        in the copy we pasted, and is correct here).
+//     The numbers, the cards and the product list did NOT change.
 // =============================================================================
 
 // serverGet: calls the API with the visitor's login cookie
 import { serverGet } from '../../../lib/serverApi';
+
+// ✅ AFTER (NEW): the shared "nothing here yet" box
+// ❌ BEFORE: no import. The empty message was a <p> written further down.
+import EmptyState from '../../../components/EmptyState';
 
 // -----------------------------------------------------------------------------
 // formatKes — turn whole cents into a readable KES amount for display only
@@ -73,9 +101,12 @@ const STATUS_STYLES = {
 // DashboardPage — a Server Component. "async" lets us await data right here
 // -----------------------------------------------------------------------------
 export default async function DashboardPage() {
+  // await new Promise((resolve) => setTimeout(resolve, 3000)); // TEMP TEST: remove after
+  //   throw new Error('TEMP TEST: remove after');
 
   // STEP 1: ask the API for the morning summary.
   // Returns { ordersToday, balanceCents, latestProducts }
+  // While we wait here, Next.js shows loading.js (the grey placeholder boxes)
   const { ordersToday, balanceCents, latestProducts } = await serverGet('/dashboard');
 
   // STEP 2: draw the page
@@ -109,11 +140,21 @@ export default async function DashboardPage() {
       <div className="bg-white rounded-2xl border border-gray-100 p-6">
         <h2 className="font-display text-lg font-bold text-brand-navy">Latest products</h2>
 
-        {/* No products yet: a friendly message instead of an empty box */}
+        {/* No products yet: the shared EmptyState instead of an empty box.
+            mt-4 keeps the same gap under the heading as before.
+
+            ❌ BEFORE: a plain paragraph written by hand right here:
+              <p className="mt-4 text-sm text-gray-500">
+                No products yet. Add your first product to see it here.
+              </p>
+            ✅ AFTER: same words, split into a title and a hint, in the
+            shared box (dashed outline, role="status" for screen readers). */}
         {latestProducts.length === 0 ? (
-          <p className="mt-4 text-sm text-gray-500">
-            No products yet. Add your first product to see it here.
-          </p>
+          <EmptyState
+            className="mt-4"
+            title="No products yet"
+            message="Add your first product to see it here."
+          />
         ) : (
           <ul className="mt-4 divide-y divide-gray-100">
             {latestProducts.map((product) => (
