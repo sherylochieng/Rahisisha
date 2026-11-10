@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { pool } from '../../db/pool.js';
 import { isDatabaseDown } from '../../utils/dbDown.js';
+import { seedSampleData } from '../../services/sampleData.service.js';
 
 const router = Router();
 
@@ -80,6 +81,15 @@ router.post('/signup', async (req, res) => {
       `INSERT INTO memberships (tenant_id, user_id, role) VALUES ($1, $2, 'owner')`,
       [tenant_id, user_id],
     );
+
+    // Seed sample data for the new tenant
+        // Fill the new shop with 3 sample products and 2 sample customers.
+    // WHY here: the shop and the tenant stamp (set_config above) exist,
+    // and we are still inside the transaction. So the shop, the owner,
+    // the membership AND the samples are saved together at COMMIT,
+    // or none of them are (if anything fails, ROLLBACK undoes it all).
+    // We pass `client`, never `pool`, so it joins this transaction.
+    await seedSampleData(client, tenant_id);
 
     await client.query('COMMIT');
 
