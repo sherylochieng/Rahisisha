@@ -40,6 +40,8 @@
 #   checklist. The kitchen cannot say "but it was fine yesterday".
 #
 # DECISIONS
+#   - The robot creates rahisisha_user itself (a normal user, never a
+#     superuser) so the tests run with RLS switched on.
 #   - Runs on push to main AND on pull requests, so problems show up
 #     before code is merged, not after.
 #   - Uses scripts/reset-db.sh (the same script you use locally), so
@@ -182,6 +184,22 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: apps/api/package-lock.json
+
+                # 2b. CHANGED (Task 7b): create the app user on the robot's EMPTY Postgres.
+      #     BEFORE: nothing. reset-db.sh stopped with "Role 'rahisisha_user'
+      #       does not exist", because the robot's database is brand new.
+      #       Your laptop already has this user, so you never saw it.
+      #     AFTER: we create it first. LOGIN only, NOT a superuser (that is
+      #       the default), so Row Level Security is enforced exactly like
+      #       in real life. A superuser would skip RLS and hide bugs.
+      #     EXAMPLE: A new office has no staff accounts yet. Create the
+      #       normal staff account before the first day of work.
+      - name: Create the app database user
+        env:
+          PGPASSWORD: ci_admin_pw
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -c "CREATE ROLE rahisisha_user LOGIN PASSWORD 'ci_app_pw';"
 
       # 3. Build the database from scratch. Same script you use locally.
       #    RESET_DB_CONFIRM replaces the human typing the database name.
