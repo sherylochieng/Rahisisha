@@ -1,4 +1,4 @@
-# AI Audit: Week 28 Weekend (Core Polish, Tasks 3 to 8)
+# AI Audit: Week 28 Weekend (Core Polish)
 
 **Author:** Sheryl
 **Date:** 10 November 2026
@@ -6,7 +6,9 @@
 
 This audit says what actually happened, including where the AI help went beyond what the rule allows.
 
-> **Note on numbering.** Tasks are listed in this order: Task 3 UI states, Task 4 signup sample data, Task 5 `reset-db.sh`, Task 6 `demo-data.sql`, Task 7 CI, Task 8 staging deploy. Tasks 1 and 2 (tests, friendly 503) are not covered here. Correct the numbers if your assignment sheet orders them differently.
+> **Numbering follows the assignment sheet:**
+> 1 happy-path tests, 2 loading states, 3 empty states, 4 validation errors in forms, 5 database outage, 6 signup seeding, 7 `reset-db.sh`, 8 `demo-data.sql`, 9 CI, 10 staging deploy.
+> Task 10 was by far the largest. Rows marked "to confirm" are things Sheryl must check against her own work before submitting.
 
 ---
 
@@ -14,14 +16,18 @@ This audit says what actually happened, including where the AI help went beyond 
 
 | Task | Area | Files | Who did what |
 |---|---|---|---|
-| 3 | Loading, empty and error states in the web app | web pages and components (see git log for the Task 3 commit) | AI wrote the components and wording. Sheryl ran the app, looked at each state and reported what she saw. |
-| 4 | Sample data for a new shop at signup | signup sample-data service and its test | AI wrote the service, the SQL and the test. Sheryl ran the tests and checked the new shop in the browser. |
-| 5 | Database reset script | `scripts/reset-db.sh` | AI wrote the script, safety checks and comments. Sheryl ran it. On 10 Nov the AI added the `RESET_DB_CONFIRM` option and the story box. |
-| 6 | Demo data | `demo-data.sql` | AI wrote the SQL. Sheryl loaded it and ran the tests against it. |
-| 7 | Continuous integration | `.github/workflows/ci.yml` | AI wrote the workflow. Sheryl pushed it and read the red/green results. Two failures were fixed by the AI (typed-confirmation wait, missing app role). |
-| 8 | Staging deploy | Neon, Render, Vercel, DNS; `apps/api/src/utils/allowedOrigin.js`, `getShopSlug.js`, `app.js`, `login.js`; `capstone/STAGING.md` | See section 3. |
-| 8 | Tests for the new code | `tests/allowedOrigin.test.js` (13), `tests/getShopSlug.test.js` (14) | AI wrote the tests and expected values (test scaffolding, allowed). Sheryl ran them. |
-| 8 | Guides | `docs/src/utils/*.md`, `docs/tests/*.test.md`, `docs/src/app.md`, `docs/src/routes/auth/login.md`, `docs/INDEX.md`, `capstone/STAGING.md` | AI wrote them (documentation, allowed). Sheryl created the files, committed and pushed. |
+| 1 | Happy-path test for every endpoint | files in `apps/api/tests/` (see git log) | AI wrote the tests and expected values (test scaffolding, allowed). Sheryl ran them. **To confirm:** every endpoint has one. |
+| 2 | Loading state on every page | web pages and components | AI wrote the components and wording. Sheryl ran the app and checked each page. **To confirm:** every page. |
+| 3 | Empty state on every list page | web pages and components | Same as Task 2. **To confirm:** every list page. |
+| 4 | Validation errors surface clearly in forms | signup and login forms | **To confirm:** done or not. Sheryl checks by typing a bad phone number and looking for a message under the field. |
+| 5 | Friendly errors when Postgres is down | friendly 503 handler and its test | AI wrote the handler and the test. Sheryl stopped the database and checked the page. |
+| 6 | Signup seeds 3 sample products and 2 sample customers | signup sample-data service and its test | AI wrote the service, the SQL and the test. Sheryl ran the tests and checked a new shop in the browser. |
+| 7 | Database reset script | `scripts/reset-db.sh` | AI wrote the script, safety checks and comments. Sheryl ran it. On 10 Nov the AI added the `RESET_DB_CONFIRM` option and the story box. |
+| 8 | Demo data, committed and idempotent | `demo-data.sql` | AI wrote the SQL. Sheryl loaded it and ran the tests against it. **To confirm:** it runs twice without error or duplicates. |
+| 9 | CI runs `npm test` | `.github/workflows/ci.yml` | AI wrote the workflow. Sheryl pushed it and read the red/green results. Two failures were fixed by the AI (typed-confirmation wait, missing app role). |
+| 10 | Deploy to staging | Neon, Render, Vercel, DNS; `apps/api/src/utils/allowedOrigin.js`, `getShopSlug.js`, `app.js`, `login.js`; `capstone/STAGING.md` | See section 3. |
+| 10 | Tests for the new code | `tests/allowedOrigin.test.js` (13), `tests/getShopSlug.test.js` (14) | AI wrote the tests and expected values (test scaffolding, allowed). Sheryl ran them. |
+| 10 | Guides | `docs/src/utils/*.md`, `docs/tests/*.test.md`, `docs/src/app.md`, `docs/src/routes/auth/login.md`, `docs/INDEX.md`, `capstone/STAGING.md`, `capstone/PENDING_TASKS.md` | AI wrote them (documentation, allowed). Sheryl created the files, committed and pushed. |
 
 ---
 
@@ -31,11 +37,11 @@ This audit says what actually happened, including where the AI help went beyond 
 - **What Sheryl did herself:** all the account work and purchases (Neon, Render, Vercel, the domain at Host Pinnacle and its payment), entering secrets into the right dashboards, running every command, reading every result, and deciding between options (domain name, which service, when to stop).
 - **Tenant isolation:** no isolation or RLS rule was changed this weekend. The isolation suite was only **run** against staging, as proof. No AI-written isolation proof was added.
 - **Ledger logic:** not touched this weekend.
-- **One security-relevant code change by the AI:** the CORS rule and the shop lookup (Task 8). It decides who may call the API, so it is covered in section 3.
+- **One security-relevant code change by the AI:** the CORS rule and the shop lookup (Task 10). It decides who may call the API, so it is covered in section 3.
 
 ---
 
-## 3. Task 8 in detail (security-sensitive lines)
+## 3. Task 10 in detail (security-sensitive lines)
 
 **AI** = AI wrote it. **SELF** = Sheryl wrote it. **MIXED** = AI wrote the shape, Sheryl supplied the value.
 
@@ -81,7 +87,7 @@ The "Re-read" column is for Sheryl to tick (✔) after she has genuinely re-read
 |---|---|
 | Isolation suite against the Neon database as `rahisisha_user` | Passed (needed demo data loaded and `--testTimeout=60000`) |
 | `npm test` (laptop) | 128 passed before the new tests, 141 after |
-| CI | Green |
+| CI | Green. Runs the full suite, including isolation, against a real Postgres |
 | Live staging: signup, login, dashboard on a shop address, unknown shop shows "shop not found" | Checked by Sheryl in the browser |
 
 ---
@@ -93,6 +99,7 @@ The "Re-read" column is for Sheryl to tick (✔) after she has genuinely re-read
 - **Vercel saved a variable as a Secret** and it could not be edited. Removed and re-added as plain config.
 - **`reset-db.sh` edit was not applied at first.** Found with `Select-String`, then re-applied.
 - **Login failed online for every shop** until the Origin-based lookup and the CORS rule were added. Found by code review before the first live attempt, then confirmed fixed live.
+- **CI went red twice**: the script waited for typed confirmation, then the app role was missing on the CI machine. Both fixed, CI green.
 
 ---
 
@@ -114,13 +121,15 @@ Fill each row with "Explained and understood", "Learned after a mistake" or "To 
 ## 6. What would raise the manual share (next steps)
 
 1. Re-type `isAllowedOrigin` by hand from a blank file, closed book, then run `npm test -- allowedOrigin`.
-2. Write the reserved-slug check at signup herself, with its test.
+2. Write the reserved-slug check at signup herself, with its test (see `capstone/PENDING_TASKS.md`, P3).
 3. Write the conclusion of the staging guide (`STAGING.md`) in her own words.
 4. Tick the "Re-read" boxes only after genuinely re-reading each line.
 
 ---
 
 ## 7. Still open
+
+The full list, with reasons, is in `capstone/PENDING_TASKS.md`. The main ones:
 
 - Reserved slugs (`api`, `www`) are not refused at signup.
 - Public demo accounts (password `Demo1234!`) and leftover test shops are on staging. Remove them.
