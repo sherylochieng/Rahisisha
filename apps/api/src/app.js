@@ -34,6 +34,7 @@ import tenantsRouter from './routes/tenants.routes.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { withTenant }  from './middleware/withTenant.js';
 import { isDatabaseDown } from './utils/dbDown.js';
+import { corsOrigin } from './utils/allowedOrigin.js';
 
 
 // Load .env variables (DATABASE_URL, JWT_SECRET, etc.) into process.env
@@ -50,15 +51,23 @@ app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
 
-// cors() → allows our frontend (port 3001) to talk to this API (port 3000)
+
+// cors() → decides which websites may call this API with the login cookie.
 // credentials: true is required when the frontend sends cookies with requests
+//
+// BEFORE (Task 8): origin was ONE fixed address:
+//   origin: process.env.WEB_ORIGIN || 'http://localhost:3001',
+//   Online, every shop has its own address (mama-mboga.rahisishabiashara.com),
+//   so the browser blocked every shop's calls.
+//
+// AFTER (Task 8): a RULE decides. It allows WEB_ORIGIN (as before) and the
+//   main domain plus every address under ROOT_DOMAIN. See utils/allowedOrigin.js.
+//   On a laptop with no ROOT_DOMAIN, only WEB_ORIGIN works, exactly like before.
 app.use(cors({
-  // The one website address allowed to call this API with cookies.
-  // Set WEB_ORIGIN in .env (for example http://lvh.me:3001). If it is missing,
-  // we keep the old default, so nothing breaks
-  origin: process.env.WEB_ORIGIN || 'http://localhost:3001',
+  origin: corsOrigin,
   credentials: true,
 }));
+
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
