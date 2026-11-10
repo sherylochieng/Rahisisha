@@ -1,4 +1,4 @@
-# Rahisisha API — Developer Index
+# Rahisisha API: Developer Index
 
 This file documents what the API does, how it is structured,
 and why decisions were made. Update it every time you add something new.
@@ -6,23 +6,25 @@ and why decisions were made. Update it every time you add something new.
 For a deeper, file-by-file explanation, see the guides in `docs/src/` and
 `docs/tests/` and the reading order in `apps/api/README.md`.
 
+The live (staging) setup is described in `capstone/STAGING.md`.
+
 ---
 
 ## What This API Does
 
 Rahisisha is a multi-tenant SaaS backend for small Kenyan businesses.
 "Multi-tenant" means many businesses (tenants) share one database,
-but each business can only see its own data — never another business's data.
+but each business can only see its own data, never another business's data.
 
 **Example:**
 - Amina runs a dress shop (Tenant A)
 - Brian runs an electronics shop (Tenant B)
 - They share the same API and database
-- Amina can never see Brian's products or orders — ever
+- Amina can never see Brian's products or orders, ever
 
 This isolation is enforced at two levels:
-1. **Row Level Security (RLS)** — Postgres itself blocks cross-tenant queries
-2. **withTenant middleware** — sets the tenant context before every query
+1. **Row Level Security (RLS):** Postgres itself blocks cross-tenant queries
+2. **withTenant middleware:** sets the tenant context before every query
 
 ---
 
@@ -34,19 +36,22 @@ apps/api/
 ├── src/
 │   ├── index.js                        Entry point. Starts the server, mounts all routes.
 │   ├── app.js                          The Express app (no server start), so tests can import it.
-│   │                                   Also holds the central error handler.
+│   │                                   Also holds the CORS setting and the central error handler.
 │   ├── db/
 │   │   └── pool.js                     One shared Postgres connection pool for the whole app.
 │   ├── middleware/
 │   │   ├── requireAuth.js              Checks the JWT token. Rejects requests with no/bad token.
 │   │   ├── withTenant.js               Reads tenant from JWT, sets req.db to tenant-scoped connection.
 │   │   └── asyncHandler.js             Wraps async controllers so thrown errors reach the error handler.
+│   ├── utils/
+│   │   ├── allowedOrigin.js            CORS rule: which websites may call the API (main site + every shop).
+│   │   └── getShopSlug.js              Finds the shop word from the Origin (then Host) header.
 │   ├── routes/
 │   │   ├── auth/
 │   │   │   ├── auth.js                 Combines signup + login + me into one router.
-│   │   │   ├── signup.js               POST /v1/signup — creates a new tenant + owner account.
-│   │   │   ├── login.js                POST /v1/login — returns a signed JWT cookie.
-│   │   │   └── me.js                   GET /v1/me — returns the logged-in user's profile.
+│   │   │   ├── signup.js               POST /v1/signup: creates a new tenant + owner account.
+│   │   │   ├── login.js                POST /v1/login: finds the shop, returns a signed JWT cookie.
+│   │   │   └── me.js                   GET /v1/me: returns the logged-in user's profile.
 │   │   ├── products.routes.js          Maps product URLs to controller functions.
 │   │   ├── orders.routes.js            Maps order URLs to controller functions.
 │   │   ├── dashboard.routes.js         GET /v1/dashboard (protected).
@@ -63,6 +68,8 @@ apps/api/
 │   │   └── products.pagination.test.js     Cursor pagination returns every product once.
 │   ├── isolation.test.js                   Attacks all 16 tenant tables at the database level.
 │   ├── wallet.service.test.js              Wallet ledger: credit, debit, bad amounts, balance.
+│   ├── allowedOrigin.test.js               CORS rule: shops in, look-alikes and garbage out (13 tests).
+│   ├── getShopSlug.test.js                 Shop word from headers, including the exact online bug (14 tests).
 │   ├── isolation/
 │   │   ├── orders.isolation.test.js        Cross-tenant checks for orders.
 │   │   ├── products.cross-tenant.test.js   Cross-tenant checks for products.
@@ -75,12 +82,22 @@ apps/api/
     ├── AI_AUDIT_week_28_day4.md        Same, for Day 4 (isolation suite, wallet).
     ├── AI_AUDIT_week_28_day5.md        Same, for Day 5 (dashboard, login_lookup, hooks).
     ├── src/                            One guide per source file (same folders as src/).
+    │   └── utils/
+    │       ├── allowedOrigin.md        Guide for the CORS rule.
+    │       └── getShopSlug.md          Guide for the shop lookup.
     └── tests/                          One guide per test file (same folders as tests/).
-        └── isolation-proof.md          Evidence that every tenant table is locked (RLS).
+        ├── isolation-proof.md          Evidence that every tenant table is locked (RLS).
+        ├── allowedOrigin.test.md       Guide for the CORS tests.
+        └── getShopSlug.test.md         Guide for the shop lookup tests.
 ```
 
 Database files live outside `apps/api`: migrations in `sql/migrations/` (latest:
 `022_login_membership_lookup.sql`) and the full schema in `sql/SCHEMA.sql`.
+
+Other files added in Week 28 Weekend, outside `apps/api/src`:
+`scripts/reset-db.sh` (rebuilds a database; refuses anything but localhost unless
+told otherwise), `demo-data.sql`, `.github/workflows/ci.yml` (the robot that runs
+the tests on every push) and `capstone/STAGING.md` (the live setup).
 
 ---
 
@@ -95,7 +112,8 @@ Incoming request
   helmet()          adds security headers
   express.json()    parses the request body
   cookieParser()    reads cookies (JWT lives here)
-  cors()            allows requests from the frontend
+  cors()            allows the main site and every shop address
+                    (the rule is in utils/allowedOrigin.js)
       |
       v
   requireAuth       verifies the JWT, sets req.userId, req.tenantId, req.role
@@ -131,27 +149,27 @@ and returns the database connection to the pool.
 
 ## API Endpoints
 
-### Auth (public — no JWT required)
+### Auth (public, no JWT required)
 
-| Method | URL          | What it does                          |
-|--------|--------------|---------------------------------------|
-| POST   | /v1/signup   | Create a new tenant and owner account |
-| POST   | /v1/login    | Log in, receive a JWT cookie          |
-| GET    | /v1/me       | Get the logged-in user's profile      |
+| Method | URL          | What it does                                                        |
+|--------|--------------|---------------------------------------------------------------------|
+| POST   | /v1/signup   | Create a new tenant and owner account                               |
+| POST   | /v1/login    | Find the shop from the address, log in, receive a JWT cookie        |
+| GET    | /v1/me       | Get the logged-in user's profile                                    |
 
-### Tenants (public — no JWT required)
+### Tenants (public, no JWT required)
 
 | Method | URL                          | What it does                                                    |
 |--------|------------------------------|-----------------------------------------------------------------|
 | GET    | /v1/tenants/by-slug/:slug    | Find an active shop by its slug (404 if unknown). Used by the web proxy. |
 
-### Dashboard (protected — JWT + tenant required)
+### Dashboard (protected: JWT + tenant required)
 
 | Method | URL           | What it does                                                                 |
 |--------|---------------|------------------------------------------------------------------------------|
 | GET    | /v1/dashboard | Returns `{ data: { ordersToday, balanceCents, latestProducts } }` for the logged-in shop |
 
-### Products (protected — JWT + tenant required)
+### Products (protected: JWT + tenant required)
 
 | Method | URL                  | What it does                     |
 |--------|----------------------|----------------------------------|
@@ -161,7 +179,7 @@ and returns the database connection to the pool.
 | PATCH  | /v1/products/:id     | Partially update a product       |
 | DELETE | /v1/products/:id     | Soft delete a product            |
 
-### Orders (protected — JWT + tenant required)
+### Orders (protected: JWT + tenant required)
 
 | Method | URL                       | What it does                             |
 |--------|---------------------------|------------------------------------------|
@@ -179,21 +197,22 @@ and returns the database connection to the pool.
 | 204  | Deleted (soft delete, nothing to return)                               |
 | 400  | Validation failed, unknown order status, or malformed ID               |
 | 401  | Not logged in, or the session expired                                  |
-| 404  | Not found. Also what another tenant's record looks like (RLS hides it) |
+| 404  | Not found. Also what another tenant's record looks like (RLS hides it). At login, an unknown shop word gives `Tenant not found` |
 | 409  | Conflict: duplicate SKU, or an illegal order status change             |
 | 500  | Unexpected server error (details are logged, never sent to the caller) |
+| 503  | The database cannot be reached: a friendly "try again" answer          |
 
 ---
 
 ## Key Patterns
 
-### 1. Always req.db — never pool.query
+### 1. Always req.db, never pool.query
 
 ```js
-// Correct — uses tenant-scoped connection
+// Correct: uses tenant-scoped connection
 const { rows } = await req.db.query('SELECT * FROM products')
 
-// Wrong — bypasses tenant isolation, data leaks between tenants
+// Wrong: bypasses tenant isolation, data leaks between tenants
 const { rows } = await pool.query('SELECT * FROM products')
 ```
 
@@ -287,7 +306,7 @@ Every INSERT must pass `req.tenantId` explicitly.
 // Correct
 INSERT INTO products (tenant_id, name, ...) VALUES ($1, $2, ...)  -- [req.tenantId, name, ...]
 
-// Wrong — row has no owner, and the insert fails or lands in no tenant
+// Wrong: row has no owner, and the insert fails or lands in no tenant
 INSERT INTO products (name, ...) VALUES ($1, ...)
 ```
 
@@ -349,6 +368,40 @@ tenant. Without it, the membership insert is refused.
 Number). Balances are never stored, because sums cannot drift. Bad amounts are
 refused before anything is written.
 
+### 12. CORS is a rule, not a list (Week 28 Weekend)
+
+**BEFORE:** one allowed address (`WEB_ORIGIN`). **AFTER:** `utils/allowedOrigin.js`
+allows `WEB_ORIGIN`, the bare `ROOT_DOMAIN`, and anything ending in `.ROOT_DOMAIN`.
+
+**Story:** online, every shop has its own address, so a single allowed address
+blocked every shop from logging in. The rule needs the **dot** (`.rahisishabiashara.com`)
+so that `evilrahisishabiashara.com` is refused. In production only `https://` is
+allowed. With no `ROOT_DOMAIN` (a laptop) only `WEB_ORIGIN` is allowed.
+
+### 13. The shop is read from the Origin, not the Host (Week 28 Weekend)
+
+`utils/getShopSlug.js` reads the shop word from the **Origin** header first (the
+page the person was on), then from Host. `www` and `api` are never shops, and
+the bare domain is not a shop.
+
+**Story:** online, the browser sends login to `api.rahisishabiashara.com`, so
+reading Host always gave the word `api` and every login said "Shop not found".
+Tested by `tests/getShopSlug.test.js`, including the exact bug.
+
+---
+
+## Settings (environment variables)
+
+| Name | What it does |
+|------|--------------|
+| `DATABASE_URL` | The app's database login. Must be a user that is **not** a superuser and does **not** have BYPASSRLS, or the shop locks do nothing |
+| `JWT_SECRET` | Signs login tokens. Keep it long and secret |
+| `NODE_ENV` | `production` turns on `Secure` cookies and https-only CORS |
+| `WEB_ORIGIN` | The main site address (on a laptop, `http://localhost:3001`) |
+| `ROOT_DOMAIN` | The main domain, for example `rahisishabiashara.com`. Turns on the "every shop" CORS rule and the Origin-based shop lookup |
+| `COOKIE_DOMAIN` | Lets the login cookie work across shop addresses (online only) |
+| `PORT` | Port the server listens on |
+
 ---
 
 ## Money Rule
@@ -371,8 +424,10 @@ The frontend divides by 100 when displaying to users.
 Run from `apps/api`: `npm test`
 Run only the isolation suites: `npm run test:isolation`
 
-Current result (6 November 2026): 7 suites, 107 tests passing. Isolation only: 4 suites, 81 tests.
+Current result (10 November 2026): 15 suites, 141 tests passing. Isolation only: 81 tests.
 A Husky `pre-push` hook runs `npm run test:isolation` before every push.
+The same tests run on every push in CI (`.github/workflows/ci.yml`), against a
+fresh Postgres built by `scripts/reset-db.sh`.
 
 | File | What it proves |
 |------|----------------|
@@ -383,6 +438,11 @@ A Husky `pre-push` hook runs `npm run test:isolation` before every push.
 | `tests/isolation/orders.isolation.test.js` | Brio cannot read Acme's orders (404) |
 | `tests/isolation/products.cross-tenant.test.js` | Brio cannot read, list, edit or delete Acme's products (404) |
 | `tests/errors/error-handling.test.js` | Malformed IDs return 400, unknown statuses return 400, and 25 failing requests do not exhaust the pool |
+| `tests/allowedOrigin.test.js` | Shops and the main site get in; look-alike domains, `http://` in production and garbage are refused |
+| `tests/getShopSlug.test.js` | The shop word is found from Origin or Host; `www`, `api`, strangers and garbage give no shop |
+
+The suite also contains happy-path, database-down and signup sample-data tests
+added in Week 28 Weekend. They do not have guides yet (see Known Follow-Ups).
 
 Test cleanup uses a helper that sets the tenant first, because RLS applies to
 the test database user too. A plain DELETE would silently delete nothing.
@@ -395,27 +455,43 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 
 | Item | Why |
 |------|-----|
-| Use a strong `JWT_SECRET` and database password before deployment | The current values are development placeholders |
+| Re-check `JWT_SECRET` and the database password when staging becomes production | Staging has its own values set in Render. Never reuse a development placeholder |
 | Fix two stale comments in `orders.controller.js` | A `FOR UPDATE` mention in `createOrder` and `?status`/`?channel` filters on `listOrders` that do not exist yet |
 | Consider re-writing the AI-assisted parts of `withTenant.js` by hand | Keeps the "hand-written isolation" rule honest (see the AI audit) |
-| Add a test for the real login endpoint | `login-lookup.isolation.test.js` covers the database rule, not `login.js` |
+| Add a test for the real login endpoint | `login-lookup.isolation.test.js` covers the database rule and `getShopSlug.test.js` the shop word, but nothing runs `login.js` end to end |
 | Add a test for `GET /v1/dashboard` | The dashboard numbers have no automated test yet |
-| Match the subdomain against the login token at deployment | Today the dashboard runs at plain `localhost`, so this check is deferred |
-| Run the app as a non-owner database role; decide RLS for `audit_logs` | See the known limitations in `docs/tests/isolation-proof.md` |
+| Match the shop in the address against the login token on later requests | Login now reads the shop from the address, but later requests trust the token only |
+| Decide RLS for `audit_logs`; keep the app on a non-owner database role | Staging runs as `rahisisha_user` (no BYPASSRLS). See the known limitations in `docs/tests/isolation-proof.md` |
 | Make the dashboard success envelope match the others (`error: null`) | Small inconsistency with `/v1/products` |
 | Write guides for the web layout, sidebar and dashboard page | `apps/web/docs/` has guides for `proxy.js`, `session.js` and `serverApi.js` only |
-| Fix slugify (cut, then trim dashes); add a reserved-slug check (admin, www, api); make session.js treat an API outage like serverApi.js | Found on Day 5, planned after Day 6 |
+| Fix slugify (cut, then trim dashes); refuse reserved slugs (admin, www, api) at **signup**; make session.js treat an API outage like serverApi.js | The lookup ignores `www` and `api`, but signup still lets someone register them |
+| Write guides for the friendly 503 handler, sample data on signup, and the happy-path, database-down and signup sample-data tests | Added in Week 28 Weekend, not documented yet |
+| Add AI audit entries for Week 28 Weekend Tasks 3 to 8 | The audit files stop at Day 5 |
+| Set the database SSL mode to `verify-full`; give `pool.js` a connection timeout | Staging works, but the `pg` SSL warning shows and a stuck database would hang a request |
+| Remove the public demo accounts (password `Demo1234!`) and leftover test shops from staging | They are listed in `capstone/STAGING.md` under known gaps |
 
 ---
 
-## The Web App (apps/web) — short map
+## Staging (live)
+
+Details, settings and troubleshooting are in `capstone/STAGING.md`. In short:
+
+| Part | Where | Address |
+|------|-------|---------|
+| Web app | Vercel (project root `apps/web`) | `https://rahisishabiashara.com` and `https://<shop-word>.rahisishabiashara.com` |
+| API | Render (free plan: sleeps after 15 minutes, first request is slow) | `https://api.rahisishabiashara.com` |
+| Database | Neon (Frankfurt), app user `rahisisha_user` | not public |
+
+---
+
+## The Web App (apps/web): short map
 
 The web app has no database. It calls this API (`NEXT_PUBLIC_API_URL`, which
-already ends in `/v1`).
+must end in `/v1` and is fixed when the site is built).
 
 | File | What it does |
 |------|--------------|
-| `src/proxy.js` | Next.js 16 proxy (the old "middleware"): works out which shop the visitor wants from the subdomain |
+| `src/proxy.js` | Next.js 16 proxy (the old "middleware"): works out which shop the visitor wants from the subdomain (uses `ROOT_DOMAIN`). `www` and the bare domain are not shops |
 | `src/lib/session.js` | `requireSession`: reads the login cookie, redirects to login if missing |
 | `src/lib/serverApi.js` | `serverGet`: calls this API from server pages, forwarding the login cookie |
 | `src/components/Sidebar.js` | Left menu (Products, Orders, Wallet, Settings are marked "soon") |
@@ -436,9 +512,11 @@ check is the second lock.
 | WhatsApp Cloud API                  | Week 29         |
 | AI product enhancement (Claude API) | Week 29         |
 | BullMQ background jobs              | Week 29         |
-| VPS deployment (Docker)             | Week 30         |
+| Production hardening (strong secrets, paid hosting, no sleeping API) | Week 30 |
+
+Staging is already live (see above).
 
 ---
 
-*Last updated: Week 28 Day 5*  
+*Last updated: Week 28 Weekend (Task 8, staging deploy), 10 November 2026*  
 *Update this file every time a new endpoint or pattern is added.*
