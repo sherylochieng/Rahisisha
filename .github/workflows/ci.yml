@@ -1,0 +1,207 @@
+# =============================================================================
+# FILE: .github/workflows/ci.yml
+# =============================================================================
+#
+# WHY THIS FILE EXISTS
+#   GitHub reads this file and starts a fresh, empty computer (a "robot")
+#   every time you push code. The robot builds a clean database, installs
+#   your API, and runs ALL your tests. You do not have to remember.
+#
+# WHY IMPORTANT
+#   "It works on my laptop" is not proof. Your laptop has old data, old
+#   settings, and a database you tweaked by hand. The robot has NOTHING
+#   but what is written in git. If tests pass there, they pass for everyone.
+#
+# DANGER (what breaks without it)
+#   - A teammate (or future you) pushes a change that breaks tenant
+#     isolation. Nobody notices. One shop sees another shop's customers.
+#   - Tests only pass because of data sitting on your laptop.
+#
+# WHAT IT SOLVES
+#   Automatic proof, on every push, that: the schema loads, the 17 RLS
+#   policies exist, and all tests (including the isolation tests) pass.
+#
+# SYSTEM DESIGN PRINCIPLE
+#   Continuous Integration (CI): every change is checked by a machine,
+#   in a clean room, before anyone trusts it. Also: test the SAME way the
+#   real app runs. We use a normal (non-superuser) database user, because
+#   superusers skip Row Level Security and would hide isolation bugs.
+#
+# RULES
+#   - NEVER put real passwords here. Every value below is a throw-away
+#     password for a database that is deleted when the robot finishes.
+#   - NEVER make the test user a superuser. It would bypass RLS and make
+#     the isolation tests pass for the wrong reason.
+#   - Keep the Postgres version close to the one you use (you use 18).
+#   - If a step fails, fix the cause. Do not delete the step.
+#
+# REAL-LIFE EXAMPLE
+#   Like a restaurant health inspector who visits every day with a clean
+#   checklist. The kitchen cannot say "but it was fine yesterday".
+#
+# DECISIONS
+#   - Runs on push to main AND on pull requests, so problems show up
+#     before code is merged, not after.
+#   - Uses scripts/reset-db.sh (the same script you use locally), so
+#     CI and your laptop build the database in the exact same way.
+#
+# WHERE USED
+#   GitHub, Actions tab. A green tick or red cross appears next to every
+#   commit.
+#
+# TRADEOFFS
+#   - Each run takes about 1 to 2 minutes and uses free GitHub minutes.
+#   - The robot does not run the web app (Next.js) yet. Only the API.
+#
+# HOW TO USE
+#   Push to GitHub, open your repo, click the "Actions" tab, click the
+#   newest run. Green tick = all good. Red cross = click it to read why.
+#
+# -----------------------------------------------------------------------------
+# PIECE BY PIECE (what each part does, with real-life examples)
+# -----------------------------------------------------------------------------
+#
+# name: CI
+#   WHAT: The label you see in the Actions tab.
+#   EXAMPLE: The name on the inspector's badge.
+#
+# on: push (main) / pull_request
+#   WHAT: WHEN the robot wakes up.
+#   WHEN: Every push to main, and every pull request.
+#   EXAMPLE: The inspector visits every time the kitchen changes the menu.
+#
+# jobs: api-tests
+#   WHAT: One job = one robot doing a list of steps in order.
+#   If any step fails, the robot stops and the run goes RED.
+#
+# runs-on: ubuntu-latest
+#   WHAT: The kind of computer the robot uses (a clean Linux machine).
+#   EXAMPLE: A brand-new empty kitchen, not your messy home kitchen.
+#
+# services: postgres
+#   WHAT: A real Postgres database started NEXT TO the robot.
+#   WHY: Your tests need a real database (RLS cannot be faked).
+#   EXAMPLE: Renting a clean kitchen WITH an oven already installed.
+#   - image: postgres:18  -> same version you use on your laptop.
+#   - POSTGRES_PASSWORD   -> password of the admin user "postgres".
+#                            Throw-away. The database dies after the run.
+#   - ports 5432:5432     -> lets the robot reach it at localhost:5432.
+#   - health-cmd (pg_isready) -> asks "are you ready?" every 5 seconds.
+#     The steps wait until the answer is yes (up to 10 tries).
+#     EXAMPLE: "Don't start cooking until the oven is hot."
+#
+# env (job level): NODE_ENV, JWT_SECRET, WEB_ORIGIN, DATABASE_URL
+#   WHAT: The settings your API reads from process.env.
+#   - NODE_ENV=test      -> tells the app it is running in test mode.
+#   - JWT_SECRET         -> fake key to sign login cookies. Real one
+#                           stays on your laptop and never goes to git.
+#   - WEB_ORIGIN         -> the web app address the API allows (CORS).
+#   - DATABASE_URL       -> how the API connects. It uses rahisisha_user,
+#                           the NORMAL user, so RLS is enforced.
+#   NOT SET ON PURPOSE: COOKIE_DOMAIN and PORT. Tests do not need them.
+#   If cookie tests fail, add COOKIE_DOMAIN here.
+#   EXAMPLE: The recipe card taped to the wall of the clean kitchen.
+#
+# step 1: actions/checkout@v4
+#   WHAT: Downloads your code from git onto the robot.
+#   WHY: The robot starts empty. It only gets what is in git.
+#
+# step 2: actions/setup-node@v4
+#   WHAT: Installs Node 22 and remembers npm downloads between runs.
+#   - cache: npm + cache-dependency-path -> makes the next run faster.
+#   EXAMPLE: Keeping flour in the pantry so you don't shop every day.
+#
+# step 3: Build the database  (bash scripts/reset-db.sh)
+#   WHAT: Runs the SAME script you use on your laptop.
+#   It drops/creates the database, creates rahisisha_user (NOT superuser),
+#   loads sql/SCHEMA.sql, and checks that all 17 policies exist.
+#   - RESET_DB_CONFIRM=rahisisha -> answers the "type the name" question
+#     because the robot has no keyboard. Must match DB_NAME exactly.
+#   - ADMIN_PASSWORD must equal POSTGRES_PASSWORD above.
+#   - APP_PASSWORD must equal the password inside DATABASE_URL above.
+#   - "bash scripts/..." (not ./scripts/...) so it works even if git
+#     lost the "executable" flag.
+#   DANGER: if these passwords do not match, the API cannot connect.
+#   EXAMPLE: Building the kitchen from the blueprint, never by hand.
+#
+# step 4: npm ci  (in apps/api)
+#   WHAT: Installs EXACTLY the versions in package-lock.json.
+#   WHY: "npm install" can pick newer versions. "npm ci" never does.
+#   EXAMPLE: Buying the exact brand on the shopping list.
+#
+# step 5: npm test  (in apps/api)
+#   WHAT: Runs every test, including the 81 isolation tests.
+#   One failing test = the whole run is RED.
+#   EXAMPLE: The inspector tastes every dish, not just one.
+# =============================================================================
+
+name: CI
+
+# WHEN the robot wakes up
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api-tests:
+    name: API tests (real Postgres)
+    runs-on: ubuntu-latest
+
+    # A real Postgres, started next to the job. Same kind you run locally.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: ci_admin_pw # admin ("postgres") password. Throw-away.
+        ports:
+          - 5432:5432
+        # Wait until Postgres says "ready" before the steps start.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Settings for every step. These are the names your API reads.
+    env:
+      NODE_ENV: test
+      JWT_SECRET: ci-only-secret-not-real
+      WEB_ORIGIN: http://localhost:3000
+      DATABASE_URL: postgres://rahisisha_user:ci_app_pw@localhost:5432/rahisisha
+
+    steps:
+      # 1. Download your code onto the robot.
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      # 2. Install Node and cache npm downloads (faster next time).
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      # 3. Build the database from scratch. Same script you use locally.
+      #    RESET_DB_CONFIRM replaces the human typing the database name.
+      #    The script creates rahisisha_user as a NORMAL user (not
+      #    superuser), loads sql/SCHEMA.sql, and checks all 17 policies.
+      - name: Build the database
+        env:
+          DB_NAME: rahisisha
+          ADMIN_USER: postgres
+          ADMIN_PASSWORD: ci_admin_pw
+          APP_PASSWORD: ci_app_pw
+          RESET_DB_CONFIRM: rahisisha
+        run: bash scripts/reset-db.sh
+
+      # 4. Install exactly what package-lock.json says (no surprises).
+      - name: Install API packages
+        working-directory: apps/api
+        run: npm ci
+
+      # 5. Run every test, including the 81 isolation tests.
+      - name: Run tests
+        working-directory: apps/api
+        run: npm test
