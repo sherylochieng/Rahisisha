@@ -22,6 +22,7 @@ It decides the **order** requests travel through. Order is security.
 
 - Routes mounted **without** `requireAuth` and `withTenant` skip tenant safety.
 - An error handler placed **before** the routes never sees their errors.
+- **CORS set too strict** and no shop can log in online. **Set too loose** and a stranger's website can use a visitor's login cookie. See the CORS section below.
 
 ---
 
@@ -57,12 +58,49 @@ Mount tenant-owned routes with all three guards, in this order:
 
 ```js
 app.use('/v1/products', requireAuth, withTenant, productsRouter);
-app.use('/v1/orders',   requireAuth, withTenant, ordersRouter);
+app.use('/v1/orders', requireAuth, withTenant, ordersRouter);
 ```
 
 1. `requireAuth` checks the login token and sets `req.tenantId`.
 2. `withTenant` borrows a connection and tells Postgres who the tenant is.
 3. The router runs the controller.
+
+---
+
+## CORS (WHICH WEBSITES MAY CALL THE API)
+
+**Where:** near the top of `app.js`, before the routes.
+
+**BEFORE (Week 28 Weekend, Task 8):** one allowed address.
+
+```js
+app.use(cors({ origin: process.env.WEB_ORIGIN, credentials: true }));
+```
+
+**AFTER:** a rule, kept in its own file.
+
+```js
+import { corsOrigin } from './utils/allowedOrigin.js';
+app.use(cors({ origin: corsOrigin, credentials: true }));
+```
+
+**THE STORY (why it changed):**
+
+- On a laptop there is one website, `http://localhost:3001`, so one allowed address was enough.
+- Online, every shop has its own address, like `mama-mboga.rahisishabiashara.com`.
+- The browser sent that address, the API compared it with the single allowed address, said no, and **no shop could log in**.
+- Listing every shop by hand is impossible, because new shops sign up every day.
+- So the check became a **rule**: the main site and anything ending in `.rahisishabiashara.com`.
+
+**WHY THE RULE LIVES IN ITS OWN FILE:** it is a security door, and a file with its own tests is harder to "simplify" by accident. Guide: `docs/src/utils/allowedOrigin.md`. Tests: `docs/tests/allowedOrigin.test.md`.
+
+**RULES:**
+
+1. **NEVER** use `origin: '*'` together with `credentials: true`.
+2. **NEVER** match with a plain `endsWith('rahisishabiashara.com')`. Without the dot, `evilrahisishabiashara.com` gets in.
+3. Settings needed on Render: `ROOT_DOMAIN` (the main domain) and `WEB_ORIGIN` (the main site address).
+
+**The error handler below is unchanged.** CORS only decides who may call. It does not change what the API answers.
 
 ---
 
@@ -89,7 +127,10 @@ What it does, in order:
 3. **Anything else:** log the real error on the server (`console.error(err)`) and answer **500** with a generic message:
 
 ```json
-{ "data": null, "error": { "code": "internal", "message": "Something went wrong" } }
+{
+  "data": null,
+  "error": { "code": "internal", "message": "Something went wrong" }
+}
 ```
 
 **Why generic?** Real database errors can reveal table names and queries. Callers must never see them.
@@ -98,13 +139,13 @@ What it does, in order:
 
 ## STATUS CODES AT A GLANCE
 
-| Code | Meaning here |
-|---|---|
-| 400 | Bad input, or a malformed ID |
-| 401 | Not logged in |
-| 404 | Not found, or belongs to another tenant |
-| 409 | Duplicate SKU, or illegal order status move |
-| 500 | Our fault. Details are only in the server log |
+| Code | Meaning here                                  |
+| ---- | --------------------------------------------- |
+| 400  | Bad input, or a malformed ID                  |
+| 401  | Not logged in                                 |
+| 404  | Not found, or belongs to another tenant       |
+| 409  | Duplicate SKU, or illegal order status move   |
+| 500  | Our fault. Details are only in the server log |
 
 ---
 
