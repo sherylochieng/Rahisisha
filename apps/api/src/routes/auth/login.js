@@ -84,6 +84,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { pool } from '../../db/pool.js';
 import { isDatabaseDown } from '../../utils/dbDown.js';
+import { getShopSlug } from '../../utils/getShopSlug.js';
 
 const router = Router();
 
@@ -105,22 +106,33 @@ router.post('/login', async (req, res) => {
 
   try {
     // --- TENANT ISOLATION: this is the part YOU must write and understand ---
-    // Read the Host header to find which tenant's door was knocked on
-    // e.g. "acme.rahisisha.co.ke" → slug is "acme"
-    // In development, Host is "localhost:3000" — we default to the first tenant
-    const host = req.headers.host || '';
-    const subdomain = host.split('.')[0]; // "acme" from "acme.rahisisha.co.ke"
+    //
+    // BEFORE (Task 8): we read the API's OWN address:
+    //   const host = req.headers.host || '';
+    //   const subdomain = host.split('.')[0];
+    //   Online the browser calls api.rahisishabiashara.com, so the shop word
+    //   was ALWAYS "api" and every login ended in "Tenant not found".
+    //
+    // AFTER (Task 8): getShopSlug() reads the address the VISITOR is on (the
+    //   Origin header) when ROOT_DOMAIN is set. On a laptop (no ROOT_DOMAIN)
+    //   it behaves exactly like the old code. See utils/getShopSlug.js.
+    //
+    // slug === null means "main entrance, no shop": we take the user's first
+    // membership (the same thing the laptop already does).
+    // The shop word only picks WHICH shop to check. The password and the
+    // membership check below still decide who gets in.
+    const slug = getShopSlug(req);
 
     let tenantResult;
 
-    if (subdomain === 'localhost:3000' || subdomain === 'localhost') {
-      // Development: no subdomain — find tenant from the user's membership directly
+    if (slug === null) {
+      // Main entrance: no shop word, find the tenant from the membership
       tenantResult = null;
     } else {
-      // Production: find the tenant that owns this subdomain slug
+      // Shop address: find the tenant that owns this slug
       tenantResult = await pool.query(
         'SELECT id FROM tenants WHERE slug = $1',
-        [subdomain],
+        [slug],
       );
 
       if (tenantResult.rows.length === 0) {
