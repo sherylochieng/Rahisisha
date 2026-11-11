@@ -95,6 +95,37 @@ Order matters: **P1 to P3 first**, because they make the live site safe to show.
 - [ ] **P23. Set a reminder to renew the domain** (due 9 November 2027, about KES 2,030 a year).
 - [ ] **P24. Check the sleeping API before any demo:** open the site, wait a minute, then show it.
 
+
+## G. Next-week product ideas (after M-Pesa, NOT this weekend)
+
+The assignment said "do not add features", so these wait until the core is done.
+
+- [ ] **P25. Shareable, branded shop page**
+  Why: each shop gets a public products page a friend can open from WhatsApp. It is already promised in the PRD (Journey A, step 2: logo, colours, tone).
+  Steps:
+  1. Check whether the `tenants` table already has colour and logo columns. If not, add a migration (for example `primary_color`, `logo_url`).
+  2. Add a public page at the shop's own address that lists active products, with no login.
+  3. Apply the colours with CSS variables, so one design works for every shop.
+  4. Guard contrast: pick a readable text colour so pale brand colours stay readable.
+  5. The public query must return only active products and nothing private. Add a test that a different shop's products never appear.
+  Done when: two shops show two different colour schemes, and a stranger can open the link without logging in.
+  Do after: M-Pesa, because a shareable page with no way to pay is only half useful.
+
+- [ ] **P26. Study the competition (about 20 minutes)**
+  Why: Mybizna (https://app.mybizna.com/) already sells a shareable shop link to Kenyan Instagram sellers, so a shop link alone is not our difference.
+  What to do: make a free account, use it as a customer, and write down what feels good and what is missing.
+  Questions to answer: how do they price (free plan plus a cut per payment, as their landing page says)? Do they track stock? Do they answer customers?
+  Note: only their landing page was read so far. Check their other pages before claiming anything about them.
+
+- [ ] **P27. Decide how Rahisisha makes money**
+  Why: the market pattern is a free plan with a small percentage per payment, then monthly plans with a lower percentage. We have not decided ours.
+  Done when: one paragraph in the README says the plan names, prices and the percentage per payment, with the reason for each.
+
+- [ ] **P28. Write the one-sentence pitch and the Odoo/Shopify/Mybizna comparison in the README**
+  One sentence to start from: "Rahisisha helps a busy Kenyan seller sell on WhatsApp and get paid on M-Pesa without being online all day."
+  Rule: do not promise features that are not built (accounting, payroll, tax invoices). Say "the first version does X, next comes Y".
+
+---
 ---
 
 ## Done log
