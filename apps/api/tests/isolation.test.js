@@ -73,8 +73,12 @@ const TENANT_TABLES = [
 ];
 
 // Tables that have a tenant_id but, BY DESIGN, no RLS. They are documented as
-// exceptions in isolation-proof.md. audit_logs: platform admin reads all shops
-const KNOWN_EXCEPTIONS = ['audit_logs'];
+// exceptions in isolation-proof.md. audit_logs: platform admin reads all shops.
+// ussd_configs (migration 023): the USSD endpoint looks up the shop by service
+// code BEFORE any shop is known, so an RLS rule on app.current_tenant would hide
+// every row (the same trap as login before migration 022). Service codes are
+// public by nature. Do not put secrets in this table.
+const KNOWN_EXCEPTIONS = ['audit_logs', 'ussd_configs'];
 
 // Shared by all tests in this file
 let client;          // ONE connection, one open transaction
