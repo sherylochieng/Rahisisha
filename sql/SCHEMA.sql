@@ -29,6 +29,7 @@
 --  18. subscriptions
 --  19. usage_counters
 --  20. audit_logs
+--  21. ussd_configs (migration 023)
 -- =============================================================
 
 
@@ -604,6 +605,15 @@ CREATE INDEX audit_logs_resource_idx
 -- No RLS on audit_logs — platform admin needs full access
 
 
+-- USSD: which shop owns which service code (migration 023).
+-- No RLS on purpose: the lookup happens before any shop is known.
+CREATE TABLE IF NOT EXISTS ussd_configs (
+  tenant_id    UUID PRIMARY KEY REFERENCES tenants(id),
+  service_code TEXT UNIQUE NOT NULL,
+  welcome_text TEXT NOT NULL CHECK (char_length(welcome_text) <= 100)
+);
+
+
 -- =============================================================
 -- RLS CONTEXT FUNCTION
 -- Called at the start of every request by tenantContext.js:
@@ -619,10 +629,10 @@ $$ LANGUAGE plpgsql;
 
 
 -- =============================================================
--- SUMMARY
--- 20 tables total
+-- 21 tables total
 -- 16 tables with RLS enabled (all tenant-owned tables)
---  4 tables without RLS (tenants, users, webhook_events, audit_logs)
+--  5 tables without RLS (tenants, users, webhook_events, audit_logs,
+--    ussd_configs: looked up before any shop is known)
 --
 -- Every tenant-owned table has:
 --   - tenant_id UUID NOT NULL REFERENCES tenants(id)
