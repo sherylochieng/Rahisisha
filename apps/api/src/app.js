@@ -35,6 +35,8 @@ import { requireAuth } from './middleware/requireAuth.js';
 import { withTenant }  from './middleware/withTenant.js';
 import { isDatabaseDown } from './utils/dbDown.js';
 import { corsOrigin } from './utils/allowedOrigin.js';
+import { resolveUssdTenant } from './middleware/resolveUssdTenant.js';
+import ussdRouter from './routes/ussd.routes.js';
 
 
 // Load .env variables (DATABASE_URL, JWT_SECRET, etc.) into process.env
@@ -68,6 +70,10 @@ app.use(cors({
   credentials: true,
 }));
 
+// Africa's Talking sends USSD requests as FORM data (not JSON).
+// Without this line, req.body is empty and every call says "Service unavailable".
+app.use(express.urlencoded({ extended: false }));
+
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +101,13 @@ app.use('/v1/dashboard', requireAuth, withTenant, dashboardRouter);
 // to turn an address word (skirt-shirt) into a shop. It only returns the
 // shop's id, name and slug. Never add private routes to this router
 app.use('/v1/tenants', tenantsRouter);
+
+
+// USSD: PUBLIC on purpose. No requireAuth, because a phone has no login cookie.
+// Instead the guard resolveUssdTenant finds the shop from the service code,
+// then withTenant locks the database to that shop (same "stamp, then lock"
+// pattern as /v1/products). Order matters: guard first, then lock.
+app.use('/ussd', resolveUssdTenant, withTenant, ussdRouter);
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 // Used by monitoring tools (and your tests) to confirm the server is alive
