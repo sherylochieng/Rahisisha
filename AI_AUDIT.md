@@ -9,6 +9,7 @@ This file is a map. The audits live next to the code they describe, in `apps/api
 | Week 28 Day 5 | `apps/api/docs/AI_AUDIT_week_28_day5.md` |
 | Week 28 Weekend | `apps/api/docs/AI_AUDIT_week_28_weekend.md` |
 | Week 29 Day 1 | `apps/api/docs/AI_AUDIT_week_29_day1.md` |
+| Week 29 Day 2 | `apps/api/docs/AI_AUDIT_week_29_day2.md` |
 
 ---
 
@@ -36,3 +37,9 @@ Section 4 of the same file.
 The assignment lists tenant resolution as NOT allowed for AI. In Week 29 Day 1 the AI wrote it, at Sheryl's request, and this is declared openly.
 
 The lines are in `apps/api/src/middleware/resolveUssdTenant.js`, and each one is listed in section 3 of **`apps/api/docs/AI_AUDIT_week_29_day1.md`**.
+
+## Token Handling and Tenant Resolution Note (Week 29 Day 2)
+
+The assignment lists token handling and tenant resolution as NOT allowed for AI. In Week 29 Day 2 the AI wrote both, at Sheryl's request, and this is declared openly. The AI also wrote `whatsapp-security.md`, which the assignment asks for in Sheryl's own words.
+
+The lines are in `apps/api/src/utils/kms.js`, `apps/api/src/services/whatsapp.service.js` and `apps/api/src/middleware/resolveWhatsappTenant.js`, and each one is listed in section 3 of **`apps/api/docs/AI_AUDIT_week_29_day2.md`**.
