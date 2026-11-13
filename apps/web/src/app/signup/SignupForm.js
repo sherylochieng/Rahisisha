@@ -24,10 +24,14 @@
 //     "phone already exists", which confuses the user.
 //   - The box and the button were copy-pasted from the login
 //     page, so fixes had to be made twice.
+//   - (Week 29 Day 1) Bad input showed ONE long message at the
+//     top, or a browser pop-up, and the user had to guess which
+//     box was wrong.
 //
 // WHAT IT SOLVES
 //   Clear messages for every way signup can go wrong, using the
-//   shared FormError and SubmitButton instead of copies.
+//   shared FormError and SubmitButton instead of copies. Field
+//   problems now show UNDER the box that is wrong.
 //
 // SYSTEM DESIGN PRINCIPLE
 //   "Design for every state" (normal, loading, invalid input,
@@ -38,11 +42,13 @@
 //   2. NEVER show raw server or browser errors to the user.
 //   3. NEVER remove e.preventDefault().
 //   4. NEVER trust the browser checks alone. The API checks
-//      again. minLength here only saves a wasted request.
+//      again. The checks in this file only save a wasted request.
 //   5. NEVER paste the red box or button markup back in here.
 //   6. NEVER change the limits below without changing the API.
 //      They mirror signupSchema in routes/auth/signup.js:
 //        name 2-100, phone 10-20, password 8-72, business 2-100.
+//   7. (Week 29 Day 1) FIELD_RULES and FIELD_HELP below must say
+//      the same thing as the limits in rule 6.
 //
 // ───────────────────────────────────────────────────────────
 // THE STORY: BEFORE AND AFTER (Week 28 Weekend, Task 3)
@@ -62,7 +68,7 @@
 //     when Postgres is down (Task 2), and signup had to show it.
 //     We did login first, then copied the same pattern here.
 //
-//   AFTER (how it works now)
+//   AFTER (how it worked at the end of Week 28)
 //     1. lib/api.js turns every failure into a friendly Error and
 //        sets err.status (0 = never reached the server).
 //     2. <FormError> draws the red box.
@@ -77,33 +83,88 @@
 //     The look of the page did NOT change. Only the behaviour.
 // ───────────────────────────────────────────────────────────
 //
+// ───────────────────────────────────────────────────────────
+// THE STORY: BEFORE AND AFTER (Week 29 Day 1, reviewer fix)
+// ───────────────────────────────────────────────────────────
+//   REVIEWER SAID
+//     "Validation errors do not surface clearly in forms." The
+//     assignment check was: type a bad phone number and look for a
+//     message under the field.
+//
+//   BEFORE (end of Week 28)
+//     - The browser's own pop-up bubble complained about the first
+//       bad box (it is not under the field, and it looks different
+//       on every browser).
+//     - If a 400 reached us from the API, ONE long sentence at the
+//       top listed every limit. The user had to work out which
+//       box was wrong.
+//     - A duplicate phone (409) also showed only at the top.
+//
+//   WHY WE CHANGED IT
+//     lib/api.js already staples the API's field-by-field problems
+//     onto the error (err.details), and the API already sends them.
+//     Only this form ignored them. And the browser pop-up stopped
+//     bad input before we could show our own words.
+//
+//   AFTER (now)
+//     1. <form noValidate> switches the browser pop-up off.
+//     2. validate() checks the four limits first (FIELD_RULES) and
+//        shows kind words under each wrong box (FIELD_HELP). The
+//        first wrong box also gets the cursor.
+//     3. If a 400 still comes back from the API, we read
+//        err.details and show the same words under the same boxes.
+//     4. A 409 about the phone shows "already has an account"
+//        under the phone box.
+//     5. Each wrong box gets a red border, aria-invalid and
+//        aria-describedby, so screen readers read the message.
+//     6. The banner at the top stays, short: "Please fix the
+//        highlighted fields." The old long 400 sentence stays as
+//        the last fallback.
+//     The look of the page did not change, except the red text and
+//     border under a wrong box.
+// ───────────────────────────────────────────────────────────
+//
 // PRACTICAL EXAMPLE
 //   Amina types her business "Amina's Boutique" and a 6-digit
-//   phone: the browser says the phone is too short and sends
-//   nothing. She fixes it, taps Create account, the button says
-//   "Creating account..." and then the dashboard opens. If that
-//   phone is already registered she reads "An account with that
-//   phone number already exists".
+//   phone, then taps Create account. Nothing is sent. The phone
+//   box turns red and says "Phone number must be 10 to 20
+//   characters." under it, and the cursor jumps into it. She fixes
+//   it, taps again, the button says "Creating account..." and then
+//   the dashboard opens. If that phone is already registered she
+//   reads "This phone number already has an account. Try logging
+//   in." under the phone box.
 //
 // WHERE YOU WILL USE THIS PATTERN
 //   Any future form: products, orders, settings.
 //
 // TRADEOFFS
 //   + Same pattern as login, easy to maintain.
-//   - Errors show in one box at the top, not under each field.
-//     Fine for four fields; a bigger form would need per-field
-//     messages.
+//   ❌ BEFORE: Errors show in one box at the top, not under each
+//     field. Fine for four fields; a bigger form would need
+//     per-field messages.
+//   ✅ AFTER (Week 29 Day 1): per-field messages, as the bigger-form
+//     note said we would need.
+//   - The limits now live in two places (the API schema and
+//     FIELD_RULES here). If they drift apart, the API still wins,
+//     because it checks again and we show its field errors too.
+//   - A wrong box stays red until the next submit (we do not clear
+//     it while typing). Simple, and fine for a four-field form.
 //
 // HOW TO USE
 //   Rendered by app/signup/page.js. No props.
 // ═══════════════════════════════════════════════════════════
 
-// ❌ BEFORE: there was an import here:
+// ❌ BEFORE (Week 28): there was an import here:
 //   import { useState } from 'react';
 //   with a comment saying "we still import it because useFormState
 //   uses it internally". That was wrong: the hook imports its own
 //   useState, and this file never used it.
-// ✅ AFTER: removed. Fewer lines, no unused import.
+// ✅ AFTER (Week 28): removed. Fewer lines, no unused import.
+// ✅ AFTER (Week 29 Day 1): it is back, and this time it is used:
+//   fieldErrors below needs its own memory. (The hook keeps the
+//   banner message and the loading flag; this file keeps the
+//   per-field messages.)
+import { useState } from 'react';
 
 import { useRouter } from 'next/navigation';
 // useRouter — gives us the ability to navigate programmatically
@@ -136,6 +197,50 @@ import FormError from '../../components/FormError';
 import SubmitButton from '../../components/SubmitButton';
 // SubmitButton: the button that says "Creating account..." and locks itself while waiting
 
+// ─────────────────────────────────────────────
+// FIELD RULES AND FIELD HELP  (Week 29 Day 1)
+// ─────────────────────────────────────────────
+// ✅ AFTER (NEW): two small tables, one row per box.
+// ❌ BEFORE: they did not exist. The limits lived only in the minLength /
+//            maxLength attributes and in one long sentence in the catch block.
+//
+// FIELD_RULES: [shortest, longest] number of characters. These are the SAME
+//   numbers as signupSchema in apps/api/src/routes/auth/signup.js.
+//   REAL LIFE: the height line at a fairground ride. The sign at the gate and
+//   the one at the ride must say the same thing.
+const FIELD_RULES = {
+  name:        [2, 100],
+  phone:       [10, 20],
+  password:    [8, 72],
+  tenant_name: [2, 100],
+};
+
+// FIELD_HELP: kind words shown UNDER the box that is wrong.
+//   WHY not the server's own text: zod says things like "String must contain
+//   at least 10 character(s)", which a shop owner cannot use.
+const FIELD_HELP = {
+  name:        'Your name must be 2 to 100 characters.',
+  phone:       'Phone number must be 10 to 20 characters.',
+  password:    'Password must be 8 to 72 characters.',
+  tenant_name: 'Business name must be 2 to 100 characters.',
+};
+
+// validate(body): checks every box against FIELD_RULES.
+//   Returns an object with ONLY the wrong boxes: { phone: 'words...' }.
+//   An empty object {} means everything is fine.
+//   EXAMPLE: phone "0712" -> { phone: 'Phone number must be 10 to 20 characters.' }
+function validate(body) {
+  const problems = {};
+  for (const field of Object.keys(FIELD_RULES)) {
+    const [min, max] = FIELD_RULES[field];
+    const length = String(body[field] ?? '').length;
+    if (length < min || length > max) {
+      problems[field] = FIELD_HELP[field];
+    }
+  }
+  return problems;
+}
+
 export default function SignupForm() {
   // ─────────────────────────────────────────────
   // ROUTER
@@ -156,6 +261,12 @@ export default function SignupForm() {
   // startSubmit() — call at the TOP of every submit: clears error, sets loading=true
   // failSubmit(msg) — call in catch block: sets error message, sets loading=false
 
+  // ✅ AFTER (Week 29 Day 1, NEW): which boxes are wrong right now.
+  // Looks like { phone: 'words', password: 'words' }. An empty object means
+  // nothing is wrong. Wiped at the start of every submit.
+  // ❌ BEFORE: there was no per-field memory, only the one banner message.
+  const [fieldErrors, setFieldErrors] = useState({});
+
   // ─────────────────────────────────────────────
   // SUBMIT HANDLER
   // ─────────────────────────────────────────────
@@ -170,6 +281,10 @@ export default function SignupForm() {
     // Tell the form: "we're busy, clear any old error, show the loading state"
     // This must be the FIRST thing — before any async work begins
 
+    setFieldErrors({});
+    // ✅ AFTER (Week 29 Day 1, NEW): forget the old red notes under the boxes
+    // before trying again, the same way startSubmit() clears the banner.
+
     const formData = new FormData(e.target);
     // e.target is the <form> element
     // FormData reads all the input values by their name= attribute
@@ -183,6 +298,22 @@ export default function SignupForm() {
     };
     // body is the JSON object we send to POST /v1/signup
 
+    // ✅ AFTER (Week 29 Day 1, NEW): check the boxes BEFORE sending anything.
+    // ❌ BEFORE: the browser's own pop-up did this job (and showed nothing
+    //            under the field), and the API checked again.
+    // WHY still send to the API when this passes: the API is the real guard.
+    // These checks only save a wasted request and give nicer words.
+    const problems = validate(body);
+    if (Object.keys(problems).length > 0) {
+      setFieldErrors(problems);
+      failSubmit('Please fix the highlighted fields.');
+      // Put the cursor in the FIRST wrong box. The ids below match the keys
+      // of FIELD_RULES (name, phone, password, tenant_name).
+      const firstWrong = Object.keys(problems)[0];
+      document.getElementById(firstWrong)?.focus();
+      return;
+    }
+
     try {
       await api.signup(body);
       // Send the signup request to our Express API
@@ -195,11 +326,44 @@ export default function SignupForm() {
       // Client-side navigation — instant, no full reload
 
     } catch (err) {
-      // ✅ AFTER (NEW) — a 400 gets a message that says what to fix
+      // ✅ AFTER (Week 29 Day 1, NEW): a 400 WITH details = the API told us
+      // WHICH boxes are wrong. err.details looks like
+      // { phone: ['...'], password: ['...'] } (lib/api.js staples it on).
+      // We keep only the boxes we know and show OUR kind words under them.
+      // WHEN this runs: if our own validate() above and the API ever disagree.
+      // ❌ BEFORE: err.details was ignored.
+      if (err.status === 400 && err.details) {
+        const found = {};
+        for (const field of Object.keys(FIELD_HELP)) {
+          if (err.details[field]) found[field] = FIELD_HELP[field];
+        }
+        if (Object.keys(found).length > 0) {
+          setFieldErrors(found);
+          failSubmit('Please fix the highlighted fields.');
+          document.getElementById(Object.keys(found)[0])?.focus();
+          return;
+        }
+      }
+
+      // ✅ AFTER (Week 29 Day 1, NEW): 409 about the phone = that number
+      // already has an account. Show it UNDER the phone box.
+      // ❌ BEFORE: it appeared only in the banner at the top.
+      // The /phone/i test reads the API's own message
+      // ("An account with that phone number already exists").
+      if (err.status === 409 && /phone/i.test(err.message || '')) {
+        setFieldErrors({ phone: 'This phone number already has an account. Try logging in.' });
+        failSubmit('Please fix the highlighted fields.');
+        document.getElementById('phone')?.focus();
+        return;
+      }
+
+      // ✅ AFTER (Week 28): a 400 gets a message that says what to fix
       // ❌ BEFORE: every error went straight to failSubmit(err.message).
       //            A 400 from signup only says "Validation failed",
       //            which helps nobody.
       // err.status comes from lib/api.js (0 = never reached the server)
+      // (Week 29 Day 1: this is now only the LAST fallback, for a 400 that
+      //  has no field details.)
       if (err.status === 400) {
         failSubmit(
           'Please check your details: name and business name need at least 2 characters, ' +
@@ -295,10 +459,20 @@ export default function SignupForm() {
                   </div>
                 )}
               It looked the same, but it was a copy of the login page's box
-              and had no role="alert" (screen readers stayed silent). */}
+              and had no role="alert" (screen readers stayed silent).
+
+              (Week 29 Day 1: the banner now says something short like
+              "Please fix the highlighted fields." and the details sit under
+              each box.) */}
           <FormError message={error} className="mb-5" />
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* ✅ AFTER (Week 29 Day 1, NEW): noValidate switches OFF the browser's
+              own pop-up bubble, so OUR messages (under each box) are the ones
+              the user sees. validate() above does the checking instead.
+              ❌ BEFORE: <form onSubmit={handleSubmit} className="space-y-4">
+              The browser stopped the submit with its own bubble, which is not
+              under the field and looks different in every browser. */}
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             {/* onSubmit wires the form's submit event to our handleSubmit function */}
             {/* space-y-4 — adds vertical gap between each form field */}
 
@@ -312,15 +486,30 @@ export default function SignupForm() {
                 // name="name" is what FormData.get('name') reads above
                 type="text"
                 required
-                // required — browser-level validation, won't submit if empty
+                // required — kept for meaning and for screen readers. With
+                // noValidate on the form, validate() does the real checking.
                 // ✅ AFTER (NEW): 2 to 100 characters, same as the API rule.
                 // ❌ BEFORE: only `required`, so a 1-letter name travelled to
                 //            the API and came back as "Validation failed".
                 minLength={2}
                 maxLength={100}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                // ✅ AFTER (Week 29 Day 1, NEW): when this box is wrong it gets a
+                // red border, aria-invalid (tells screen readers it is wrong) and
+                // aria-describedby (points to the message below, so it is read
+                // out loud). Otherwise they are off and the look is unchanged.
+                // ❌ BEFORE: className was always the grey border below.
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.name ? 'name-error' : undefined}
+                className={`w-full border ${fieldErrors.name ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent`}
                 placeholder="Sheryl Ochieng"
               />
+              {/* ✅ AFTER (Week 29 Day 1, NEW): the message UNDER the box.
+                  Draws nothing when the box is fine. */}
+              {fieldErrors.name && (
+                <p id="name-error" className="text-red-600 text-xs mt-1">
+                  {fieldErrors.name}
+                </p>
+              )}
             </div>
 
             <div>
@@ -336,9 +525,18 @@ export default function SignupForm() {
                 // ❌ BEFORE: only `required`
                 minLength={10}
                 maxLength={20}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                // Week 29 Day 1: red border, aria-invalid and aria-describedby
+                // when wrong (see the name box above for the full story).
+                aria-invalid={fieldErrors.phone ? 'true' : 'false'}
+                aria-describedby={fieldErrors.phone ? 'phone-error' : undefined}
+                className={`w-full border ${fieldErrors.phone ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent`}
                 placeholder="0712345678"
               />
+              {fieldErrors.phone && (
+                <p id="phone-error" className="text-red-600 text-xs mt-1">
+                  {fieldErrors.phone}
+                </p>
+              )}
             </div>
 
             <div>
@@ -356,9 +554,18 @@ export default function SignupForm() {
                 //            "At least 8 characters" but nothing enforced it.
                 minLength={8}
                 maxLength={72}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                // Week 29 Day 1: red border, aria-invalid and aria-describedby
+                // when wrong (see the name box above for the full story).
+                aria-invalid={fieldErrors.password ? 'true' : 'false'}
+                aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                className={`w-full border ${fieldErrors.password ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent`}
                 placeholder="At least 8 characters"
               />
+              {fieldErrors.password && (
+                <p id="password-error" className="text-red-600 text-xs mt-1">
+                  {fieldErrors.password}
+                </p>
+              )}
             </div>
 
             <div>
@@ -374,9 +581,18 @@ export default function SignupForm() {
                 // ❌ BEFORE: only `required`
                 minLength={2}
                 maxLength={100}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                // Week 29 Day 1: red border, aria-invalid and aria-describedby
+                // when wrong (see the name box above for the full story).
+                aria-invalid={fieldErrors.tenant_name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.tenant_name ? 'tenant_name-error' : undefined}
+                className={`w-full border ${fieldErrors.tenant_name ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent`}
                 placeholder="Amina's Boutique"
               />
+              {fieldErrors.tenant_name && (
+                <p id="tenant_name-error" className="text-red-600 text-xs mt-1">
+                  {fieldErrors.tenant_name}
+                </p>
+              )}
             </div>
 
             {/* ✅ AFTER (NEW) — the shared SubmitButton component.
