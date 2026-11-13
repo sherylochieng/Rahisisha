@@ -37,6 +37,7 @@ import { isDatabaseDown } from './utils/dbDown.js';
 import { corsOrigin } from './utils/allowedOrigin.js';
 import { resolveUssdTenant } from './middleware/resolveUssdTenant.js';
 import ussdRouter from './routes/ussd.routes.js';
+import whatsappRouter from './routes/whatsapp.routes.js';
 
 
 // Load .env variables (DATABASE_URL, JWT_SECRET, etc.) into process.env
@@ -108,6 +109,13 @@ app.use('/v1/tenants', tenantsRouter);
 // then withTenant locks the database to that shop (same "stamp, then lock"
 // pattern as /v1/products). Order matters: guard first, then lock.
 app.use('/ussd', resolveUssdTenant, withTenant, ussdRouter);
+
+
+// WhatsApp webhook: PUBLIC on purpose. Meta's servers have no login cookie.
+// The guard and the RLS lock are inside whatsapp.routes.js, on the POST door
+// only (the GET verify handshake runs before any shop is known).
+// Must stay ABOVE the 404 catch-all at the bottom of this file.
+app.use('/webhooks/whatsapp', whatsappRouter);
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 // Used by monitoring tools (and your tests) to confirm the server is alive
