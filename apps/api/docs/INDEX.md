@@ -42,7 +42,8 @@ apps/api/
 │   ├── middleware/
 │   │   ├── requireAuth.js              Checks the JWT token. Rejects requests with no/bad token.
 │   │   ├── withTenant.js               Reads tenant from JWT, sets req.db to tenant-scoped connection.
-│   │   └── asyncHandler.js             Wraps async controllers so thrown errors reach the error handler.
+│   │   ├── asyncHandler.js             Wraps async controllers so thrown errors reach the error handler.
+│   │   └── resolveUssdTenant.js        USSD guard: finds the shop from the dialled service code, sets req.tenantId (Week 29 Day 1).
 │   ├── utils/
 │   │   ├── allowedOrigin.js            CORS rule: which websites may call the API (main site + every shop).
 │   │   └── getShopSlug.js              Finds the shop word from the Origin (then Host) header.
@@ -55,14 +56,16 @@ apps/api/
 │   │   ├── products.routes.js          Maps product URLs to controller functions.
 │   │   ├── orders.routes.js            Maps order URLs to controller functions.
 │   │   ├── dashboard.routes.js         GET /v1/dashboard (protected).
-│   │   └── tenants.routes.js           GET /v1/tenants/by-slug/:slug (public).
+│   │   ├── tenants.routes.js           GET /v1/tenants/by-slug/:slug (public).
+│   │   └── ussd.routes.js              POST /ussd (public, mounted with resolveUssdTenant + withTenant).
 │   ├── services/
 │   │   └── wallet.service.js           Append-only money ledger: credit, debit, balance.
 │   └── controllers/
 │       ├── products.controller.js      All product business logic and database queries.
 │       ├── orders.controller.js        All order business logic, state machine, transactions.
 │       ├── dashboard.controller.js     Dashboard numbers: orders today, wallet balance, latest products.
-│       └── tenants.controller.js       Public shop lookup by slug (used by the web proxy).
+│       ├── tenants.controller.js       Public shop lookup by slug (used by the web proxy).
+│       └── ussd.controller.js          USSD menu: welcome, 1 products, 2 balance, 3 exit. Every reply 182 characters or less.
 ├── tests/
 │   ├── pagination/
 │   │   └── products.pagination.test.js     Cursor pagination returns every product once.
@@ -73,26 +76,39 @@ apps/api/
 │   ├── isolation/
 │   │   ├── orders.isolation.test.js        Cross-tenant checks for orders.
 │   │   ├── products.cross-tenant.test.js   Cross-tenant checks for products.
-│   │   └── login-lookup.isolation.test.js  Attacks the login_lookup rule on memberships.
+│   │   ├── login-lookup.isolation.test.js  Attacks the login_lookup rule on memberships.
+│   │   └── ussd.cross-tenant.test.js       USSD: dialling shop A never shows shop B (8 checks, own shops).
+│   ├── signup-atomic.test.js               Signup is all-or-nothing: a failed seeding leaves no user and no shop.
 │   └── errors/
-│       └── error-handling.test.js          Bad input gets a clean answer and no connection leaks.
+│       ├── error-handling.test.js          Bad input gets a clean answer and no connection leaks.
+│       └── not-found.test.js               Unknown URLs answer 404 in JSON, not HTML.
 └── docs/
     ├── INDEX.md                        This file.
     ├── AI_AUDIT_week_28_day3.md        Record of what AI wrote and what was done by hand.
     ├── AI_AUDIT_week_28_day4.md        Same, for Day 4 (isolation suite, wallet).
     ├── AI_AUDIT_week_28_day5.md        Same, for Day 5 (dashboard, login_lookup, hooks).
+    ├── AI_AUDIT_week_28_weekend.md     Same, for the Week 28 Weekend (Core Polish, staging).
+    ├── AI_AUDIT_week_29_day1.md        Same, for Week 29 Day 1 (USSD per tenant). States openly that tenant resolution was AI-written.
     ├── src/                            One guide per source file (same folders as src/).
+    │   ├── middleware/
+    │   │   └── resolveUssdTenant.md    Guide for the USSD tenant guard.
     │   └── utils/
     │       ├── allowedOrigin.md        Guide for the CORS rule.
     │       └── getShopSlug.md          Guide for the shop lookup.
     └── tests/                          One guide per test file (same folders as tests/).
         ├── isolation-proof.md          Evidence that every tenant table is locked (RLS).
         ├── allowedOrigin.test.md       Guide for the CORS tests.
-        └── getShopSlug.test.md         Guide for the shop lookup tests.
+        ├── getShopSlug.test.md         Guide for the shop lookup tests.
+        ├── ussd.cross-tenant.test.md   Guide for the USSD cross-tenant test.
+        ├── not-found.test.md           Guide for the JSON 404 test.
+        └── signup-atomic.test.md       Guide for the all-or-nothing signup test.
 ```
 
 Database files live outside `apps/api`: migrations in `sql/migrations/` (latest:
-`022_login_membership_lookup.sql`) and the full schema in `sql/SCHEMA.sql`.
+`023_ussd_configs.sql`, added in Week 29 Day 1; before it `022_login_membership_lookup.sql`)
+and the full schema in `sql/SCHEMA.sql`. Seed files are in `sql/seeds/`
+(`ussd_configs_seed.sql` and `ussd_demo_data_seed.sql`, both safe to run many times).
+The USSD notes are in `ussd-quirks.md` at the repo root.
 
 Other files added in Week 28 Weekend, outside `apps/api/src`:
 `scripts/reset-db.sh` (rebuilds a database; refuses anything but localhost unless
@@ -111,6 +127,7 @@ Incoming request
       v
   helmet()          adds security headers
   express.json()    parses the request body
+  express.urlencoded()  parses form data (Africa's Talking sends USSD this way)
   cookieParser()    reads cookies (JWT lives here)
   cors()            allows the main site and every shop address
                     (the rule is in utils/allowedOrigin.js)
@@ -133,6 +150,9 @@ Two kinds of route skip part of this chain:
 
 - **Public routes** (`/v1/signup`, `/v1/login`, `/v1/tenants/by-slug/:slug`) run
   without `requireAuth` and `withTenant`.
+- **USSD** (`/ussd`) has no login cookie, so `requireAuth` is not used. It runs
+  `resolveUssdTenant` (finds the shop from the dialled service code), then
+  `withTenant`, then the controller.
 - **Dashboard** (`/v1/dashboard`) runs the full chain: `requireAuth`, then
   `withTenant`, then the controller.
 
@@ -144,6 +164,9 @@ If a controller throws, the error travels past the routes to the
 **central error handler** at the bottom of `app.js`, which always sends a
 response. Once the response finishes, `withTenant` resets the tenant setting
 and returns the database connection to the pool.
+
+A URL that matches no route is caught just before the error handler by a
+catch-all and answered with a JSON 404 (not Express's HTML page).
 
 ---
 
@@ -162,6 +185,12 @@ and returns the database connection to the pool.
 | Method | URL                          | What it does                                                    |
 |--------|------------------------------|-----------------------------------------------------------------|
 | GET    | /v1/tenants/by-slug/:slug    | Find an active shop by its slug (404 if unknown). Used by the web proxy. |
+
+### USSD (public on purpose: a phone has no login cookie)
+
+| Method | URL    | What it does                                                                 |
+|--------|--------|------------------------------------------------------------------------------|
+| POST   | /ussd  | Africa's Talking posts form data (`serviceCode`, `sessionId`, `phoneNumber`, `text`). The shop is found from `serviceCode`. Replies are plain text starting with `CON ` or `END `, at most 182 characters |
 
 ### Dashboard (protected: JWT + tenant required)
 
@@ -197,7 +226,7 @@ and returns the database connection to the pool.
 | 204  | Deleted (soft delete, nothing to return)                               |
 | 400  | Validation failed, unknown order status, or malformed ID               |
 | 401  | Not logged in, or the session expired                                  |
-| 404  | Not found. Also what another tenant's record looks like (RLS hides it). At login, an unknown shop word gives `Tenant not found` |
+| 404  | Not found. Also what another tenant's record looks like (RLS hides it). At login, an unknown shop word gives `Tenant not found`. An unknown URL gives JSON `{ data: null, error: { code: 'not_found' } }` (Week 29 Day 1) |
 | 409  | Conflict: duplicate SKU, or an illegal order status change             |
 | 500  | Unexpected server error (details are logged, never sent to the caller) |
 | 503  | The database cannot be reached: a friendly "try again" answer          |
@@ -388,6 +417,44 @@ the bare domain is not a shop.
 reading Host always gave the word `api` and every login said "Shop not found".
 Tested by `tests/getShopSlug.test.js`, including the exact bug.
 
+### 14. USSD finds the shop from the service code, never from the phone (Week 29 Day 1)
+
+`POST /ussd` is one shared endpoint for every shop. The route is mounted in
+`app.js` as `app.use('/ussd', resolveUssdTenant, withTenant, ussdRouter)`:
+
+1. **`resolveUssdTenant`** reads `serviceCode`, looks it up in `ussd_configs`,
+   and sets `req.tenantId`. An unknown code gets `END Service unavailable`.
+2. **`withTenant`** (the same one every web route uses) sets `app.current_tenant`
+   on a connection and gives it to the controller as `req.db`.
+3. **`handleUssd`** builds the menu using `req.db` only, with no hand-written
+   `WHERE tenant_id`. RLS does the filtering.
+
+Same "stamp, then lock" pattern as `requireAuth -> withTenant`. Only the first
+step is different, because a phone has no login cookie.
+
+**Rules:** never use the phone number as the shop (one phone can shop at many
+shops and numbers can be faked). `ussd_configs` has **no RLS** on purpose, since
+the shop must be found before it is known (same trap as login before migration
+022). Africa's Talking sends **form data**, so `app.js` has
+`express.urlencoded({ extended: false })`. Every reply must be 182 characters or
+less (`cap()` in the controller). Tested by `tests/isolation/ussd.cross-tenant.test.js`.
+
+### 15. Unknown URLs answer in JSON (Week 29 Day 1)
+
+A catch-all handler in `app.js`, **after every route and before the error
+handler**, answers `404` with `{ data: null, error: { code: 'not_found', message: 'Route not found' } }`.
+**BEFORE:** Express sent its own HTML page ("Cannot GET ..."), which crashes
+`res.json()` in the website. It does not repeat the URL back. Tested by
+`tests/errors/not-found.test.js`, which also checks that `/health` still works.
+
+### 16. Signup is all-or-nothing (Week 29 Day 1)
+
+The shop, the owner, the membership and the 3 sample products and 2 sample
+customers are written in **one transaction**, and the sample data uses the same
+`client`, never `pool`. If seeding fails, `ROLLBACK` undoes everything.
+Tested by `tests/signup-atomic.test.js`, which makes seeding explode and checks
+that no user and no shop are left behind.
+
 ---
 
 ## Settings (environment variables)
@@ -424,7 +491,8 @@ The frontend divides by 100 when displaying to users.
 Run from `apps/api`: `npm test`
 Run only the isolation suites: `npm run test:isolation`
 
-Current result (10 November 2026): 15 suites, 141 tests passing. Isolation only: 81 tests.
+Current result (13 November 2026): **19 suites, 168 tests passing**. Isolation only: 5 suites, 89 tests.
+Earlier result (10 November 2026): 15 suites, 141 tests passing. Isolation only: 81 tests.
 A Husky `pre-push` hook runs `npm run test:isolation` before every push.
 The same tests run on every push in CI (`.github/workflows/ci.yml`), against a
 fresh Postgres built by `scripts/reset-db.sh`.
@@ -440,6 +508,9 @@ fresh Postgres built by `scripts/reset-db.sh`.
 | `tests/errors/error-handling.test.js` | Malformed IDs return 400, unknown statuses return 400, and 25 failing requests do not exhaust the pool |
 | `tests/allowedOrigin.test.js` | Shops and the main site get in; look-alike domains, `http://` in production and garbage are refused |
 | `tests/getShopSlug.test.js` | The shop word is found from Origin or Host; `www`, `api`, strangers and garbage give no shop |
+| `tests/isolation/ussd.cross-tenant.test.js` | Dialling shop A never shows shop B's welcome, products or balance; the phone number is never the tenant; replies are 182 characters or less; with shop A's lock, shop B's rows are invisible even by id (8 checks) |
+| `tests/errors/not-found.test.js` | Unknown URLs get a JSON 404 for GET and POST, and `/health` still works (4 checks) |
+| `tests/signup-atomic.test.js` | When seeding fails, signup fails cleanly and leaves no user and no shop behind (1 check) |
 
 The suite also contains happy-path, database-down and signup sample-data tests
 added in Week 28 Weekend. They do not have guides yet (see Known Follow-Ups).
@@ -466,9 +537,13 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 | Write guides for the web layout, sidebar and dashboard page | `apps/web/docs/` has guides for `proxy.js`, `session.js` and `serverApi.js` only |
 | Fix slugify (cut, then trim dashes); refuse reserved slugs (admin, www, api) at **signup**; make session.js treat an API outage like serverApi.js | The lookup ignores `www` and `api`, but signup still lets someone register them |
 | Write guides for the friendly 503 handler, sample data on signup, and the happy-path, database-down and signup sample-data tests | Added in Week 28 Weekend, not documented yet |
-| Add AI audit entries for Week 28 Weekend Tasks 3 to 8 | The audit files stop at Day 5 |
+| Add AI audit entries for Week 28 Weekend Tasks 3 to 8 | The audit files stop at Day 5. **Update, 13 November 2026:** `AI_AUDIT_week_28_weekend.md` and `AI_AUDIT_week_29_day1.md` now exist and are linked from the root `AI_AUDIT.md` |
 | Set the database SSL mode to `verify-full`; give `pool.js` a connection timeout | Staging works, but the `pg` SSL warning shows and a stuck database would hang a request |
 | Remove the public demo accounts (password `Demo1234!`) and leftover test shops from staging | They are listed in `capstone/STAGING.md` under known gaps |
+| Keep `ussd_configs` free of private columns; cache `service_code -> tenant_id` if USSD traffic grows | It has no RLS on purpose (see `docs/tests/isolation-proof.md`). One extra query per USSD request is fine for now |
+| USSD stretch goals: language per tenant, a `ussd_events` table, 60 second idle timeout | Not done in Week 29 Day 1 |
+| Find why Jest says "did not exit" at the end of `npm test` | Some older test leaves a connection open. Harmless, but `--detectOpenHandles` would show which |
+| Web: add `onChange` clearing of a field's red message while typing | A wrong box stays red until the next submit (see `SignupForm.js`) |
 
 ---
 
@@ -497,6 +572,7 @@ must end in `/v1` and is fixed when the site is built).
 | `src/components/Sidebar.js` | Left menu (Products, Orders, Wallet, Settings are marked "soon") |
 | `src/app/(authed)/layout.js` | Login check, sidebar and header for every logged-in page |
 | `src/app/(authed)/dashboard/page.js` | Dashboard home: real numbers and latest products |
+| `src/app/signup/SignupForm.js` | Signup form. Since Week 29 Day 1, wrong fields turn red with a kind message under the box (checked in the browser first, then by the API's field errors) |
 
 The layout does not re-run on every client-side click, so the API's own cookie
 check is the second lock.
@@ -516,7 +592,10 @@ check is the second lock.
 
 Staging is already live (see above).
 
+**Done early:** USSD per tenant (Week 29 Day 1): `POST /ussd`, `ussd_configs`, the menu and the cross-tenant test.
+
 ---
 
-*Last updated: Week 28 Weekend (Task 8, staging deploy), 10 November 2026*  
+*Last updated: Week 29 Day 1 (USSD per tenant, JSON 404, signup field errors, signup atomicity test), 13 November 2026*  
+*Earlier: Week 28 Weekend (Task 8, staging deploy), 10 November 2026*  
 *Update this file every time a new endpoint or pattern is added.*
