@@ -127,6 +127,48 @@ app.get('/health', (_req, res) => {
 // RULE: it must come AFTER all routes, because Express runs middleware in order
 //       and an error handler only catches errors from things above it.
 //       It must have exactly 4 parameters, or Express won't treat it as one
+
+
+
+// ── Not Found Handler (catch-all) ─────────────────────────────────────────────
+// FILE: apps/api/src/app.js
+//
+// WHY THIS EXISTS:
+// - Every error our API sends is JSON in the same shape:
+//     { data: null, error: { code, message } }
+//   But when a URL matches NO route (a typo like /v1/prodcuts), Express answers
+//   by itself with a plain HTML page: "Cannot GET /v1/prodcuts".
+// - The website calls res.json() on every reply. HTML makes it crash with a
+//   confusing "Unexpected token <" instead of showing a clean message.
+//
+// REAL LIFE: a restaurant that always answers in one language. A guest asks for
+//   a table that does not exist. Without this handler, a stranger answers in
+//   another language. With it, the same waiter says "no such table" politely.
+//
+// RULES:
+// - It MUST come AFTER every route (Express runs middleware top to bottom, so
+//   if it were above them it would swallow real requests)
+// - It MUST come BEFORE the error handler below
+// - Use app.use with NO path: it matches every method and every URL that no
+//   route above has answered
+//
+// DECISIONS:
+// - Status 404 and code 'not_found': same style as our other error codes
+//   (validation, service_unavailable, internal)
+// - The message does NOT repeat the URL back. Echoing user input in an error
+//   is a small security smell (it can be abused to show fake text)
+//
+// EXAMPLE:
+//   GET /v1/anything  ->  404  { "data": null,
+//                                "error": { "code": "not_found",
+//                                           "message": "Route not found" } }
+app.use((_req, res) => {
+  res.status(404).json({
+    data: null,
+    error: { code: 'not_found', message: 'Route not found' },
+  });
+});
+
 app.use((err, req, res, next) => {
   // If a response was already started, we can't send another. Let Express
   // close the connection
