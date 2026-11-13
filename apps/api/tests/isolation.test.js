@@ -70,7 +70,14 @@ const TENANT_TABLES = [
   'inventory_movements', 'memberships', 'messages', 'order_items', 'orders',
   'product_media', 'product_variants', 'products', 'stock_reservations',
   'subscriptions', 'usage_counters', 'wallet_entries',
+  'whatsapp_dedupe',   // migration 024. Key is (tenant_id, message_id), no `id` column
 ];
+
+// The attack loop below uses `WHERE id = $1`, so it only fits tables that have
+// an `id` column. whatsapp_dedupe has none (its key is tenant_id + message_id),
+// so it is attacked in tests/isolation/whatsapp.cross-tenant.test.js instead.
+// It is still covered by BOTH coverage guards above (table exists, RLS forced).
+const TABLES_WITH_ID = TENANT_TABLES.filter((t) => t !== 'whatsapp_dedupe');
 
 // Tables that have a tenant_id but, BY DESIGN, no RLS. They are documented as
 // exceptions in isolation-proof.md. audit_logs: platform admin reads all shops.
@@ -78,7 +85,10 @@ const TENANT_TABLES = [
 // code BEFORE any shop is known, so an RLS rule on app.current_tenant would hide
 // every row (the same trap as login before migration 022). Service codes are
 // public by nature. Do not put secrets in this table.
-const KNOWN_EXCEPTIONS = ['audit_logs', 'ussd_configs'];
+// whatsapp_configs (migration 024): the webhook looks the shop up by Meta's
+// phone_number_id BEFORE any shop is known, so RLS would hide every row (same
+// trap as ussd_configs). Its token column is stored ENCRYPTED, never plain.
+const KNOWN_EXCEPTIONS = ['audit_logs', 'ussd_configs', 'whatsapp_configs'];
 
 // Shared by all tests in this file
 let client;          // ONE connection, one open transaction
@@ -213,7 +223,7 @@ describe('Coverage guards', () => {
 // Table names come from OUR constant list (never from a user), so putting
 // them into the SQL text is safe here
 
-describe.each(TENANT_TABLES)('Isolation — %s', (table) => {
+describe.each(TABLES_WITH_ID)('Isolation — %s', (table) => {
 
   // ATTACK 1 (READ): Brio asks for Acme's row by its id
   test('Brio cannot READ an Acme row by id', async () => {
