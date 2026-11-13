@@ -30,6 +30,8 @@
 --  19. usage_counters
 --  20. audit_logs
 --  21. ussd_configs (migration 023)
+--  22. whatsapp_configs (migration 024)
+--  23. whatsapp_dedupe (migration 024)
 -- =============================================================
 
 
@@ -605,13 +607,58 @@ CREATE INDEX audit_logs_resource_idx
 -- No RLS on audit_logs — platform admin needs full access
 
 
--- USSD: which shop owns which service code (migration 023).
--- No RLS on purpose: the lookup happens before any shop is known.
+-- =============================================================
+-- TABLE 21: ussd_configs (migration 023, Week 29 Day 1)
+-- Which shop owns which USSD service code, and its welcome text.
+-- One shared phone line (POST /ussd) serves every shop; the code the
+-- caller dialled (*384*101#) tells us which shop it is.
+-- NO RLS on purpose: the lookup happens BEFORE any shop is known, so an
+-- RLS rule on app.current_tenant would hide every row. Service codes are
+-- public by nature. Never put secrets in this table.
+-- =============================================================
 CREATE TABLE IF NOT EXISTS ussd_configs (
   tenant_id    UUID PRIMARY KEY REFERENCES tenants(id),
   service_code TEXT UNIQUE NOT NULL,
   welcome_text TEXT NOT NULL CHECK (char_length(welcome_text) <= 100)
 );
+
+
+-- =============================================================
+-- TABLE 22: whatsapp_configs (migration 024, Week 29 Day 2)
+-- Which shop owns which WhatsApp number, plus that shop's Meta token.
+-- One shared webhook (POST /webhooks/whatsapp) serves every shop; the
+-- phone_number_id Meta sends tells us which shop it is.
+-- NO RLS on purpose: the webhook looks the shop up BEFORE any shop is
+-- known. The token is stored ENCRYPTED (AES-GCM), never plain, and must
+-- never be logged.
+-- =============================================================
+CREATE TABLE IF NOT EXISTS whatsapp_configs (
+  tenant_id              UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  phone_number_id        TEXT NOT NULL UNIQUE,
+  access_token_encrypted TEXT NOT NULL,
+  webhook_verify_token   TEXT NOT NULL UNIQUE,
+  created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
+-- =============================================================
+-- TABLE 23: whatsapp_dedupe (migration 024, Week 29 Day 2)
+-- Meta retries webhooks, so the same message_id must run only ONCE per
+-- shop. The primary key (tenant_id, message_id) enforces it.
+-- This one IS a shop table, so it HAS RLS (tenant_isolation).
+-- =============================================================
+CREATE TABLE IF NOT EXISTS whatsapp_dedupe (
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  message_id  TEXT NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, message_id)
+);
+ALTER TABLE whatsapp_dedupe ENABLE ROW LEVEL SECURITY;
+ALTER TABLE whatsapp_dedupe FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON whatsapp_dedupe
+  USING      (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID)
+  WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID);
 
 
 -- =============================================================
@@ -629,10 +676,11 @@ $$ LANGUAGE plpgsql;
 
 
 -- =============================================================
--- 21 tables total
--- 16 tables with RLS enabled (all tenant-owned tables)
---  5 tables without RLS (tenants, users, webhook_events, audit_logs,
---    ussd_configs: looked up before any shop is known)
+-- 23 tables total
+-- 17 tables with RLS enabled (all tenant-owned tables)
+--  6 tables without RLS (tenants, users, webhook_events, audit_logs,
+--    ussd_configs and whatsapp_configs: both are looked up before any
+--    shop is known)
 --
 -- Every tenant-owned table has:
 --   - tenant_id UUID NOT NULL REFERENCES tenants(id)
