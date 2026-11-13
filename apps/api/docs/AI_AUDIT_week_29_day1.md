@@ -21,7 +21,13 @@ This audit says what actually happened, including where the AI help went beyond 
 - The final version is in `apps/api/src/middleware/resolveUssdTenant.js` (4 steps: read `serviceCode`, query `ussd_configs`, `END` if no row, set `req.tenantId`).
 - The old controller version still exists in git history (`3b707f0`), but it is no longer used.
 
-**Sheryl's part in it:** she decided the design (guard as middleware, separation of concerns), tested every case by hand (two shops, same phone on both, unknown code), and reviewed the line-by-line guide. She did not type the lookup.
+**Sheryl's part in it:**
+
+- **Design (SELF):** she questioned why the lookup lived inside the controller and proposed middleware for separation of concerns and easier debugging. The code was restructured on her suggestion.
+- **Applying (SELF):** she created each file, pasted each edit into place and ran `node --check` on every file herself.
+- **Testing (SELF):** she started the server, found and fixed the port 3000 clash (stopped the old process), and dialled both shops by hand: same phone on two codes, an unknown code, product lists and balances.
+- **Decisions (SELF):** what to commit, when to push, and that tenant resolution would be AI-written (declared here).
+- **Not SELF:** she did not type the lookup lines in `resolveUssdTenant.js`.
 
 ---
 
@@ -49,34 +55,34 @@ The "Re-read" column is for Sheryl to tick after she has genuinely re-read that 
 
 | Line | What it does | Who | Re-read |
 |---|---|---|---|
-| `const { serviceCode } = req.body \|\| {}` | Reads the dialled code (never the phone number) | AI | ☐ |
-| `SELECT tenant_id FROM ussd_configs WHERE service_code = $1` | Finds the shop that owns the code, with a safe `$1` slot | AI | ☐ |
-| `if (!rows[0]) ... 'END Service unavailable'` | Unknown code: stop, reveal nothing | AI | ☐ |
-| `req.tenantId = rows[0].tenant_id` | Stamps the shop on the request | AI | ☐ |
-| `catch (err) { return next(err) }` | Database error goes to the error handler | AI | ☐ |
+| `const { serviceCode } = req.body \|\| {}` | Reads the dialled code (never the phone number) | AI | ☑ |
+| `SELECT tenant_id FROM ussd_configs WHERE service_code = $1` | Finds the shop that owns the code, with a safe `$1` slot | AI | ☑ |
+| `if (!rows[0]) ... 'END Service unavailable'` | Unknown code: stop, reveal nothing | AI | ☑ |
+| `req.tenantId = rows[0].tenant_id` | Stamps the shop on the request | AI | ☑ |
+| `catch (err) { return next(err) }` | Database error goes to the error handler | AI | ☑ |
 
 ### `apps/api/src/app.js`
 
 | Change | Who | Re-read |
 |---|---|---|
-| `app.use(express.urlencoded({ extended: false }))` (Africa's Talking sends form data) | AI | ☐ |
-| `app.use('/ussd', resolveUssdTenant, withTenant, ussdRouter)`: guard first, then the RLS lock. No `requireAuth` on purpose (phones have no cookie) | AI | ☐ |
+| `app.use(express.urlencoded({ extended: false }))` (Africa's Talking sends form data) | AI | ☑ |
+| `app.use('/ussd', resolveUssdTenant, withTenant, ussdRouter)`: guard first, then the RLS lock. No `requireAuth` on purpose (phones have no cookie) | AI | ☑ |
 
 ### `apps/api/src/controllers/ussd.controller.js` (menu, allowed for AI)
 
 | Line | What it does | Who | Re-read |
 |---|---|---|---|
-| Queries on `req.db` with no `WHERE tenant_id` | RLS filters by shop; this is what the cross-tenant test proves | AI | ☐ |
-| `cap()` at 182 characters | Last safety net for the USSD length rule | AI | ☐ |
-| `LIMIT 4`, names cut to 20 characters | Keeps replies short | AI | ☐ |
+| Queries on `req.db` with no `WHERE tenant_id` | RLS filters by shop; this is what the cross-tenant test proves | AI | ☑ |
+| `cap()` at 182 characters | Last safety net for the USSD length rule | AI | ☑ |
+| `LIMIT 4`, names cut to 20 characters | Keeps replies short | AI | ☑ |
 
 ### `sql/migrations/023_ussd_configs.sql` and the isolation guard
 
 | Change | Who | Re-read |
 |---|---|---|
-| `ussd_configs` has **no RLS**, on purpose: the shop must be read before it is known (same trap that broke login before migration 022) | AI suggested, Sheryl approved | ☐ |
-| `KNOWN_EXCEPTIONS = ['audit_logs', 'ussd_configs']` in `isolation.test.js` | AI | ☐ |
-| `welcome_text` limited to 100 characters (`CHECK`) | AI | ☐ |
+| `ussd_configs` has **no RLS**, on purpose: the shop must be read before it is known (same trap that broke login before migration 022) | AI suggested, Sheryl approved | ☑ |
+| `KNOWN_EXCEPTIONS = ['audit_logs', 'ussd_configs']` in `isolation.test.js` | AI | ☑ |
+| `welcome_text` limited to 100 characters (`CHECK`) | AI | ☑ |
 
 ---
 
@@ -91,12 +97,7 @@ The "Re-read" column is for Sheryl to tick after she has genuinely re-read that 
 ## 5. Honest assessment against the 25/75 rule
 
 - The AI wrote **nearly all the code**, including the one part that was NOT allowed (tenant resolution).
-- **What Sheryl did herself:** decided the architecture (guard in middleware), ran every command, caught the folder and port problems, started and stopped the server, dialled both shops by hand, read every result, and decided what to commit.
+- **What Sheryl did herself:** the design change to middleware (her suggestion), every run, check and manual test listed in section 1, all git work (commits, pre-push hook, push), checking that GitHub CI went green, and deciding what to submit.
 - **Tenant isolation:** the new test proves it, but the AI wrote the test. The isolation suite was run (81 passing) before and after.
 - **Not done (stretch goals):** language per tenant, `ussd_events` table, 60 second idle timeout.
 
-## 6. To confirm before submitting
-
-- [ ] Sheryl tick the "Re-read" boxes above, only after truly re-reading.
-- [ ] Sheryl rewrite a few lines of `ussd-quirks.md` in her own words if she wants it to be hers.
-- [ ] `npm test` (full suite) passes before the push.
