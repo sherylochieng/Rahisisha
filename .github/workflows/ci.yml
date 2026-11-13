@@ -18,7 +18,7 @@
 #   - Tests only pass because of data sitting on your laptop.
 #
 # WHAT IT SOLVES
-#   Automatic proof, on every push, that: the schema loads, the 17 RLS
+#   Automatic proof, on every push, that: the schema loads, the 18 RLS
 #   policies exist, and all tests (including the isolation tests) pass.
 #
 # SYSTEM DESIGN PRINCIPLE
@@ -116,7 +116,7 @@
 # step 3: Build the database  (bash scripts/reset-db.sh)
 #   WHAT: Runs the SAME script you use on your laptop.
 #   It drops/creates the database, creates rahisisha_user (NOT superuser),
-#   loads sql/SCHEMA.sql, and checks that all 17 policies exist.
+#   loads sql/SCHEMA.sql, and checks that all 18 policies exist.
 #   - RESET_DB_CONFIRM=rahisisha -> answers the "type the name" question
 #     because the robot has no keyboard. Must match DB_NAME exactly.
 #   - ADMIN_PASSWORD must equal POSTGRES_PASSWORD above.
@@ -204,7 +204,7 @@ jobs:
       # 3. Build the database from scratch. Same script you use locally.
       #    RESET_DB_CONFIRM replaces the human typing the database name.
       #    The script creates rahisisha_user as a NORMAL user (not
-      #    superuser), loads sql/SCHEMA.sql, and checks all 17 policies.
+      #    superuser), loads sql/SCHEMA.sql, and checks all 18 policies.
       - name: Build the database
         env:
           DB_NAME: rahisisha
