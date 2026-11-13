@@ -76,7 +76,7 @@
 #   Before a demo:
 #     bash scripts/reset-db.sh
 #   (type the database name, type two passwords)
-#   Two minutes later: a clean database, 17 locks verified, and
+#   Two minutes later: a clean database, 18 locks verified, and
 #   the 3 demo shops loaded.
 #
 # DECISIONS
@@ -162,7 +162,7 @@
 #    By default psql keeps going and hides problems.
 #
 # 9. The verify step  =  CHECKING THE LOCKS BEFORE OPENING THE SHOP
-#    Counts the row-level-security rules (17) and the login_lookup
+#    Counts the row-level-security rules (18) and the login_lookup
 #    rule. A missing rule means logins would silently break.
 # ═══════════════════════════════════════════════════════════
 
@@ -174,7 +174,7 @@ DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 ADMIN_USER="${ADMIN_USER:-postgres}"      # may drop/create databases
 APP_USER="${APP_USER:-rahisisha_user}"    # the user the app logs in as
-EXPECTED_POLICIES=17                      # from isolation-proof.md
+EXPECTED_POLICIES=18                      # 17 tenant_isolation + login_lookup (whatsapp_dedupe added in migration 024), from isolation-proof.md
 
 # Always work from the repo root, wherever the script was started
 cd "$(dirname "$0")/.."
