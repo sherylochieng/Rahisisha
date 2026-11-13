@@ -11,6 +11,8 @@
 
 **Reviewing the Week 28 Weekend work?** Look at the commits tagged `[Week 28 Weekend]` and read [`apps/api/docs/AI_AUDIT_week_28_weekend.md`](../apps/api/docs/AI_AUDIT_week_28_weekend.md).
 
+**Reviewing the Week 29 Day 1 work (USSD per tenant)?** Look at the commits tagged `[Week 29 Day 1]`, read [`apps/api/docs/AI_AUDIT_week_29_day1.md`](../apps/api/docs/AI_AUDIT_week_29_day1.md) and [`ussd-quirks.md`](../ussd-quirks.md), and see "Try USSD locally" below.
+
 ## What is Rahisisha?
 
 **Rahisisha** is a multi-tenant SaaS platform built for small product businesses in Kenya ... boutiques, dress shops, and informal sellers who currently run their entire business through WhatsApp manually. A customer messages "iko stock?", the owner replies by hand, sends an M-Pesa number, waits for confirmation, and updates stock in a notebook. Rahisisha replaces that entire loop with one signup: the owner uploads a product photo, the AI enhances it in the business's own brand colours and adds real text layers ,,price, name, logo ...then automatically announces it on WhatsApp. The AI answers customer questions from the real catalog, the M-Pesa STK push fires automatically when a customer taps Buy, stock updates itself, and the owner sees everything on one dashboard , without touching a single customer chat. Instagram and Facebook auto-posting are planned for the growth phase after the MVP launch.
@@ -66,7 +68,7 @@ Owner opens dashboard → sees the sale, revenue, stock update
 | Owner dashboard — sales, revenue, stock, orders | P0 — Week 30 | Dashboard home is done (orders today, wallet balance, latest products). The list pages are planned |
 | Multi-tenant isolation — Business A cannot see Business B's data | P0 — all weeks | Done and tested on all 16 tenant tables |
 | Order tracking, ratings, AI advice, billing | P1 — Week 30 if time | Order status flow is done. Ratings, AI advice and billing are planned |
-| USSD, Telegram, Instagram/TikTok auto-posting | P2 — after demo | USSD was brought into Week 29 and has started (Day 1) |
+| USSD, Telegram, Instagram/TikTok auto-posting | P2 — after demo | USSD was brought into Week 29. Day 1 is done: `POST /ussd`, a per-shop menu and a cross-tenant test |
 
 ---
 
@@ -80,6 +82,9 @@ Owner opens dashboard → sees the sale, revenue, stock update
 - Wallet ledger: append-only, balance is a sum and is never stored.
 - Dashboard home.
 - Friendly 503 when the database is down; loading and error states in the web app.
+- **USSD per shop (Week 29 Day 1):** one shared `POST /ussd` endpoint. The shop is found from the dialled service code, never from the phone number. Menu: welcome, 1 View products, 2 Check balance, 3 Exit. Every reply is 182 characters or less.
+- Unknown URLs answer with a JSON 404, like every other error (not an HTML page).
+- Signup form errors appear under the wrong field; signup is all-or-nothing (a failed seeding leaves no shop or owner behind).
 - Tenant isolation proven by a test suite, continuous integration against real PostgreSQL, and a staging deploy.
 
 ## Known gaps (honest list)
@@ -88,6 +93,7 @@ Owner opens dashboard → sees the sale, revenue, stock update
 - There is **no public storefront page** for customers yet.
 - M-Pesa, WhatsApp, AI photo enhancement and background jobs are planned for Week 29 and later.
 - Login and signup errors still use the older `{ "error": "text" }` shape.
+- USSD was tested with `curl` and automated tests, **not yet with the Africa's Talking simulator**. The menu is one level deep: no back key, no paging, no `ussd_events` log, no idle timeout (the stretch goals).
 
 The full list, with reasons, is in [`capstone/PENDING_TASKS.md`](PENDING_TASKS.md).
 
@@ -170,12 +176,34 @@ One-time setup: the app user must already exist, for example `psql -U postgres -
 
 The app must connect as an ordinary database user (`rahisisha_user`), never a superuser, otherwise the Row-Level Security locks do nothing.
 
+### Try USSD locally
+
+Load the two USSD demo shops (run inside `psql`, connected as `rahisisha_user`):
+
+```
+\i sql/seeds/ussd_configs_seed.sql
+\i sql/seeds/ussd_demo_data_seed.sql
+```
+
+Start the API (`cd apps/api && npm run dev`), then pretend to be Africa's Talking. On Windows use `curl.exe`:
+
+```bash
+# Amina's Boutique (*384*101#), first screen
+curl.exe -X POST http://localhost:3000/ussd -d "serviceCode=*384*101#" -d "sessionId=s1" -d "phoneNumber=+254700000001" -d "text="
+# Brio Hardware (*384*102#), press 1 (products)
+curl.exe -X POST http://localhost:3000/ussd -d "serviceCode=*384*102#" -d "sessionId=s2" -d "phoneNumber=+254700000001" -d "text=1"
+# A code nobody owns -> END Service unavailable
+curl.exe -X POST http://localhost:3000/ussd -d "serviceCode=*384*999#" -d "sessionId=s3" -d "phoneNumber=+254700000001" -d "text="
+```
+
+Replies are plain text starting with `CON ` (the session stays open) or `END ` (it closes). Note the same phone number is used for both shops: the shop comes from the service code only.
+
 ### Run the tests
 
 ```bash
 cd apps/api
-npm test                 # everything (15 suites, 141 tests)
-npm run test:isolation   # only the tenant isolation suites (81 tests)
+npm test                 # everything (19 suites, 168 tests)
+npm run test:isolation   # only the tenant isolation suites (89 tests)
 ```
 
 The isolation suite attacks every tenant table as a second shop and expects to read, change and delete nothing. A Husky `pre-push` hook runs it before every push, and CI runs the full suite against a real PostgreSQL on every push: https://github.com/sherylochieng/Rahisisha/actions
@@ -209,8 +237,9 @@ Success replies look like `{ "data": ..., "error": null }`. Validation failures 
 | GET | `/v1/orders` | cookie | List orders (cursor pagination) |
 | GET | `/v1/orders/:id` | cookie | Read one order |
 | PATCH | `/v1/orders/:id` | cookie | Change order status (illegal moves return 409) |
+| POST | `/ussd` | service code | USSD for every shop. **Not under `/v1`**: it is the callback URL for Africa's Talking. Takes form data (`serviceCode`, `sessionId`, `phoneNumber`, `text`) and replies in plain text (`CON ...` or `END ...`, 182 characters at most) |
 
-Status codes: 400 validation or malformed id, 401 not logged in, 404 not found (including another shop's record), 409 conflict, 500 unexpected, 503 database unreachable.
+Status codes: 400 validation or malformed id, 401 not logged in, 404 not found (including another shop's record, and any URL that matches no route, which answers `{ "data": null, "error": { "code": "not_found", "message": "Route not found" } }`), 409 conflict, 500 unexpected, 503 database unreachable.
 
 Details for each route are in [`apps/api/docs/endpoints/`](../apps/api/docs/endpoints/) and the file-by-file guides in [`apps/api/docs/INDEX.md`](../apps/api/docs/INDEX.md). The full planned API (35 endpoints) is in [`capstone/api.md`](api.md).
 
@@ -236,7 +265,7 @@ rahisisha/
   sql/
     migrations/       23 numbered migration files (001-023)
     SCHEMA.sql        Full combined schema
-    seeds/            Seed files (USSD service codes)
+    seeds/            Seed files (USSD service codes, and demo products and wallet for the two USSD shops)
   scripts/            reset-db.sh, demo-data.sql, seed-capstone.js and utilities
   .github/workflows/  ci.yml, the CI pipeline
   docs/               API reference and build plan
@@ -268,6 +297,8 @@ Folders such as `workers/`, `packages/` and `infra/` are scaffolds for later wee
 | [`apps/api/docs/INDEX.md`](../apps/api/docs/INDEX.md) | Developer index of the API: structure, patterns, tests |
 | [`apps/api/docs/tests/isolation-proof.md`](../apps/api/docs/tests/isolation-proof.md) | Evidence that every tenant table is locked |
 | [`apps/api/docs/AI_AUDIT_week_28_weekend.md`](../apps/api/docs/AI_AUDIT_week_28_weekend.md) | AI audit for the Week 28 Weekend work |
+| [`apps/api/docs/AI_AUDIT_week_29_day1.md`](../apps/api/docs/AI_AUDIT_week_29_day1.md) | AI audit for Week 29 Day 1 (USSD). States openly that tenant resolution was AI-written |
+| [`ussd-quirks.md`](../ussd-quirks.md) | Short notes on USSD rules: the 182 character limit, the back key, CON vs END |
 | [Trello Board](https://trello.com/b/CB8yGexS/rahisisha-capstone-sprint) | Sprint task board — Weeks 28–30 |
 
 ---
@@ -287,6 +318,11 @@ Also in place since Week 28:
 - **Login cookie:** httpOnly, `Secure` in production, `SameSite=Strict`, shared across shop addresses through a cookie domain.
 - **CORS:** the main site and every shop address are allowed by a rule; look-alike domains such as `evilrahisishabiashara.com` are refused.
 - **The app connects as an ordinary database user**, never a superuser.
+
+Also in place since Week 29 Day 1 (USSD):
+- **The shop comes from the service code**, never from the phone number (one phone can shop at many shops, and numbers can be faked). After that, USSD uses the same `withTenant` lock as every web route.
+- **`ussd_configs` has no RLS, on purpose**: the shop must be found before it is known. It holds only public data (service code, shop id, welcome line) and is listed as a documented exception in `apps/api/docs/tests/isolation-proof.md`.
+- **`tests/isolation/ussd.cross-tenant.test.js`** proves dialling shop A never shows shop B's welcome, products or balance, even by product id.
 
 ---
 
@@ -316,7 +352,13 @@ Architecture and design week complete. No production code yet.
 
 ## Week 29 Status
 
-- ⏳ Day 1: USSD per tenant (table `ussd_configs` and two seeded service codes done; shared endpoint, menu, test and notes in progress)
+- ✅ Day 1: USSD per tenant
+  - `ussd_configs` table (migration 023) and two seeded service codes (`*384*101#` Amina's Boutique, `*384*102#` Brio Hardware)
+  - `POST /ussd`: `resolveUssdTenant` guard, then `withTenant`, then the menu (1 products, 2 balance, 3 exit)
+  - Cross-tenant test (8 checks) and `ussd-quirks.md`
+  - AI audit (`AI_AUDIT_week_29_day1.md`), including the honest note that the tenant lookup was AI-written
+- ✅ Reviewer fixes done the same day: JSON 404 for unknown URLs, signup errors under each field, and a test that signup is all-or-nothing
+- ✅ 19 suites, 168 tests passing; CI green
 
 ---
 
