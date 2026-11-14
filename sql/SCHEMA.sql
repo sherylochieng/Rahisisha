@@ -32,6 +32,8 @@
 --  21. ussd_configs (migration 023)
 --  22. whatsapp_configs (migration 024)
 --  23. whatsapp_dedupe (migration 024)
+--  24. daraja_configs (migration 025)
+--  25. payment_attempts (migration 025)
 -- =============================================================
 
 
@@ -662,6 +664,75 @@ CREATE POLICY tenant_isolation ON whatsapp_dedupe
 
 
 -- =============================================================
+-- TABLE 24: daraja_configs (migration 025, Week 29 Day 3)
+-- Which shop owns which M-Pesa (Daraja) credentials. Every shop is paid
+-- into its OWN till, so every shop has its own keys, shortcode and
+-- callback address.
+-- The consumer key, consumer secret and passkey are stored ENCRYPTED
+-- (AES-GCM), never plain, and must never be logged.
+-- This one HAS RLS (unlike whatsapp_configs): both the pay route and the
+-- callback route know the shop BEFORE they read the config.
+-- =============================================================
+CREATE TABLE IF NOT EXISTS daraja_configs (
+  tenant_id                 UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  env                       TEXT NOT NULL CHECK (env IN ('sandbox','production')),
+  consumer_key_encrypted    TEXT NOT NULL,
+  consumer_secret_encrypted TEXT NOT NULL,
+  shortcode                 TEXT NOT NULL,
+  passkey_encrypted         TEXT NOT NULL,
+  callback_url              TEXT NOT NULL,
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE daraja_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daraja_configs FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON daraja_configs
+  USING      (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID)
+  WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID);
+
+
+-- =============================================================
+-- TABLE 25: payment_attempts (migration 025, Week 29 Day 3)
+-- One row per STK push we start: pending, then paid or failed.
+-- It is the proof that WE asked for the payment, so a callback is only
+-- believed if its checkout_request_id matches a row here.
+-- The database refuses duplicates itself: the same M-Pesa receipt can be
+-- saved once per shop, and an order can have only ONE paid attempt.
+-- Money rule: amount_cents is WHOLE cents, copied from the order.
+-- Never log the phone number.
+-- =============================================================
+CREATE TABLE IF NOT EXISTS payment_attempts (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id           UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  order_id            UUID NOT NULL REFERENCES orders(id)  ON DELETE RESTRICT,
+  amount_cents        BIGINT NOT NULL CHECK (amount_cents > 0),
+  phone               TEXT NOT NULL,
+  merchant_request_id TEXT,
+  checkout_request_id TEXT UNIQUE,
+  status              TEXT NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending','paid','failed')),
+  mpesa_reference     TEXT,
+  result_code         INTEGER,
+  result_desc         TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS payment_attempts_receipt_uniq
+  ON payment_attempts (tenant_id, mpesa_reference)
+  WHERE mpesa_reference IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS payment_attempts_one_paid_per_order
+  ON payment_attempts (order_id)
+  WHERE status = 'paid';
+CREATE INDEX IF NOT EXISTS payment_attempts_tenant_idx
+  ON payment_attempts (tenant_id, created_at DESC);
+ALTER TABLE payment_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_attempts FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON payment_attempts
+  USING      (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID)
+  WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID);
+
+
+-- =============================================================
 -- RLS CONTEXT FUNCTION
 -- Called at the start of every request by tenantContext.js:
 --   SELECT set_tenant_context('<tenantId>');
@@ -676,8 +747,8 @@ $$ LANGUAGE plpgsql;
 
 
 -- =============================================================
--- 23 tables total
--- 17 tables with RLS enabled (all tenant-owned tables)
+-- 25 tables total
+-- 19 tables with RLS enabled (all tenant-owned tables)
 --  6 tables without RLS (tenants, users, webhook_events, audit_logs,
 --    ussd_configs and whatsapp_configs: both are looked up before any
 --    shop is known)
