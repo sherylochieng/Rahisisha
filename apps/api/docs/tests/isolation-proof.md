@@ -4,6 +4,7 @@
 **Date of evidence:** Evidence A and the first run of Evidence C: 2 November 2026. Evidence B and the first re-run of Evidence C: 5 November 2026, after migration 022. Evidence 0 (table list): 7 November 2026. Latest test re-run: 6 November 2026.
 **Database:** `rahisisha` (PostgreSQL), connected as `rahisisha_user`
 **Update, Week 29 Day 1 (13 November 2026):** migration 023 added the table `ussd_configs` (no RLS, on purpose). See "ADDED ON WEEK 29 DAY 1 (USSD)" and "TABLES WITHOUT RLS" below. The dated evidence above that section was not rewritten.
+**Update, Week 29 Day 2 (13 and 14 November 2026):** migration 024 added `whatsapp_configs` (no RLS, on purpose, token stored encrypted) and `whatsapp_dedupe` (RLS on and forced). The database now has **23 tables**: **17** with RLS and **6** without, and **18** rules (17 `tenant_isolation` plus `login_lookup`). See "ADDED ON WEEK 29 DAY 2 (WHATSAPP)" and "TABLES WITHOUT RLS" below. The dated evidence above that section was not rewritten.
 
 ---
 
@@ -368,6 +369,31 @@ USSD adds a new way into the system: a phone request with **no login cookie**. T
 - Isolation suite on 13 November 2026: **5 suites, 89 tests passed**. Full suite the same day: 17 suites, 163 tests passed.
 - Manual check on 13 November 2026 (curl against a local server): the same phone number dialled Amina's Boutique and Brio Hardware. Option 1 showed only Amina's products for Amina's code and only Brio's for Brio's code. Option 2 showed a different balance for each shop.
 
+### ADDED ON WEEK 29 DAY 2 (WHATSAPP)
+
+WhatsApp adds a fourth way into the system: Meta's servers post customer messages to **one shared webhook** with **no login cookie**. The shop is found from the `phone_number_id` in the message (`middleware/resolveWhatsappTenant.js`), then `withTenant` sets the same `app.current_tenant` lock as every other route.
+
+- **Migration 024** added two tables:
+  - `whatsapp_configs`: shop, `phone_number_id`, the access token **stored encrypted** (AES-256-GCM, `utils/kms.js`) and a verify token. **No RLS, on purpose**: the shop is looked up before it is known.
+  - `whatsapp_dedupe`: `(tenant_id, message_id)` primary key, so a repeated Meta message is skipped **per shop**. It **has RLS** (`tenant_isolation` with both `USING` and `WITH CHECK`, forced).
+- **The guard test was updated** (`tests/isolation.test.js`): `whatsapp_dedupe` was added to `TENANT_TABLES`, and `whatsapp_configs` to `KNOWN_EXCEPTIONS`, with written reasons. `whatsapp_dedupe` has **no `id` column** (its key is the pair), so the generic read/update/delete loop cannot attack it. It is still covered by both coverage guards (it exists, RLS is on and forced), and it is attacked in its own test (below). The loop now runs over `TABLES_WITH_ID`.
+- **The policy count went from 17 to 18.** `scripts/reset-db.sh` (`EXPECTED_POLICIES=18`) and the CI comments were updated, and a fresh database built in CI passed.
+- `tests/isolation/whatsapp.cross-tenant.test.js` (11 checks, **11 passed**). It creates its own two shops and a throw-away encryption key, so it also runs in CI. It proves:
+  1. The verify handshake returns the challenge for a real shop token.
+  2. A wrong token, wrong mode, odd challenge or missing token gets 403.
+  3. A message for shop A's number is saved for A and is invisible to B.
+  4. The same message id again is skipped (duplicate).
+  5. The same message id on shop B's number is still processed (dedupe is per shop).
+  6. An unknown `phone_number_id` gets 200 `ignored` and nothing is saved.
+  7. Different message ids with the same text are both saved (dedupe is on the id, not the text).
+  8. A payload with no `phone_number_id` gets 200 `ignored`.
+  9. `whatsapp_dedupe`: with shop A's lock, shop B's rows are invisible.
+  10. `whatsapp_dedupe`: shop A cannot **insert** a row for shop B (`WITH CHECK` refuses it).
+  11. Control: with shop B's lock, shop B's row is visible, so check 9 did not pass on an empty table.
+- `tests/whatsapp.service.test.js` (10 checks, **10 passed**) proves the shared sender uses the right shop's token (never another shop's), never logs it, never puts it in an error, and that the stored token is encrypted. `tests/kms.test.js` (9 checks, **9 passed**) proves the encryption: a token copied into another shop's row will not decrypt.
+- Isolation suite on 13 November 2026: **6 suites, 100 tests passed**. Full suite the same day: **22 suites, 198 tests passed**. CI green.
+- Manual check on 14 November 2026 (local server and `psql`): a pretend Meta message for Amina's number was saved once, and sending it again answered `duplicates: 1`. With Amina's lock in `psql`, the message and its `whatsapp_dedupe` row were visible. With Brio's lock, both queries returned **0 rows**.
+
 ---
 
 ## TABLES WITHOUT RLS (and why)
@@ -379,6 +405,7 @@ USSD adds a new way into the system: a phone request with **no login cookie**. T
 | `webhook_events` | System table written before any shop is known (migration 015: "NO RLS, system table"). No `tenant_id`. | Low. Must not be exposed through any endpoint. |
 | `audit_logs` | Has a `tenant_id`, but migration 020 says "NO RLS: platform admin needs full access". | **Known exception.** The app's database user can read all shops' audit rows. No endpoint exposes the table today. |
 | `ussd_configs` (migration 023, Week 29 Day 1) | The shop must be found **from the service code before the shop is known**, so a shop-based lock would hide every row (the same trap that broke login before migration 022). It has a `tenant_id`, but it is a phone book: service code, shop id and a welcome line. | **Known exception, low risk.** Service codes are public numbers. Never add private columns to this table. Shop data is only ever read **after** `withTenant` sets the lock. |
+| `whatsapp_configs` (migration 024, Week 29 Day 2) | The shop must be found **from Meta's `phone_number_id` before the shop is known**, so a shop-based lock would hide every row (same trap as `ussd_configs` and login). It has a `tenant_id`, and it holds each shop's **access token**. | **Known exception, higher risk than `ussd_configs`.** The token column is stored **encrypted** (AES-256-GCM, key in `KMS_KEY`, token locked to its shop id), so a copy of the table alone reveals no token. Never `SELECT *` from it, never log a row, and only the webhook guard (`tenant_id` only) and the shared sender (filters by the shop lock) read it. |
 
 ---
 
@@ -389,6 +416,9 @@ USSD adds a new way into the system: a phone request with **no login cookie**. T
 3. **Attacks are tested "by id".** Policies without a `WITH CHECK` clause use the same rule for writes. A dedicated test that Brio cannot insert a row with Acme's `tenant_id` is a good next addition.
 4. **`login_lookup` is now tested, but only at the database level.** `tests/isolation/login-lookup.isolation.test.js` (7 checks, added 6 November 2026) proves that with no login name nothing is visible, with a login name only that person's row is visible, and UPDATE, DELETE and INSERT all fail. It does not test `login.js` itself. `login_lookup` is only as safe as the code that sets `app.login_user`: it must be set only after the password is verified, inside a transaction, with `set_config(..., true)`. A test of the real login endpoint is still a good next addition.
 5. **`ussd_configs` exception (Week 29 Day 1).** It has no RLS, so any code that uses the plain pool can read every shop's service code and welcome text. That is acceptable because the data is public by nature. The risks are (a) someone adding a sensitive column later, and (b) someone querying shop data with the plain pool in a USSD route. The cross-tenant test covers (b) through the real endpoint. A future step is to protect (a) with a database comment and a review rule.
+6. **`whatsapp_configs` exception (Week 29 Day 2).** It has no RLS, so any code using the plain pool could read every shop's **encrypted** token and verify token. The tokens are useless without `KMS_KEY`, but that is one key for all shops: if `KMS_KEY` leaks together with a copy of the table, every token is readable. The shared sender filters by the shop lock, and a test proves it never uses another shop's token. Future steps: a database comment and a review rule on this table, key rotation (the stored format is versioned `v1.` for this), and a real cloud KMS.
+7. **Older rules cannot read an empty setting.** Found on 14 November 2026: after `RESET app.current_tenant` in `psql`, a query on `messages` fails with `invalid input syntax for type uuid: ""`, because only `memberships` and `whatsapp_dedupe` use `NULLIF(..., '')` in their rule (migration 022 and 024). The app is not affected (`withTenant` always sets a real shop first), but a reused connection with an empty setting would make those 15 tables error instead of returning nothing. A future migration can add `NULLIF` to the other rules.
+8. **`whatsapp_dedupe` grows forever.** Old message ids are never deleted. A scheduled clean-up of rows older than a few days is a future step.
 
 ---
 
@@ -406,11 +436,15 @@ On 5 November 2026 I found that login refused correct passwords, because the sho
 
 Migration 023 added `ussd_configs`, a small phone book that maps a USSD service code to a shop. It has **no RLS on purpose**: the shop has to be found from the code before the shop is known. The 16 tenant tables were not changed. Everything that reads shop data (products, wallet) runs after `withTenant` sets `app.current_tenant`, exactly like the web routes. A new test, `tests/isolation/ussd.cross-tenant.test.js` (8 checks), proves through the real `POST /ussd` endpoint and directly at the database that dialling shop A never shows shop B's welcome, products or money, even by product id, and that the phone number is never used to pick the shop. The isolation suite now has 5 suites and 89 tests, all passing. One gap remains: the tenant lookup itself (`middleware/resolveUssdTenant.js`) was AI-written at the student's request and is declared in `AI_AUDIT_week_29_day1.md`.
 
+### Week 29 Day 2 update (13 and 14 November 2026)
+
+Migration 024 added two WhatsApp tables. `whatsapp_configs` has **no RLS on purpose** (the shop is found from Meta's `phone_number_id` before it is known) and stores each shop's access token **encrypted**. `whatsapp_dedupe` **has RLS**, so there are now 17 shop tables and 18 rules. The generic attack loop cannot test `whatsapp_dedupe` (no `id` column), so it is covered by both coverage guards and attacked in its own test. A new test, `tests/isolation/whatsapp.cross-tenant.test.js` (11 checks), proves through the real webhook and directly at the database that a message for shop A never reaches shop B, that repeated messages are skipped per shop, and that shop A cannot write a dedupe row for shop B. The isolation suite now has 6 suites and 100 tests, and the full suite 22 suites and 198 tests, all passing, with CI green. Gaps that remain: `whatsapp_configs` sits outside RLS and is protected by encryption and code rules, one key protects all tokens, and the tenant lookup and the token code (`resolveWhatsappTenant.js`, `kms.js`, `whatsapp.service.js`) were AI-written at the student's request and are declared in `AI_AUDIT_week_29_day2.md`.
+
 ---
 
 ## HOW TO REPEAT THIS PROOF
 
-1. Run Query A and Query B in `psql`. Query B should return 17 rows.
+1. Run Query A and Query B in `psql`. Query B should return 18 rows (it returned 17 until migration 024 added the `whatsapp_dedupe` rule).
 2. Run `npm test` (all suites) or `npm test -- tests/isolation.test.js` (the isolation suite).
 3. Compare with the expected results above.
 4. Any difference is a finding. Fix it before shipping.
