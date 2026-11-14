@@ -13,6 +13,8 @@
 
 **Reviewing the Week 29 Day 1 work (USSD per tenant)?** Look at the commits tagged `[Week 29 Day 1]`, read [`apps/api/docs/AI_AUDIT_week_29_day1.md`](../apps/api/docs/AI_AUDIT_week_29_day1.md) and [`ussd-quirks.md`](../ussd-quirks.md), and see "Try USSD locally" below.
 
+**Reviewing the Week 29 Day 2 work (WhatsApp per tenant)?** Look at the commits tagged `[Week 29 Day 2]`, read [`apps/api/docs/AI_AUDIT_week_29_day2.md`](../apps/api/docs/AI_AUDIT_week_29_day2.md) and [`whatsapp-security.md`](../whatsapp-security.md), and see "Try WhatsApp locally" below.
+
 ## What is Rahisisha?
 
 **Rahisisha** is a multi-tenant SaaS platform built for small product businesses in Kenya ... boutiques, dress shops, and informal sellers who currently run their entire business through WhatsApp manually. A customer messages "iko stock?", the owner replies by hand, sends an M-Pesa number, waits for confirmation, and updates stock in a notebook. Rahisisha replaces that entire loop with one signup: the owner uploads a product photo, the AI enhances it in the business's own brand colours and adds real text layers ,,price, name, logo ...then automatically announces it on WhatsApp. The AI answers customer questions from the real catalog, the M-Pesa STK push fires automatically when a customer taps Buy, stock updates itself, and the owner sees everything on one dashboard , without touching a single customer chat. Instagram and Facebook auto-posting are planned for the growth phase after the MVP launch.
@@ -60,15 +62,15 @@ Owner opens dashboard → sees the sale, revenue, stock update
 | Branded storefront per business | P0 — Week 28 | Partly: every shop has its own address and a "shop not found" page. The public product page is not built yet |
 | AI-enhanced product photos (real photo, real text layers) | P0 — Week 29 | Planned |
 | Owner approval gate — nothing goes public without sign-off | P0 — Week 29 | Planned |
-| WhatsApp announcement on product publish | P0 — Week 29 | Planned |
+| WhatsApp announcement on product publish | P0 — Week 29 | Planned. The base is built (Week 29 Day 2): the webhook receives customer messages per shop and an encrypted-token sender exists, but nothing announces or replies yet |
 | AI chat assistant grounded in tenant catalog data only | P0 — Week 29 | Planned |
 | In-chat M-Pesa payment link | P0 — Week 29 | Planned |
 | Inventory reservation — prevents double-selling | P0 — Week 29 | Table is in the schema; the logic is planned |
 | M-Pesa STK push + server-side callback confirmation | P0 — Week 29 | Planned |
 | Owner dashboard — sales, revenue, stock, orders | P0 — Week 30 | Dashboard home is done (orders today, wallet balance, latest products). The list pages are planned |
-| Multi-tenant isolation — Business A cannot see Business B's data | P0 — all weeks | Done and tested on all 16 tenant tables |
+| Multi-tenant isolation — Business A cannot see Business B's data | P0 — all weeks | Done and tested on all 17 tenant tables |
 | Order tracking, ratings, AI advice, billing | P1 — Week 30 if time | Order status flow is done. Ratings, AI advice and billing are planned |
-| USSD, Telegram, Instagram/TikTok auto-posting | P2 — after demo | USSD was brought into Week 29. Day 1 is done: `POST /ussd`, a per-shop menu and a cross-tenant test |
+| USSD, Telegram, Instagram/TikTok auto-posting | P2 — after demo | USSD was brought into Week 29. Day 1 is done: `POST /ussd`, a per-shop menu and a cross-tenant test. Telegram and Instagram/TikTok are still planned |
 
 ---
 
@@ -83,6 +85,7 @@ Owner opens dashboard → sees the sale, revenue, stock update
 - Dashboard home.
 - Friendly 503 when the database is down; loading and error states in the web app.
 - **USSD per shop (Week 29 Day 1):** one shared `POST /ussd` endpoint. The shop is found from the dialled service code, never from the phone number. Menu: welcome, 1 View products, 2 Check balance, 3 Exit. Every reply is 182 characters or less.
+- **WhatsApp per shop (Week 29 Day 2):** one shared webhook, `GET` and `POST /webhooks/whatsapp`. The shop is found from the `phone_number_id` in Meta's message, never from anything a caller types. Each shop's access token is **stored encrypted** (AES-256-GCM, tied to that shop). Incoming messages are saved as customer, conversation and message in one transaction, repeated messages are skipped per shop, and an unknown number gets a quiet `200 ignored`. A shared `sendWhatsApp` function sends with the right shop's token and never logs it.
 - Unknown URLs answer with a JSON 404, like every other error (not an HTML page).
 - Signup form errors appear under the wrong field; signup is all-or-nothing (a failed seeding leaves no shop or owner behind).
 - Tenant isolation proven by a test suite, continuous integration against real PostgreSQL, and a staging deploy.
@@ -91,9 +94,18 @@ Owner opens dashboard → sees the sale, revenue, stock update
 
 - There is **no customers endpoint** yet (`/v1/customers`), and the products, orders and customers list pages in the dashboard are not built (the menu shows them as "soon"). The 2 sample customers created at signup therefore have no page to appear on.
 - There is **no public storefront page** for customers yet.
-- M-Pesa, WhatsApp, AI photo enhancement and background jobs are planned for Week 29 and later.
+- M-Pesa, AI photo enhancement and background jobs are planned for Week 29 and later. WhatsApp is only half done (see the next points).
 - Login and signup errors still use the older `{ "error": "text" }` shape.
 - USSD was tested with `curl` and automated tests, **not yet with the Africa's Talking simulator**. The menu is one level deep: no back key, no paging, no `ussd_events` log, no idle timeout (the stretch goals).
+
+- **WhatsApp (Week 29 Day 2) is a base, not a finished feature:**
+  - The webhook does **not check Meta's `X-Hub-Signature-256` signature** yet, so anyone who knows a shop's `phone_number_id` could post a fake message to that shop.
+  - It **saves** messages but does **not reply** yet (the sender `sendWhatsApp` exists and is tested, but nothing calls it).
+  - The shop owner is **not told** when Meta rejects the token (the error code `whatsapp_token_rejected` exists).
+  - There is **no screen or endpoint** to save a shop's WhatsApp settings; the demo shops come from a seed script.
+  - It was tested with automated tests, `curl` and `psql`, **not against Meta's sandbox**.
+  - Stretch goals not done: key rotation, message templates, a Meta business verification walkthrough.
+- Smaller things found on 14 November 2026: a broken JSON body answers 500 instead of 400; older Row-Level Security rules error (instead of returning nothing) if the tenant setting is empty; `whatsapp_dedupe` is never cleaned.
 
 The full list, with reasons, is in [`capstone/PENDING_TASKS.md`](PENDING_TASKS.md).
 
@@ -198,12 +210,39 @@ curl.exe -X POST http://localhost:3000/ussd -d "serviceCode=*384*999#" -d "sessi
 
 Replies are plain text starting with `CON ` (the session stays open) or `END ` (it closes). Note the same phone number is used for both shops: the shop comes from the service code only.
 
+### Try WhatsApp locally
+
+WhatsApp tokens are stored encrypted, so the API needs an encryption key first. Make one and put it in your own `apps/api/.env` (never commit it):
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# paste the result into apps/api/.env as:  KMS_KEY=<the result>
+```
+
+Then load the two demo shops (they get **fake** tokens, encrypted with your key; the script refuses to run against production or a non-local database):
+
+```bash
+cd apps/api
+node scripts/seed-whatsapp-demo.js
+```
+
+Start the API, then check the verify handshake and pretend to be Meta. On Windows use `curl.exe` and, for the message, a PowerShell hashtable with `ConvertTo-Json -Depth 10` (pasting multi-line JSON loses the brackets):
+
+```bash
+# Verify handshake for Amina's Boutique: answers 200 and the challenge
+curl.exe "http://localhost:3000/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=demo-verify-amina&hub.challenge=12345"
+# A wrong token answers 403
+curl.exe "http://localhost:3000/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=12345"
+```
+
+POST a message whose `metadata.phone_number_id` is `demo-pid-amina`: the first time it is saved, the second time (same message id) it is reported as a duplicate. With Amina's lock in `psql` you see the message; with Brio's lock you see 0 rows. Demo values: Amina `demo-pid-amina` / `demo-verify-amina`, Brio `demo-pid-brio` / `demo-verify-brio`. The fuller guide is in `apps/api/docs/scripts/seed-whatsapp-demo.md`.
+
 ### Run the tests
 
 ```bash
 cd apps/api
-npm test                 # everything (19 suites, 168 tests)
-npm run test:isolation   # only the tenant isolation suites (89 tests)
+npm test                 # everything (22 suites, 198 tests)
+npm run test:isolation   # only the tenant isolation suites (6 suites, 100 tests)
 ```
 
 The isolation suite attacks every tenant table as a second shop and expects to read, change and delete nothing. A Husky `pre-push` hook runs it before every push, and CI runs the full suite against a real PostgreSQL on every push: https://github.com/sherylochieng/Rahisisha/actions
@@ -237,6 +276,8 @@ Success replies look like `{ "data": ..., "error": null }`. Validation failures 
 | GET | `/v1/orders` | cookie | List orders (cursor pagination) |
 | GET | `/v1/orders/:id` | cookie | Read one order |
 | PATCH | `/v1/orders/:id` | cookie | Change order status (illegal moves return 409) |
+| GET | `/webhooks/whatsapp` | verify token | Meta's verify handshake (`hub.mode`, `hub.verify_token`, `hub.challenge`). **Not under `/v1`**: it is the callback URL you give Meta. Answers 200 with the challenge for a real shop's token, otherwise 403 |
+| POST | `/webhooks/whatsapp` | `phone_number_id` | Inbound WhatsApp messages for every shop. The shop is found from `entry[0].changes[0].value.metadata.phone_number_id`. Saves customer, conversation and message once; repeats are skipped; an unknown or missing number answers `200` with `{ "data": { "ignored": true }, "error": null }` so Meta does not retry |
 | POST | `/ussd` | service code | USSD for every shop. **Not under `/v1`**: it is the callback URL for Africa's Talking. Takes form data (`serviceCode`, `sessionId`, `phoneNumber`, `text`) and replies in plain text (`CON ...` or `END ...`, 182 characters at most) |
 
 Status codes: 400 validation or malformed id, 401 not logged in, 404 not found (including another shop's record, and any URL that matches no route, which answers `{ "data": null, "error": { "code": "not_found", "message": "Route not found" } }`), 409 conflict, 500 unexpected, 503 database unreachable.
@@ -263,10 +304,11 @@ rahisisha/
     docker-compose.yml
   capstone/           Architecture and planning docs, STAGING.md, PENDING_TASKS.md
   sql/
-    migrations/       23 numbered migration files (001-023)
+    migrations/       24 numbered migration files (001-024)
     SCHEMA.sql        Full combined schema
-    seeds/            Seed files (USSD service codes, and demo products and wallet for the two USSD shops)
-  scripts/            reset-db.sh, demo-data.sql, seed-capstone.js and utilities
+    seeds/            Seed files, SQL only (USSD service codes, and demo products and wallet for the two USSD shops)
+  scripts/            reset-db.sh, demo-data.sql, seed-capstone.js and utilities (whole-repo helpers)
+                      apps/api/scripts/ holds helpers that use the API's own code and .env (seed-whatsapp-demo.js)
   .github/workflows/  ci.yml, the CI pipeline
   docs/               API reference and build plan
 ```
@@ -298,6 +340,9 @@ Folders such as `workers/`, `packages/` and `infra/` are scaffolds for later wee
 | [`apps/api/docs/tests/isolation-proof.md`](../apps/api/docs/tests/isolation-proof.md) | Evidence that every tenant table is locked |
 | [`apps/api/docs/AI_AUDIT_week_28_weekend.md`](../apps/api/docs/AI_AUDIT_week_28_weekend.md) | AI audit for the Week 28 Weekend work |
 | [`apps/api/docs/AI_AUDIT_week_29_day1.md`](../apps/api/docs/AI_AUDIT_week_29_day1.md) | AI audit for Week 29 Day 1 (USSD). States openly that tenant resolution was AI-written |
+| [`apps/api/docs/AI_AUDIT_week_29_day2.md`](../apps/api/docs/AI_AUDIT_week_29_day2.md) | AI audit for Week 29 Day 2 (WhatsApp). States openly that token handling and tenant resolution were AI-written, at the student's choice |
+| [`whatsapp-security.md`](../whatsapp-security.md) | Short security notes for the WhatsApp webhook: what is protected and what is not yet |
+| [`apps/api/docs/SEEDS_AND_SCRIPTS.md`](../apps/api/docs/SEEDS_AND_SCRIPTS.md) | Index of every seed and script, which folder each belongs in, and the fresh-setup order |
 | [`ussd-quirks.md`](../ussd-quirks.md) | Short notes on USSD rules: the 182 character limit, the back key, CON vs END |
 | [Trello Board](https://trello.com/b/CB8yGexS/rahisisha-capstone-sprint) | Sprint task board — Weeks 28–30 |
 
@@ -323,6 +368,13 @@ Also in place since Week 29 Day 1 (USSD):
 - **The shop comes from the service code**, never from the phone number (one phone can shop at many shops, and numbers can be faked). After that, USSD uses the same `withTenant` lock as every web route.
 - **`ussd_configs` has no RLS, on purpose**: the shop must be found before it is known. It holds only public data (service code, shop id, welcome line) and is listed as a documented exception in `apps/api/docs/tests/isolation-proof.md`.
 - **`tests/isolation/ussd.cross-tenant.test.js`** proves dialling shop A never shows shop B's welcome, products or balance, even by product id.
+
+Also in place since Week 29 Day 2 (WhatsApp):
+- **The shop comes from Meta's `phone_number_id`**, never from anything a caller types. After that, WhatsApp uses the same `withTenant` lock as every web route.
+- **Access tokens are encrypted at rest** (AES-256-GCM, key in `KMS_KEY`, token locked to its shop id so a copy in another shop's row will not decrypt). They are decrypted at the last moment, never logged and never put in an error message.
+- **`whatsapp_configs` has no RLS, on purpose** (the shop must be found before it is known), and it holds the encrypted token, so it is a documented exception with a higher risk note in `apps/api/docs/tests/isolation-proof.md`. **`whatsapp_dedupe` has RLS**, so a repeated message is skipped per shop.
+- **`tests/isolation/whatsapp.cross-tenant.test.js`** (11 checks) proves a message for shop A never reaches shop B and that shop A cannot write a dedupe row for shop B.
+- **Not yet in place:** the `X-Hub-Signature-256` check, and one key protects all tokens (see "Known gaps").
 
 ---
 
@@ -359,6 +411,16 @@ Architecture and design week complete. No production code yet.
   - AI audit (`AI_AUDIT_week_29_day1.md`), including the honest note that the tenant lookup was AI-written
 - ✅ Reviewer fixes done the same day: JSON 404 for unknown URLs, signup errors under each field, and a test that signup is all-or-nothing
 - ✅ 19 suites, 168 tests passing; CI green
+- ✅ Day 2: WhatsApp per tenant
+  - `whatsapp_configs` and `whatsapp_dedupe` tables (migration 024); 23 tables, 17 with RLS, 18 policies
+  - `GET` and `POST /webhooks/whatsapp`: `resolveWhatsappTenant` guard, then `withTenant`, then one transaction per message
+  - Encrypted tokens (`utils/kms.js`) and the shared sender (`services/whatsapp.service.js`)
+  - New tests: kms (9), sender (10) and WhatsApp cross-tenant (11); isolation guard updated for `whatsapp_dedupe`
+  - Demo seed script `apps/api/scripts/seed-whatsapp-demo.js`, plus `apps/api/docs/SEEDS_AND_SCRIPTS.md`
+  - AI audit (`AI_AUDIT_week_29_day2.md`) and `whatsapp-security.md`, including the honest note that token handling and tenant resolution were AI-written
+  - Docs tidy-up: guides for every new file, and `INDEX.md`, `isolation-proof.md` and this README brought up to date
+- ✅ 22 suites, 198 tests passing (isolation: 6 suites, 100 tests); CI green
+- ⏳ Not done on Day 2: signature check, replying to customers, a settings screen, a Meta sandbox test
 
 ---
 
