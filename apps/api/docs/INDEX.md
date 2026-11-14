@@ -43,10 +43,12 @@ apps/api/
 │   │   ├── requireAuth.js              Checks the JWT token. Rejects requests with no/bad token.
 │   │   ├── withTenant.js               Reads tenant from JWT, sets req.db to tenant-scoped connection.
 │   │   ├── asyncHandler.js             Wraps async controllers so thrown errors reach the error handler.
-│   │   └── resolveUssdTenant.js        USSD guard: finds the shop from the dialled service code, sets req.tenantId (Week 29 Day 1).
+│   │   ├── resolveUssdTenant.js        USSD guard: finds the shop from the dialled service code, sets req.tenantId (Week 29 Day 1).
+│   │   └── resolveWhatsappTenant.js    WhatsApp guard: finds the shop from Meta's phone_number_id, sets req.tenantId (Week 29 Day 2).
 │   ├── utils/
 │   │   ├── allowedOrigin.js            CORS rule: which websites may call the API (main site + every shop).
-│   │   └── getShopSlug.js              Finds the shop word from the Origin (then Host) header.
+│   │   ├── getShopSlug.js              Finds the shop word from the Origin (then Host) header.
+│   │   └── kms.js                      Encrypts and decrypts stored secrets (AES-256-GCM, key in KMS_KEY, locked to the shop id) (Week 29 Day 2).
 │   ├── routes/
 │   │   ├── auth/
 │   │   │   ├── auth.js                 Combines signup + login + me into one router.
@@ -57,19 +59,24 @@ apps/api/
 │   │   ├── orders.routes.js            Maps order URLs to controller functions.
 │   │   ├── dashboard.routes.js         GET /v1/dashboard (protected).
 │   │   ├── tenants.routes.js           GET /v1/tenants/by-slug/:slug (public).
-│   │   └── ussd.routes.js              POST /ussd (public, mounted with resolveUssdTenant + withTenant).
+│   │   ├── ussd.routes.js              POST /ussd (public, mounted with resolveUssdTenant + withTenant).
+│   │   └── whatsapp.routes.js          GET and POST /webhooks/whatsapp (public: Meta has no login cookie) (Week 29 Day 2).
 │   ├── services/
-│   │   └── wallet.service.js           Append-only money ledger: credit, debit, balance.
+│   │   ├── wallet.service.js           Append-only money ledger: credit, debit, balance.
+│   │   └── whatsapp.service.js         sendWhatsApp(db, to, body): decrypts the shop's token at the last moment and sends (Week 29 Day 2).
 │   └── controllers/
 │       ├── products.controller.js      All product business logic and database queries.
 │       ├── orders.controller.js        All order business logic, state machine, transactions.
 │       ├── dashboard.controller.js     Dashboard numbers: orders today, wallet balance, latest products.
 │       ├── tenants.controller.js       Public shop lookup by slug (used by the web proxy).
-│       └── ussd.controller.js          USSD menu: welcome, 1 products, 2 balance, 3 exit. Every reply 182 characters or less.
+│       ├── ussd.controller.js          USSD menu: welcome, 1 products, 2 balance, 3 exit. Every reply 182 characters or less.
+│       └── whatsapp.controller.js      Verify handshake (GET) and inbound messages (POST): dedupe, customer, conversation, message in one transaction (Week 29 Day 2).
 ├── tests/
 │   ├── pagination/
 │   │   └── products.pagination.test.js     Cursor pagination returns every product once.
-│   ├── isolation.test.js                   Attacks all 16 tenant tables at the database level.
+│   ├── isolation.test.js                   Attacks all 17 tenant tables at the database level (whatsapp_dedupe joined in Week 29 Day 2).
+│   ├── kms.test.js                         Encryption: round trip, fresh IV, tamper, wrong shop, wrong key, generic error (9 tests).
+│   ├── whatsapp.service.test.js            Sender uses the right shop's token, never logs it, never leaks it in an error (10 tests).
 │   ├── wallet.service.test.js              Wallet ledger: credit, debit, bad amounts, balance.
 │   ├── allowedOrigin.test.js               CORS rule: shops in, look-alikes and garbage out (13 tests).
 │   ├── getShopSlug.test.js                 Shop word from headers, including the exact online bug (14 tests).
@@ -77,11 +84,14 @@ apps/api/
 │   │   ├── orders.isolation.test.js        Cross-tenant checks for orders.
 │   │   ├── products.cross-tenant.test.js   Cross-tenant checks for products.
 │   │   ├── login-lookup.isolation.test.js  Attacks the login_lookup rule on memberships.
-│   │   └── ussd.cross-tenant.test.js       USSD: dialling shop A never shows shop B (8 checks, own shops).
+│   │   ├── ussd.cross-tenant.test.js       USSD: dialling shop A never shows shop B (8 checks, own shops).
+│   │   └── whatsapp.cross-tenant.test.js   WhatsApp: a message for shop A never reaches shop B; dedupe is per shop (11 checks, own shops).
 │   ├── signup-atomic.test.js               Signup is all-or-nothing: a failed seeding leaves no user and no shop.
 │   └── errors/
 │       ├── error-handling.test.js          Bad input gets a clean answer and no connection leaks.
 │       └── not-found.test.js               Unknown URLs answer 404 in JSON, not HTML.
+├── scripts/
+│   └── seed-whatsapp-demo.js           Demo WhatsApp settings for two shops, with fake encrypted tokens. Refuses production (Week 29 Day 2).
 └── docs/
     ├── INDEX.md                        This file.
     ├── AI_AUDIT_week_28_day3.md        Record of what AI wrote and what was done by hand.
@@ -89,26 +99,42 @@ apps/api/
     ├── AI_AUDIT_week_28_day5.md        Same, for Day 5 (dashboard, login_lookup, hooks).
     ├── AI_AUDIT_week_28_weekend.md     Same, for the Week 28 Weekend (Core Polish, staging).
     ├── AI_AUDIT_week_29_day1.md        Same, for Week 29 Day 1 (USSD per tenant). States openly that tenant resolution was AI-written.
+    ├── AI_AUDIT_week_29_day2.md        Same, for Week 29 Day 2 (WhatsApp per tenant). States openly that token handling and tenant resolution were AI-written, at the student's choice.
+    ├── SEEDS_AND_SCRIPTS.md            Index of every seed and script, which folder each belongs in, and the fresh-setup order (Week 29 Day 2).
     ├── src/                            One guide per source file (same folders as src/).
     │   ├── middleware/
-    │   │   └── resolveUssdTenant.md    Guide for the USSD tenant guard.
-    │   └── utils/
-    │       ├── allowedOrigin.md        Guide for the CORS rule.
-    │       └── getShopSlug.md          Guide for the shop lookup.
+    │   │   ├── resolveUssdTenant.md    Guide for the USSD tenant guard.
+    │   │   └── resolveWhatsappTenant.md  Guide for the WhatsApp tenant guard.
+    │   ├── utils/
+    │   │   ├── allowedOrigin.md        Guide for the CORS rule.
+    │   │   ├── getShopSlug.md          Guide for the shop lookup.
+    │   │   └── kms.md                  Guide for the encryption helper.
+    │   ├── services/
+    │   │   └── whatsapp.service.md     Guide for the shared WhatsApp sender.
+    │   ├── controllers/
+    │   │   └── whatsapp.controller.md  Guide for the verify handshake and inbound messages.
+    │   └── routes/
+    │       └── whatsapp.routes.md      Guide for the WhatsApp routes.
+    ├── scripts/
+    │   └── seed-whatsapp-demo.md       Guide for the WhatsApp demo seed script.
     └── tests/                          One guide per test file (same folders as tests/).
         ├── isolation-proof.md          Evidence that every tenant table is locked (RLS).
         ├── allowedOrigin.test.md       Guide for the CORS tests.
         ├── getShopSlug.test.md         Guide for the shop lookup tests.
         ├── ussd.cross-tenant.test.md   Guide for the USSD cross-tenant test.
+        ├── kms.test.md                 Guide for the encryption tests.
+        ├── whatsapp.cross-tenant.test.md  Guide for the WhatsApp cross-tenant test.
+        ├── whatsapp.service.test.md    Guide for the WhatsApp sender tests.
         ├── not-found.test.md           Guide for the JSON 404 test.
         └── signup-atomic.test.md       Guide for the all-or-nothing signup test.
 ```
 
 Database files live outside `apps/api`: migrations in `sql/migrations/` (latest:
-`023_ussd_configs.sql`, added in Week 29 Day 1; before it `022_login_membership_lookup.sql`)
+`024_whatsapp_configs.sql`, added in Week 29 Day 2; before it `023_ussd_configs.sql` from Day 1 and `022_login_membership_lookup.sql`)
 and the full schema in `sql/SCHEMA.sql`. Seed files are in `sql/seeds/`
 (`ussd_configs_seed.sql` and `ussd_demo_data_seed.sql`, both safe to run many times).
-The USSD notes are in `ussd-quirks.md` at the repo root.
+The USSD notes are in `ussd-quirks.md` and the WhatsApp security notes in `whatsapp-security.md`, both at the repo root.
+Seeds and scripts are indexed in `docs/SEEDS_AND_SCRIPTS.md` (SQL only in `sql/seeds/`; whole-repo helpers in root `scripts/`; helpers that use the API's own code in `apps/api/scripts/`).
 
 Other files added in Week 28 Weekend, outside `apps/api/src`:
 `scripts/reset-db.sh` (rebuilds a database; refuses anything but localhost unless
@@ -153,6 +179,10 @@ Two kinds of route skip part of this chain:
 - **USSD** (`/ussd`) has no login cookie, so `requireAuth` is not used. It runs
   `resolveUssdTenant` (finds the shop from the dialled service code), then
   `withTenant`, then the controller.
+- **WhatsApp** (`/webhooks/whatsapp`) has no login cookie either, because Meta's
+  servers call it. The `GET` (verify handshake) needs no shop lock. The `POST` runs
+  `resolveWhatsappTenant` (finds the shop from `phone_number_id`), then `withTenant`,
+  then the controller (Week 29 Day 2).
 - **Dashboard** (`/v1/dashboard`) runs the full chain: `requireAuth`, then
   `withTenant`, then the controller.
 
@@ -191,6 +221,13 @@ catch-all and answered with a JSON 404 (not Express's HTML page).
 | Method | URL    | What it does                                                                 |
 |--------|--------|------------------------------------------------------------------------------|
 | POST   | /ussd  | Africa's Talking posts form data (`serviceCode`, `sessionId`, `phoneNumber`, `text`). The shop is found from `serviceCode`. Replies are plain text starting with `CON ` or `END `, at most 182 characters |
+
+### WhatsApp (public on purpose: Meta's servers have no login cookie) (Week 29 Day 2)
+
+| Method | URL                  | What it does                                                                 |
+|--------|----------------------|------------------------------------------------------------------------------|
+| GET    | /webhooks/whatsapp   | Meta's verify handshake. Query: `hub.mode=subscribe`, `hub.verify_token`, `hub.challenge`. Answers 200 with the challenge only if the token belongs to a shop and the challenge is plain (letters, digits, `_`, `-`, up to 200); otherwise 403 |
+| POST   | /webhooks/whatsapp   | Inbound messages. The shop is found from `entry[0].changes[0].value.metadata.phone_number_id`. An unknown or missing number answers 200 `{ data: { ignored: true }, error: null }` (so Meta does not retry). A known one saves the customer, conversation and message once, and answers with a count of saved and duplicate messages |
 
 ### Dashboard (protected: JWT + tenant required)
 
@@ -455,6 +492,46 @@ customers are written in **one transaction**, and the sample data uses the same
 Tested by `tests/signup-atomic.test.js`, which makes seeding explode and checks
 that no user and no shop are left behind.
 
+### 17. WhatsApp finds the shop from the phone number id, and tokens stay encrypted (Week 29 Day 2)
+
+`/webhooks/whatsapp` is one shared endpoint for every shop. `POST` is mounted as
+`router.post('/', resolveWhatsappTenant, withTenant, asyncHandler(handleInbound))`:
+
+1. **`resolveWhatsappTenant`** reads `phone_number_id` from Meta's payload, looks it
+   up in `whatsapp_configs`, and sets `req.tenantId`. An unknown or missing number
+   gets `200 ignored`, never an error, so Meta does not retry forever.
+2. **`withTenant`** sets `app.current_tenant` and gives the controller `req.db`.
+3. **`handleInbound`** runs **one transaction** (`BEGIN`/`COMMIT`/`ROLLBACK` on `req.db`):
+   the dedupe row (`INSERT INTO whatsapp_dedupe ... ON CONFLICT DO NOTHING`, 0 rows
+   means a duplicate), the customer upsert, the conversation and the message. If
+   anything fails, nothing is kept, so Meta's retry works. Non-text messages are
+   stored as `[image]`, `[audio]` and so on.
+
+**Rules:** never take the shop from anything the caller types. `whatsapp_configs` has
+**no RLS** on purpose (same trap as `ussd_configs`); `whatsapp_dedupe` **has** RLS and
+its key is `(tenant_id, message_id)`, so dedupe is per shop. The `GET` handshake only
+echoes a challenge that matches `^[A-Za-z0-9_-]{1,200}$`. Tested by
+`tests/isolation/whatsapp.cross-tenant.test.js`.
+
+### 18. Secrets are encrypted at rest and decrypted at the last moment (Week 29 Day 2)
+
+A shop's WhatsApp access token is stored in `whatsapp_configs.access_token_encrypted`
+as `v1.<iv>.<tag>.<ciphertext>` (`utils/kms.js`):
+
+- **AES-256-GCM** with a key from `KMS_KEY` (32 bytes, base64), read at call time
+- a **fresh 12-byte IV** for every encryption
+- the **shop id is bound in** as additional data, so a token copied into another
+  shop's row will not decrypt (row-swap defence)
+- every failure gives the same message, `Could not decrypt the stored secret`
+
+`sendWhatsApp(db, to, body)` (`services/whatsapp.service.js`) filters
+`whatsapp_configs` by the current shop lock (the table has no RLS, so the filter is
+written by hand), decrypts only inside the call, and sends to Meta with a 10 second
+timeout. A failed send carries only the status code (401 or 403 sets
+`err.code = 'whatsapp_token_rejected'`). **The token is never logged and never put
+in an error**; the file has no `console` calls. Tested by `tests/kms.test.js` and
+`tests/whatsapp.service.test.js`. The security notes are in `whatsapp-security.md`.
+
 ---
 
 ## Settings (environment variables)
@@ -468,6 +545,9 @@ that no user and no shop are left behind.
 | `ROOT_DOMAIN` | The main domain, for example `rahisishabiashara.com`. Turns on the "every shop" CORS rule and the Origin-based shop lookup |
 | `COOKIE_DOMAIN` | Lets the login cookie work across shop addresses (online only) |
 | `PORT` | Port the server listens on |
+| `KMS_KEY` | Encrypts stored secrets (WhatsApp tokens). 32 bytes, base64 (44 characters). Never commit it; `.env.example` has a placeholder. If it is lost, every stored token is unreadable (Week 29 Day 2) |
+| `WHATSAPP_API_BASE` | Optional. Where WhatsApp messages are sent. Defaults to `https://graph.facebook.com`; tests point it at a fake |
+| `WHATSAPP_API_VERSION` | Optional. Meta's API version. Defaults to `v21.0` |
 
 ---
 
@@ -491,7 +571,8 @@ The frontend divides by 100 when displaying to users.
 Run from `apps/api`: `npm test`
 Run only the isolation suites: `npm run test:isolation`
 
-Current result (13 November 2026): **19 suites, 168 tests passing**. Isolation only: 5 suites, 89 tests.
+Current result (13 November 2026, Week 29 Day 2): **22 suites, 198 tests passing**. Isolation only: 6 suites, 100 tests.
+Earlier result (13 November 2026, Week 29 Day 1): 19 suites, 168 tests passing. Isolation only: 5 suites, 89 tests.
 Earlier result (10 November 2026): 15 suites, 141 tests passing. Isolation only: 81 tests.
 A Husky `pre-push` hook runs `npm run test:isolation` before every push.
 The same tests run on every push in CI (`.github/workflows/ci.yml`), against a
@@ -499,7 +580,7 @@ fresh Postgres built by `scripts/reset-db.sh`.
 
 | File | What it proves |
 |------|----------------|
-| `tests/isolation.test.js` | A second shop cannot read, update or delete another shop's row in any of the 16 tenant tables, and RLS is enabled and forced on all of them |
+| `tests/isolation.test.js` | A second shop cannot read, update or delete another shop's row in any of the 17 tenant tables, and RLS is enabled and forced on all of them. `whatsapp_dedupe` has no `id` column, so it is covered by the coverage guards and by its own checks in `whatsapp.cross-tenant.test.js` (Week 29 Day 2) |
 | `tests/isolation/login-lookup.isolation.test.js` | The `login_lookup` rule shows only the named person's row, and UPDATE, DELETE and INSERT all fail |
 | `tests/wallet.service.test.js` | Credit and debit work, bad amounts are refused and write nothing, balance is a number, unknown reasons are refused by the database |
 | `tests/pagination/products.pagination.test.js` | Cursor pagination returns every product exactly once and the cursor ends |
@@ -509,6 +590,9 @@ fresh Postgres built by `scripts/reset-db.sh`.
 | `tests/allowedOrigin.test.js` | Shops and the main site get in; look-alike domains, `http://` in production and garbage are refused |
 | `tests/getShopSlug.test.js` | The shop word is found from Origin or Host; `www`, `api`, strangers and garbage give no shop |
 | `tests/isolation/ussd.cross-tenant.test.js` | Dialling shop A never shows shop B's welcome, products or balance; the phone number is never the tenant; replies are 182 characters or less; with shop A's lock, shop B's rows are invisible even by id (8 checks) |
+| `tests/kms.test.js` | Encrypt then decrypt returns the original; a fresh IV every time; a changed byte, a different shop id or a different key fails with the one generic error; the key is read at call time (9 checks) |
+| `tests/whatsapp.service.test.js` | The sender uses the current shop's token, never another shop's; never logs it; never puts it in an error; 401 and 403 set `whatsapp_token_rejected`; the stored token is encrypted (10 checks) |
+| `tests/isolation/whatsapp.cross-tenant.test.js` | Verify handshake accepts a real token and refuses wrong ones; a message for shop A is saved for A and invisible to B; repeats are skipped per shop; unknown or missing number answers 200 ignored; with shop A's lock, shop B's `whatsapp_dedupe` rows are invisible and cannot be written (11 checks) |
 | `tests/errors/not-found.test.js` | Unknown URLs get a JSON 404 for GET and POST, and `/health` still works (4 checks) |
 | `tests/signup-atomic.test.js` | When seeding fails, signup fails cleanly and leaves no user and no shop behind (1 check) |
 
@@ -542,6 +626,14 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 | Remove the public demo accounts (password `Demo1234!`) and leftover test shops from staging | They are listed in `capstone/STAGING.md` under known gaps |
 | Keep `ussd_configs` free of private columns; cache `service_code -> tenant_id` if USSD traffic grows | It has no RLS on purpose (see `docs/tests/isolation-proof.md`). One extra query per USSD request is fine for now |
 | USSD stretch goals: language per tenant, a `ussd_events` table, 60 second idle timeout | Not done in Week 29 Day 1 |
+| Verify the `X-Hub-Signature-256` header on `POST /webhooks/whatsapp` | Not done in Week 29 Day 2, so anyone who knows a shop's `phone_number_id` can post a fake message to that shop. Listed in `whatsapp-security.md` |
+| Tell the shop owner when Meta rejects the token (`whatsapp_token_rejected`) | The error code exists, but nothing notifies the owner yet |
+| Add a screen or endpoint where a shop saves its own WhatsApp settings; reply to customers through `sendWhatsApp` from the webhook; try it against Meta's sandbox | Today the settings come from the seed script only, and the webhook saves messages but does not answer |
+| WhatsApp stretch goals: key rotation (the `v1.` prefix is there for it), message templates, a Meta business verification walkthrough | Not done in Week 29 Day 2 |
+| Clean old rows out of `whatsapp_dedupe` | It grows forever. A scheduled delete of rows older than a few days is enough |
+| Answer `400` (not `500`) for a broken JSON body | Found on 14 November 2026: the central error handler turns a body parse error into `internal` |
+| Add `NULLIF(current_setting('app.current_tenant', TRUE), '')` to the older RLS rules | Only `memberships` and `whatsapp_dedupe` have it; the other 15 tables error on an empty setting instead of returning nothing (see `docs/tests/isolation-proof.md`) |
+| Fix the stale "81 isolation tests" comments in `ci.yml` | Left alone in Week 29 Day 2 |
 | Find why Jest says "did not exit" at the end of `npm test` | Some older test leaves a connection open. Harmless, but `--detectOpenHandles` would show which |
 | Web: add `onChange` clearing of a field's red message while typing | A wrong box stays red until the next submit (see `SignupForm.js`) |
 
@@ -594,8 +686,11 @@ Staging is already live (see above).
 
 **Done early:** USSD per tenant (Week 29 Day 1): `POST /ussd`, `ussd_configs`, the menu and the cross-tenant test.
 
+**Done early (partly):** WhatsApp per tenant (Week 29 Day 2): `GET` and `POST /webhooks/whatsapp`, `whatsapp_configs`, `whatsapp_dedupe`, the encryption helper and the shared sender. Still to do: the signature check, replying from the webhook, a screen to save a shop's settings and a Meta sandbox test (see Known Follow-Ups).
+
 ---
 
-*Last updated: Week 29 Day 1 (USSD per tenant, JSON 404, signup field errors, signup atomicity test), 13 November 2026*  
+*Last updated: Week 29 Day 2 (WhatsApp per tenant: webhook, encrypted tokens, dedupe, shared sender, seed script, docs tidy-up), 14 November 2026*  
+*Earlier: Week 29 Day 1 (USSD per tenant, JSON 404, signup field errors, signup atomicity test), 13 November 2026*  
 *Earlier: Week 28 Weekend (Task 8, staging deploy), 10 November 2026*  
 *Update this file every time a new endpoint or pattern is added.*
