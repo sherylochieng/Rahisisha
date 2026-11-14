@@ -3,9 +3,9 @@
 // =============================================================================
 //
 // WHY THIS FILE EXISTS:
-// - Day 3 tested products and orders through the API. But Rahisisha has 16
+// - Day 3 tested products and orders through the API. But Rahisisha has 19
 //   tables that hold shop data, and most have no URL (customers, messages,
-//   wallet_entries...). This file attacks ALL 16 at the database level
+//   wallet_entries...). This file attacks ALL 19 at the database level
 //
 // WHY IT IS IMPORTANT:
 // - Isolation is the promise the whole product stands on. One table with RLS
@@ -71,13 +71,18 @@ const TENANT_TABLES = [
   'product_media', 'product_variants', 'products', 'stock_reservations',
   'subscriptions', 'usage_counters', 'wallet_entries',
   'whatsapp_dedupe',   // migration 024. Key is (tenant_id, message_id), no `id` column
+  'daraja_configs',    // migration 025. Key is tenant_id, no `id` column
+  'payment_attempts',  // migration 025. Has an `id`, so it joins the attack loop
 ];
 
 // The attack loop below uses `WHERE id = $1`, so it only fits tables that have
 // an `id` column. whatsapp_dedupe has none (its key is tenant_id + message_id),
 // so it is attacked in tests/isolation/whatsapp.cross-tenant.test.js instead.
 // It is still covered by BOTH coverage guards above (table exists, RLS forced).
-const TABLES_WITH_ID = TENANT_TABLES.filter((t) => t !== 'whatsapp_dedupe');
+// daraja_configs (migration 025) has none either (its key is tenant_id), so it
+// is attacked in its own describe block at the bottom of THIS file.
+const TABLES_WITH_ID = TENANT_TABLES.filter(
+  (t) => t !== 'whatsapp_dedupe' && t !== 'daraja_configs');
 
 // Tables that have a tenant_id but, BY DESIGN, no RLS. They are documented as
 // exceptions in isolation-proof.md. audit_logs: platform admin reads all shops.
@@ -110,7 +115,7 @@ async function one(sql, params) {
 
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 // beforeAll: runs ONCE. Opens the transaction and gives Acme one row in each
-// of the 16 tables. Order matters: parents first (a product before its
+// of the 19 tables. Order matters: parents first (a product before its
 // variants, a customer before its orders)
 beforeAll(async () => {
   client = await testPool.connect();
@@ -163,6 +168,19 @@ beforeAll(async () => {
   ids.order_items = await one(
     "INSERT INTO order_items (tenant_id, order_id, product_name, unit_price_cents, quantity) VALUES ($1, $2, 'iso', 100, 1) RETURNING id",
     [A, ids.orders]);
+  // payment_attempts (migration 025, Week 29 Day 3): one pending attempt for
+  // Acme's order. The phone is the unique tag so no real number is used.
+  ids.payment_attempts = await one(
+    'INSERT INTO payment_attempts (tenant_id, order_id, amount_cents, phone) VALUES ($1, $2, 100, $3) RETURNING id',
+    [A, ids.orders, tag]);
+  // daraja_configs has no id: its key is tenant_id. Acme may already have a
+  // config, so update-if-exists. Everything is undone by the ROLLBACK anyway.
+  await client.query(
+    `INSERT INTO daraja_configs
+       (tenant_id, env, consumer_key_encrypted, consumer_secret_encrypted,
+        shortcode, passkey_encrypted, callback_url)
+     VALUES ($1, 'sandbox', 'x', 'x', '000000', 'x', 'http://x')
+     ON CONFLICT (tenant_id) DO UPDATE SET env = EXCLUDED.env`, [A]);
   ids.wallet_entries = await one(
     "INSERT INTO wallet_entries (tenant_id, amount_cents, reason) VALUES ($1, 100, 'sale') RETURNING id", [A]);
   ids.content_posts = await one(
@@ -257,6 +275,66 @@ describe.each(TABLES_WITH_ID)('Isolation — %s', (table) => {
     await asTenant(acmeTenantId);
     const { rows } = await client.query(
       `SELECT id FROM ${table} WHERE id = $1`, [ids[table]]);
+    expect(rows.length).toBe(1);
+  });
+});
+
+// --- daraja_configs: the same attacks, but by tenant_id (it has no id) -------
+// WHY a separate block: the loop above uses WHERE id = $1, and this table's
+// key is tenant_id. These checks hold the SHOP'S PAYMENT KEYS (encrypted),
+// so they are worth their own proof.
+describe('Isolation - daraja_configs (no id column)', () => {
+
+  // ATTACK 1 (READ): Brio asks for Acme's config by Acme's shop id
+  test('Brio cannot READ Acme daraja_configs', async () => {
+    await asTenant(brioTenantId);
+    const { rows } = await client.query(
+      'SELECT tenant_id FROM daraja_configs WHERE tenant_id = $1', [acmeTenantId]);
+    expect(rows.length).toBe(0);
+  });
+
+  // ATTACK 2 (UPDATE): Brio tries to change Acme's config
+  test('Brio cannot UPDATE Acme daraja_configs', async () => {
+    await asTenant(brioTenantId);
+    const res = await client.query(
+      "UPDATE daraja_configs SET env = 'production' WHERE tenant_id = $1", [acmeTenantId]);
+    expect(res.rowCount).toBe(0);
+  });
+
+  // ATTACK 3 (DELETE): Brio tries to delete Acme's config
+  test('Brio cannot DELETE Acme daraja_configs', async () => {
+    await asTenant(brioTenantId);
+    const res = await client.query(
+      'DELETE FROM daraja_configs WHERE tenant_id = $1', [acmeTenantId]);
+    expect(res.rowCount).toBe(0);
+  });
+
+  // ATTACK 4 (WRITE FOR ANOTHER SHOP): Brio tries to plant a config FOR Acme.
+  // The database must refuse (WITH CHECK). A refused statement would abort the
+  // whole test transaction, so we wrap it in a SAVEPOINT and roll back to it
+  test('Brio cannot INSERT a daraja_configs row for Acme', async () => {
+    await asTenant(brioTenantId);
+    await client.query('SAVEPOINT before_attack');
+    let refused = false;
+    try {
+      await client.query(
+        `INSERT INTO daraja_configs
+           (tenant_id, env, consumer_key_encrypted, consumer_secret_encrypted,
+            shortcode, passkey_encrypted, callback_url)
+         VALUES ($1, 'sandbox', 'x', 'x', '000000', 'x', 'http://x')`, [acmeTenantId]);
+    } catch (err) {
+      refused = true;
+    }
+    await client.query('ROLLBACK TO SAVEPOINT before_attack');
+    expect(refused).toBe(true);
+  });
+
+  // CONTROL: Acme still sees her own config. Without this, "0 rows" above
+  // could just mean the row never existed
+  test('Acme still sees her own daraja_configs afterwards', async () => {
+    await asTenant(acmeTenantId);
+    const { rows } = await client.query(
+      'SELECT tenant_id FROM daraja_configs WHERE tenant_id = $1', [acmeTenantId]);
     expect(rows.length).toBe(1);
   });
 });
