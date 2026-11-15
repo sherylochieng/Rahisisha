@@ -55,6 +55,8 @@
  *   daraja_auth_failed        Safaricom refused the shop's key/secret
  *   daraja_rejected           Safaricom refused the push
  *   daraja_unreachable        timeout or network failure
+ *   daraja_query_unconfirmed  Safaricom could not (yet) confirm a payment's
+ *                             state; the caller must NOT credit anything
  *
  * PRACTICAL EXAMPLE
  *   In the pay controller for Amina's order of KES 1,500:
@@ -87,8 +89,11 @@
  *
  * WHERE USED / FUTURE USES
  *   - controllers/payments.controller.js (POST /v1/orders/:id/pay)
- *   - Later: refunds (reversal API), STK push status query for
- *     reconciliation (stretch).
+ *   - controllers/mpesa.callback.controller.js: queryStkStatus() asks
+ *     Safaricom "did this payment really happen?" BEFORE any money is
+ *     credited (Week 29 Day 3, the second lock on the callback).
+ *   - Later: refunds (reversal API) and the nightly reconciliation job,
+ *     which will call queryStkStatus() for attempts stuck in 'pending'.
  *
  * TRADEOFFS
  *   + One small function, easy to fake in tests.
@@ -97,7 +102,7 @@
  *     the product rules decide how to round.
  *
  * HOW TO USE
- *   import { stkPush, normalizePhone } from '../services/daraja.service.js';
+ *   import { stkPush, queryStkStatus, normalizePhone } from '../services/daraja.service.js';
  *   const { checkoutRequestId } = await stkPush(req.db, {
  *     amountCents: 150000, phone: '0712345678', accountReference: 'ORDER-AB12CD34',
  *   });
@@ -282,6 +287,20 @@ async function getAccessToken(cfg) {
 }
 
 // -------------------------------------------------------------
+// PIECE 9b: makePassword(cfg)
+// -------------------------------------------------------------
+// Daraja wants base64(shortcode + passkey + timestamp) on BOTH the push and
+// the status query, so it lives in one place. The passkey is decrypted only
+// here, only for this line, and the result is never logged.
+// Returns { timestamp, password }.
+function makePassword(cfg) {
+  const passkey = decryptSecret(cfg.passkey_encrypted, cfg.tenant_id);
+  const timestamp = nairobiTimestamp();
+  const password = Buffer.from(`${cfg.shortcode}${passkey}${timestamp}`).toString('base64');
+  return { timestamp, password };
+}
+
+// -------------------------------------------------------------
 // PIECE 10: stkPush(db, { amountCents, phone, accountReference })
 // -------------------------------------------------------------
 // The one function the rest of the app calls. In order:
@@ -338,9 +357,7 @@ export async function stkPush(db, { amountCents, phone, accountReference }) {
 
   // Password = base64(shortcode + passkey + timestamp). Daraja re-computes it
   // to check we really own this till. Built in memory, never logged.
-  const passkey = decryptSecret(cfg.passkey_encrypted, cfg.tenant_id);
-  const timestamp = nairobiTimestamp();
-  const password = Buffer.from(`${cfg.shortcode}${passkey}${timestamp}`).toString('base64');
+  const { timestamp, password } = makePassword(cfg);
 
   const { status, body } = await fetchJson(
     `${apiBase(cfg.env)}/mpesa/stkpush/v1/processrequest`,
@@ -376,4 +393,76 @@ export async function stkPush(db, { amountCents, phone, accountReference }) {
     merchantRequestId: body.MerchantRequestID ?? null,
     checkoutRequestId: body.CheckoutRequestID,
   };
+}
+
+// -------------------------------------------------------------
+// PIECE 11: queryStkStatus(db, checkoutRequestId)   (Week 29 Day 3)
+// -------------------------------------------------------------
+// Asks Safaricom directly: "what happened to THIS payment prompt?"
+// This is the SECOND LOCK on the callback. Safaricom's callback is not signed,
+// so anyone who learned a CheckoutRequestID could post a fake "paid". Before
+// we credit any money we ask Safaricom ourselves, with the shop's own keys,
+// and believe THAT answer, not the callback's.
+// Real life: a courier says "parcel delivered"; before you pay him you phone
+// the shop and ask "did you really send it?".
+//
+// It returns only a plain word:
+//   'paid'   Safaricom says the customer completed the payment
+//   'failed' Safaricom says it did not (cancelled, wrong PIN, no money, ...)
+// and THROWS daraja_query_unconfirmed for everything else: the customer is
+// still typing their PIN ("being processed"), Safaricom is down, the answer
+// is odd, or the answer is about a different CheckoutRequestID. Callers treat
+// a throw as "do not credit, leave it pending, try again later".
+// It never returns amounts, receipts or phones (the query does not carry
+// them), and nothing in it is logged.
+//
+// Step by step:
+//   a) The id is only letters, digits, _ and - (and at most 100 long). Anything
+//      else is refused BEFORE any network call, so an attacker cannot push odd
+//      text into our request to Safaricom.
+//   b) Load THIS shop's config (RLS + WHERE), log in, build the Password, call
+//      /mpesa/stkpushquery/v1/query.
+//   c) Safaricom answers ResponseCode '0' (request understood) plus a
+//      ResultCode: '0' = paid, anything else = failed. If it is still being
+//      processed it answers with an error status instead: unconfirmed.
+//   d) If Safaricom's answer names a different CheckoutRequestID than we asked
+//      about, we do not trust it: unconfirmed.
+export async function queryStkStatus(db, checkoutRequestId) {
+  if (!db || typeof db.query !== 'function') {
+    throw new Error('queryStkStatus needs a database connection');
+  }
+  if (typeof checkoutRequestId !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,100}$/.test(checkoutRequestId)) {
+    throw fail('daraja_query_unconfirmed', 'Payment status could not be confirmed');
+  }
+
+  const cfg = await loadConfig(db);
+  const token = await getAccessToken(cfg);
+  const { timestamp, password } = makePassword(cfg);
+
+  const { status, body } = await fetchJson(
+    `${apiBase(cfg.env)}/mpesa/stkpushquery/v1/query`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        BusinessShortCode: cfg.shortcode,
+        Password: password,
+        Timestamp: timestamp,
+        CheckoutRequestID: checkoutRequestId,
+      }),
+    }
+  );
+
+  // Anything that is not a clean, matching answer is "unconfirmed".
+  const clean = status === 200 && body && body.ResponseCode === '0' &&
+    body.ResultCode !== undefined && body.ResultCode !== null &&
+    (body.CheckoutRequestID === undefined || body.CheckoutRequestID === checkoutRequestId);
+  if (!clean) {
+    throw fail('daraja_query_unconfirmed', 'Payment status could not be confirmed');
+  }
+  return String(body.ResultCode) === '0' ? 'paid' : 'failed';
 }

@@ -73,7 +73,8 @@
 //   4. beforeAll          build the two shops and their config rows
 //   5. beforeEach/After   a fresh fake Safaricom before every check
 //   6. afterAll           clean up and put everything back
-//   7. The 13 checks      what we promise, one by one
+//   7. The 21 checks      what we promise, one by one (14 to 21 test the
+//                         Safaricom status query, the 'second lock' on the callback)
 // =============================================================
 
 // -------------------------------------------------------------
@@ -91,7 +92,7 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import { jest } from '@jest/globals';
 
-import { stkPush, normalizePhone } from '../src/services/daraja.service.js';
+import { stkPush, queryStkStatus, normalizePhone } from '../src/services/daraja.service.js';
 import { encryptSecret } from '../src/utils/kms.js';
 
 dotenv.config();
@@ -490,6 +491,135 @@ describe('stkPush (one shared sender, one till per shop)', () => {
       // Put B's real value back so later checks are not affected.
       await withLock(tenantB, (db) =>
         db.query('UPDATE daraja_configs SET consumer_key_encrypted = $1', [original]));
+    }
+  });
+});
+
+// -------------------------------------------------------------
+// queryStkStatus checks (Week 29 Day 3): the SECOND LOCK on the callback
+// -------------------------------------------------------------
+// Safaricom's callback is not signed, so before any money is credited we ask
+// Safaricom directly "did this payment really happen?". These checks prove
+// that question is asked correctly, per shop, and that anything unclear
+// means "do NOT credit".
+describe('queryStkStatus (ask Safaricom before believing a callback)', () => {
+  const CHECKOUT_ID = 'ws_CO_14112026153000123456';
+
+  // happyQuery: the fake Safaricom for these checks. Login works, and the
+  // status query answers with the ResultCode we give it.
+  const happyQuery = (resultCode, extra = {}) => (url) =>
+    String(url).includes('/oauth/')
+      ? Promise.resolve(reply(200, { access_token: ACCESS_TOKEN }))
+      : Promise.resolve(reply(200, {
+        ResponseCode: '0', ResponseDescription: 'accepted',
+        MerchantRequestID: 'mr', CheckoutRequestID: CHECKOUT_ID,
+        ResultCode: resultCode, ResultDesc: 'text', ...extra,
+      }));
+
+  // CHECK 14: ResultCode '0' = the customer really paid. The request must go
+  // to A's address with A's till and a correct Password, and ask about
+  // exactly this CheckoutRequestID.
+  // Real life: phoning the shop with your parcel's tracking number.
+  test("14. paid: asks Safaricom with A's keys and answers 'paid'", async () => {
+    fetchMock.mockImplementation(happyQuery('0'));
+    const answer = await withLock(tenantA, (db) => queryStkStatus(db, CHECKOUT_ID));
+    expect(answer).toBe('paid');
+
+    const [url, options] = fetchMock.mock.calls[1];
+    expect(url).toBe('https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query');
+    expect(options.headers.Authorization).toBe(`Bearer ${ACCESS_TOKEN}`);
+    const sent = JSON.parse(options.body);
+    expect(sent.BusinessShortCode).toBe(A.shortcode);
+    expect(sent.CheckoutRequestID).toBe(CHECKOUT_ID);
+    expect(Buffer.from(sent.Password, 'base64').toString())
+      .toBe(`${A.shortcode}${A.passkey}${sent.Timestamp}`);
+  });
+
+  // CHECK 15: any ResultCode other than '0' (1032 = customer cancelled,
+  // 1 = not enough money, 2001 = wrong PIN) means the payment did not happen.
+  test("15. not paid: any other ResultCode answers 'failed'", async () => {
+    for (const code of ['1032', '1', '2001', 1032]) {
+      fetchMock.mockImplementation(happyQuery(code));
+      const answer = await withLock(tenantA, (db) => queryStkStatus(db, CHECKOUT_ID));
+      expect(answer).toBe('failed');
+    }
+  });
+
+  // CHECK 16: per shop. Locked to B, the query goes to B's PRODUCTION address
+  // with B's till and nothing of A's.
+  test("16. locked to B: B's address and till, never A's", async () => {
+    fetchMock.mockImplementation(happyQuery('0'));
+    await withLock(tenantB, (db) => queryStkStatus(db, CHECKOUT_ID));
+    const [url, options] = fetchMock.mock.calls[1];
+    expect(url.startsWith('https://api.safaricom.co.ke/')).toBe(true);
+    expect(JSON.parse(options.body).BusinessShortCode).toBe(B.shortcode);
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain(A.shortcode);
+  });
+
+  // CHECK 17: Safaricom cannot say yet. While the customer is still typing
+  // their PIN, Safaricom answers with an error ("being processed"). We must
+  // NOT guess 'paid' or 'failed': it throws daraja_query_unconfirmed.
+  // Real life: "the courier has not arrived yet" is not "parcel delivered".
+  test('17. still being processed: unconfirmed, never a guess', async () => {
+    fetchMock.mockImplementation((url) => String(url).includes('/oauth/')
+      ? Promise.resolve(reply(200, { access_token: ACCESS_TOKEN }))
+      : Promise.resolve(reply(500, { errorCode: '500.001.1001', errorMessage: 'The transaction is being processed' })));
+    const err = await withLock(tenantA, (db) => queryStkStatus(db, CHECKOUT_ID)).catch((e) => e);
+    expect(err.code).toBe('daraja_query_unconfirmed');
+    expect(err.message).not.toContain('being processed');   // Safaricom's words never copied
+  });
+
+  // CHECK 18: odd or half-empty answers are never trusted: wrong
+  // ResponseCode, no ResultCode, an empty body, or an answer about a
+  // DIFFERENT CheckoutRequestID (someone else's payment).
+  test('18. odd answers and answers about another payment are unconfirmed', async () => {
+    const odd = [
+      reply(200, { ResponseCode: '1', ResultCode: '0' }),
+      reply(200, { ResponseCode: '0' }),
+      reply(200, null),
+      reply(200, { ResponseCode: '0', ResultCode: '0', CheckoutRequestID: 'ws_CO_SOMEONE_ELSE' }),
+    ];
+    for (const answer of odd) {
+      fetchMock.mockImplementation((url) => String(url).includes('/oauth/')
+        ? Promise.resolve(reply(200, { access_token: ACCESS_TOKEN }))
+        : Promise.resolve(answer));
+      const err = await withLock(tenantA, (db) => queryStkStatus(db, CHECKOUT_ID)).catch((e) => e);
+      expect(err.code).toBe('daraja_query_unconfirmed');
+    }
+  });
+
+  // CHECK 19: a network failure or a refused login also never produce 'paid'.
+  // The caller sees an error and leaves the payment pending.
+  test('19. network down or login refused: an error, never paid', async () => {
+    fetchMock.mockImplementation(() => Promise.reject(new Error('socket hang up')));
+    const down = await withLock(tenantA, (db) => queryStkStatus(db, CHECKOUT_ID)).catch((e) => e);
+    expect(down.code).toBe('daraja_unreachable');
+
+    fetchMock.mockImplementation(() => Promise.resolve(reply(401, {})));
+    const refused = await withLock(tenantA, (db) => queryStkStatus(db, CHECKOUT_ID)).catch((e) => e);
+    expect(refused.code).toBe('daraja_auth_failed');
+  });
+
+  // CHECK 20: the id is checked BEFORE any network call. Only letters,
+  // digits, _ and -, at most 100 long. Odd text never reaches Safaricom.
+  test('20. a strange CheckoutRequestID is refused before any call', async () => {
+    for (const bad of ['', 'a b', "x'; DROP TABLE orders;--", 'a'.repeat(101), null, undefined, 42]) {
+      const err = await withLock(tenantA, (db) => queryStkStatus(db, bad)).catch((e) => e);
+      expect(err.code).toBe('daraja_query_unconfirmed');
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // CHECK 21: the same "no leaks" promise as check 3: after a paid answer and
+  // a failure, nothing secret was printed.
+  test('21. no key, passkey or token reaches the console', async () => {
+    fetchMock.mockImplementation(happyQuery('0'));
+    await withLock(tenantA, (db) => queryStkStatus(db, CHECKOUT_ID));
+    fetchMock.mockImplementation(() => Promise.resolve(reply(401, {})));
+    await withLock(tenantA, (db) => queryStkStatus(db, CHECKOUT_ID)).catch(() => {});
+    const printed = consoleText();
+    for (const secret of [A.key, A.secret, A.passkey, ACCESS_TOKEN, 'Basic', 'Bearer']) {
+      expect(printed).not.toContain(secret);
     }
   });
 });
