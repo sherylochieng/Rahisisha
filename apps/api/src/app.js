@@ -38,6 +38,7 @@ import { corsOrigin } from './utils/allowedOrigin.js';
 import { resolveUssdTenant } from './middleware/resolveUssdTenant.js';
 import ussdRouter from './routes/ussd.routes.js';
 import whatsappRouter from './routes/whatsapp.routes.js';
+import mpesaRouter from './routes/mpesa.routes.js';
 
 
 // Load .env variables (DATABASE_URL, JWT_SECRET, etc.) into process.env
@@ -116,6 +117,15 @@ app.use('/ussd', resolveUssdTenant, withTenant, ussdRouter);
 // only (the GET verify handshake runs before any shop is known).
 // Must stay ABOVE the 404 catch-all at the bottom of this file.
 app.use('/webhooks/whatsapp', whatsappRouter);
+
+
+
+// M-Pesa (Daraja) callback: PUBLIC on purpose. Safaricom has no login cookie.
+// The guard, the shop lock and the handler are wired inside mpesa.routes.js
+// (guard first, lock second, handler last). It is the ONLY place that may
+// mark an order paid and credit a wallet.
+// Must stay ABOVE the 404 catch-all at the bottom of this file.
+app.use('/callbacks/mpesa', mpesaRouter);
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 // Used by monitoring tools (and your tests) to confirm the server is alive
