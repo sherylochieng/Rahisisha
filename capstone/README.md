@@ -15,6 +15,8 @@
 
 **Reviewing the Week 29 Day 2 work (WhatsApp per tenant)?** Look at the commits tagged `[Week 29 Day 2]`, read [`apps/api/docs/AI_AUDIT_week_29_day2.md`](../apps/api/docs/AI_AUDIT_week_29_day2.md) and [`whatsapp-security.md`](../whatsapp-security.md), and see "Try WhatsApp locally" below.
 
+**Reviewing the Week 29 Day 3 work (M-Pesa payments per tenant)?** Look at the commits tagged `[Week 29 Day 3]`, read [`apps/api/docs/AI_AUDIT_week_29_day3.md`](../apps/api/docs/AI_AUDIT_week_29_day3.md) (section 3 is the Money Audit) and [`reconciliation.md`](../reconciliation.md), and see "Try M-Pesa locally" below.
+
 ## What is Rahisisha?
 
 **Rahisisha** is a multi-tenant SaaS platform built for small product businesses in Kenya ... boutiques, dress shops, and informal sellers who currently run their entire business through WhatsApp manually. A customer messages "iko stock?", the owner replies by hand, sends an M-Pesa number, waits for confirmation, and updates stock in a notebook. Rahisisha replaces that entire loop with one signup: the owner uploads a product photo, the AI enhances it in the business's own brand colours and adds real text layers ,,price, name, logo ...then automatically announces it on WhatsApp. The AI answers customer questions from the real catalog, the M-Pesa STK push fires automatically when a customer taps Buy, stock updates itself, and the owner sees everything on one dashboard , without touching a single customer chat. Instagram and Facebook auto-posting are planned for the growth phase after the MVP launch.
@@ -64,7 +66,7 @@ Owner opens dashboard → sees the sale, revenue, stock update
 | Owner approval gate — nothing goes public without sign-off | P0 — Week 29 | Planned |
 | WhatsApp announcement on product publish | P0 — Week 29 | Planned. The base is built (Week 29 Day 2): the webhook receives customer messages per shop and an encrypted-token sender exists, but nothing announces or replies yet |
 | AI chat assistant grounded in tenant catalog data only | P0 — Week 29 | Planned |
-| In-chat M-Pesa payment link | P0 — Week 29 | Planned |
+| In-chat M-Pesa payment link | P0 — Week 29 | Partly. The base is built (Week 29 Day 3): a shop can start an M-Pesa prompt for an order and the verified callback credits the wallet, but there is no payment link in a chat yet and it has not run against Safaricom's real sandbox |
 | Inventory reservation — prevents double-selling | P0 — Week 29 | Table is in the schema; the logic is planned |
 | M-Pesa STK push + server-side callback confirmation | P0 — Week 29 | Planned |
 | Owner dashboard — sales, revenue, stock, orders | P0 — Week 30 | Dashboard home is done (orders today, wallet balance, latest products). The list pages are planned |
@@ -86,6 +88,7 @@ Owner opens dashboard → sees the sale, revenue, stock update
 - Friendly 503 when the database is down; loading and error states in the web app.
 - **USSD per shop (Week 29 Day 1):** one shared `POST /ussd` endpoint. The shop is found from the dialled service code, never from the phone number. Menu: welcome, 1 View products, 2 Check balance, 3 Exit. Every reply is 182 characters or less.
 - **WhatsApp per shop (Week 29 Day 2):** one shared webhook, `GET` and `POST /webhooks/whatsapp`. The shop is found from the `phone_number_id` in Meta's message, never from anything a caller types. Each shop's access token is **stored encrypted** (AES-256-GCM, tied to that shop). Incoming messages are saved as customer, conversation and message in one transaction, repeated messages are skipped per shop, and an unknown number gets a quiet `200 ignored`. A shared `sendWhatsApp` function sends with the right shop's token and never logs it.
+- **M-Pesa per shop (Week 29 Day 3):** each shop has its own Daraja settings (key, secret and passkey **stored encrypted**). `POST /v1/orders/:id/pay` asks the customer's phone to pay the order's amount (the amount comes only from the order, never from the request). Safaricom's result arrives at `POST /callbacks/mpesa/:tenantId`, which credits the shop's wallet **only after** it matches our own pending attempt and Safaricom confirms it, and then only **once**.
 - Unknown URLs answer with a JSON 404, like every other error (not an HTML page).
 - Signup form errors appear under the wrong field; signup is all-or-nothing (a failed seeding leaves no shop or owner behind).
 - Tenant isolation proven by a test suite, continuous integration against real PostgreSQL, and a staging deploy.
@@ -94,7 +97,7 @@ Owner opens dashboard → sees the sale, revenue, stock update
 
 - There is **no customers endpoint** yet (`/v1/customers`), and the products, orders and customers list pages in the dashboard are not built (the menu shows them as "soon"). The 2 sample customers created at signup therefore have no page to appear on.
 - There is **no public storefront page** for customers yet.
-- M-Pesa, AI photo enhancement and background jobs are planned for Week 29 and later. WhatsApp is only half done (see the next points).
+- AI photo enhancement and background jobs are planned for Week 29 and later. M-Pesa is partly built (see the next points). WhatsApp is only half done (see the next points).
 - Login and signup errors still use the older `{ "error": "text" }` shape.
 - USSD was tested with `curl` and automated tests, **not yet with the Africa's Talking simulator**. The menu is one level deep: no back key, no paging, no `ussd_events` log, no idle timeout (the stretch goals).
 
@@ -105,6 +108,13 @@ Owner opens dashboard → sees the sale, revenue, stock update
   - There is **no screen or endpoint** to save a shop's WhatsApp settings; the demo shops come from a seed script.
   - It was tested with automated tests, `curl` and `psql`, **not against Meta's sandbox**.
   - Stretch goals not done: key rotation, message templates, a Meta business verification walkthrough.
+- **M-Pesa (Week 29 Day 3) is built and tested, but not finished:**
+  - It was tested with a **fake Safaricom** and automated tests, **not yet against Safaricom's real sandbox** (that needs a public https callback address, for example an ngrok tunnel).
+  - Daraja callbacks are **not signed**, so the callback is only believed after our own pending attempt matches and Safaricom's STK Query confirms.
+  - The **nightly reconciliation job** (see `reconciliation.md`) is **not built**, so a payment whose callback never arrives stays `pending`.
+  - A wrong amount or a payment for a closed order is **not credited**: it is marked `failed` and the receipt is kept. There is **no refund endpoint** and **no alert** yet.
+  - There is **no screen or endpoint** to save a shop's Daraja settings; the demo shop comes from a seed script.
+  - The ledger update and callback verification were **written by AI** at the student's request, against the assignment rule. This is declared in the Day 3 audit.
 - Smaller things found on 14 November 2026: a broken JSON body answers 500 instead of 400; older Row-Level Security rules error (instead of returning nothing) if the tenant setting is empty; `whatsapp_dedupe` is never cleaned.
 
 The full list, with reasons, is in [`capstone/PENDING_TASKS.md`](PENDING_TASKS.md).
@@ -237,6 +247,24 @@ curl.exe "http://localhost:3000/webhooks/whatsapp?hub.mode=subscribe&hub.verify_
 
 POST a message whose `metadata.phone_number_id` is `demo-pid-amina`: the first time it is saved, the second time (same message id) it is reported as a duplicate. With Amina's lock in `psql` you see the message; with Brio's lock you see 0 rows. Demo values: Amina `demo-pid-amina` / `demo-verify-amina`, Brio `demo-pid-brio` / `demo-verify-brio`. The fuller guide is in `apps/api/docs/scripts/seed-whatsapp-demo.md`.
 
+### Try M-Pesa locally
+
+You need a free Safaricom developer account, a **Sandbox** app with its consumer key, consumer secret and passkey, and a **public https address** that reaches your laptop (for example an ngrok tunnel to port 3000), because Safaricom must be able to call you back.
+
+1. Run migration `sql/migrations/025_daraja_payments.sql` as `postgres` (a fresh `bash scripts/reset-db.sh` already includes it).
+2. Put these in your own `apps/api/.env` (never commit it): `DARAJA_SANDBOX_CONSUMER_KEY`, `DARAJA_SANDBOX_CONSUMER_SECRET`, `DARAJA_SANDBOX_PASSKEY`, `DARAJA_CALLBACK_BASE` (your public https address, no trailing path), and `KMS_KEY` as in the WhatsApp step.
+3. Load Amina's sandbox settings (the script refuses production and non-local databases and never prints your keys):
+
+```bash
+cd apps/api
+node scripts/seed-daraja-demo.js
+```
+
+4. Log in as Amina, create an order, and start the payment: `POST /v1/orders/<order id>/pay` with the login cookie and an empty body (or `{ "phone": "0711111111" }`). The answer is 202 `pending`, and the phone (in the sandbox, the simulator) asks for the PIN.
+5. Safaricom then posts the result to `/callbacks/mpesa/<Amina's shop id>`. If it is confirmed, the order becomes `paid` and Amina's wallet grows by the order total. Posting the same result again changes nothing.
+
+The automated tests (`tests/mpesa.callback.test.js` and friends) do **not** need any of this: they use a fake Safaricom.
+
 ### Run the tests
 
 ```bash
@@ -276,9 +304,11 @@ Success replies look like `{ "data": ..., "error": null }`. Validation failures 
 | GET | `/v1/orders` | cookie | List orders (cursor pagination) |
 | GET | `/v1/orders/:id` | cookie | Read one order |
 | PATCH | `/v1/orders/:id` | cookie | Change order status (illegal moves return 409) |
+| POST | `/v1/orders/:id/pay` | cookie | Start an M-Pesa payment for an order (Week 29 Day 3). The amount comes only from the order. Answers 202 `pending`; it never marks the order paid |
 | GET | `/webhooks/whatsapp` | verify token | Meta's verify handshake (`hub.mode`, `hub.verify_token`, `hub.challenge`). **Not under `/v1`**: it is the callback URL you give Meta. Answers 200 with the challenge for a real shop's token, otherwise 403 |
 | POST | `/webhooks/whatsapp` | `phone_number_id` | Inbound WhatsApp messages for every shop. The shop is found from `entry[0].changes[0].value.metadata.phone_number_id`. Saves customer, conversation and message once; repeats are skipped; an unknown or missing number answers `200` with `{ "data": { "ignored": true }, "error": null }` so Meta does not retry |
 | POST | `/ussd` | service code | USSD for every shop. **Not under `/v1`**: it is the callback URL for Africa's Talking. Takes form data (`serviceCode`, `sessionId`, `phoneNumber`, `text`) and replies in plain text (`CON ...` or `END ...`, 182 characters at most) |
+| POST | `/callbacks/mpesa/:tenantId` | shop id in the URL | Safaricom's payment result (Week 29 Day 3). **Not under `/v1`**: it is the callback URL stored in `daraja_configs`. Always answers 200 `{ "ResultCode": 0, "ResultDesc": "Accepted" }` except on a server fault. Credits the wallet only after our own pending attempt matches and Safaricom confirms it |
 
 Status codes: 400 validation or malformed id, 401 not logged in, 404 not found (including another shop's record, and any URL that matches no route, which answers `{ "data": null, "error": { "code": "not_found", "message": "Route not found" } }`), 409 conflict, 500 unexpected, 503 database unreachable.
 
@@ -304,11 +334,11 @@ rahisisha/
     docker-compose.yml
   capstone/           Architecture and planning docs, STAGING.md, PENDING_TASKS.md
   sql/
-    migrations/       24 numbered migration files (001-024)
+    migrations/       25 numbered migration files (001-025)
     SCHEMA.sql        Full combined schema
     seeds/            Seed files, SQL only (USSD service codes, and demo products and wallet for the two USSD shops)
   scripts/            reset-db.sh, demo-data.sql, seed-capstone.js and utilities (whole-repo helpers)
-                      apps/api/scripts/ holds helpers that use the API's own code and .env (seed-whatsapp-demo.js)
+                      apps/api/scripts/ holds helpers that use the API's own code and .env (seed-whatsapp-demo.js, seed-daraja-demo.js)
   .github/workflows/  ci.yml, the CI pipeline
   docs/               API reference and build plan
 ```
@@ -342,6 +372,8 @@ Folders such as `workers/`, `packages/` and `infra/` are scaffolds for later wee
 | [`apps/api/docs/AI_AUDIT_week_29_day1.md`](../apps/api/docs/AI_AUDIT_week_29_day1.md) | AI audit for Week 29 Day 1 (USSD). States openly that tenant resolution was AI-written |
 | [`apps/api/docs/AI_AUDIT_week_29_day2.md`](../apps/api/docs/AI_AUDIT_week_29_day2.md) | AI audit for Week 29 Day 2 (WhatsApp). States openly that token handling and tenant resolution were AI-written, at the student's choice |
 | [`whatsapp-security.md`](../whatsapp-security.md) | Short security notes for the WhatsApp webhook: what is protected and what is not yet |
+| [`apps/api/docs/AI_AUDIT_week_29_day3.md`](../apps/api/docs/AI_AUDIT_week_29_day3.md) | AI audit for Week 29 Day 3 (M-Pesa), with the Money Audit in section 3. States openly that the ledger update and callback verification were AI-written, at the student's choice |
+| [`reconciliation.md`](../reconciliation.md) | What happens when a callback never arrives or arrives twice, and what the nightly reconciliation job would do. AI-written, declared in the audit |
 | [`apps/api/docs/SEEDS_AND_SCRIPTS.md`](../apps/api/docs/SEEDS_AND_SCRIPTS.md) | Index of every seed and script, which folder each belongs in, and the fresh-setup order |
 | [`ussd-quirks.md`](../ussd-quirks.md) | Short notes on USSD rules: the 182 character limit, the back key, CON vs END |
 | [Trello Board](https://trello.com/b/CB8yGexS/rahisisha-capstone-sprint) | Sprint task board — Weeks 28–30 |
@@ -375,6 +407,14 @@ Also in place since Week 29 Day 2 (WhatsApp):
 - **`whatsapp_configs` has no RLS, on purpose** (the shop must be found before it is known), and it holds the encrypted token, so it is a documented exception with a higher risk note in `apps/api/docs/tests/isolation-proof.md`. **`whatsapp_dedupe` has RLS**, so a repeated message is skipped per shop.
 - **`tests/isolation/whatsapp.cross-tenant.test.js`** (11 checks) proves a message for shop A never reaches shop B and that shop A cannot write a dedupe row for shop B.
 - **Not yet in place:** the `X-Hub-Signature-256` check, and one key protects all tokens (see "Known gaps").
+
+Also in place since Week 29 Day 3 (M-Pesa):
+- **The shop comes from the callback URL**, then the same `withTenant` lock as every other route. The URL id proves nothing by itself.
+- **The callback is never believed on its own** (Daraja does not sign it): it must match our own pending attempt for that shop, and Safaricom's STK Query must confirm it, before anything is credited.
+- **Credit once, in one transaction:** the wallet entry, the attempt and the order change together or not at all. A repeated callback, two at once, a repeated receipt or a second paid attempt for one order cannot credit twice (row locks plus unique indexes).
+- **`daraja_configs` and `payment_attempts` both have RLS**, and the Daraja key, secret and passkey are stored encrypted with the same helper as WhatsApp tokens. Amounts, receipts, phones and keys are never logged.
+- **`tests/mpesa.callback.test.js`** (18 checks) proves the callback credits once and never on a guess, and that another shop's callback address cannot pay a shop's attempt.
+- **Not yet in place:** a real Safaricom sandbox run, the nightly reconciliation job, refunds and alerts.
 
 ---
 
@@ -421,6 +461,14 @@ Architecture and design week complete. No production code yet.
   - Docs tidy-up: guides for every new file, and `INDEX.md`, `isolation-proof.md` and this README brought up to date
 - ✅ 22 suites, 198 tests passing (isolation: 6 suites, 100 tests); CI green
 - ⏳ Not done on Day 2: signature check, replying to customers, a settings screen, a Meta sandbox test
+- ✅ Day 3: M-Pesa payments per tenant
+  - `daraja_configs` (secrets encrypted) and `payment_attempts` tables (migration 025); 25 tables, 19 with RLS, 20 policies
+  - `POST /v1/orders/:id/pay` (STK push, write-ahead attempt) and `POST /callbacks/mpesa/:tenantId` (verified with Safaricom, one transaction, credits once)
+  - New tests: M-Pesa service (21), pay route (13) and callback (18); isolation guard updated (109 isolation tests)
+  - Demo seed `apps/api/scripts/seed-daraja-demo.js`, ten guide docs, and `reconciliation.md`
+  - AI audit with the Money Audit (`AI_AUDIT_week_29_day3.md`), including the honest note that the ledger update and callback verification were AI-written
+- ✅ 25 suites, 259 tests passing (isolation: 6 suites, 109 tests)
+- ⏳ Not done on Day 3: a real Safaricom sandbox run, the nightly reconciliation job, refunds, a Slack alert, a settings screen
 
 ---
 
