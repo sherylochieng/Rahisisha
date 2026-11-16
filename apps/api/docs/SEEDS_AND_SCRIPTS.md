@@ -1,7 +1,7 @@
 # Seeds and Scripts — One Map of Everything That Puts Data In or Rebuilds the Database
 
 **File:** `apps/api/docs/SEEDS_AND_SCRIPTS.md`
-**Added:** Week 29 Day 2 (docs tidy-up). Updated in Week 29 Day 3 (M-Pesa demo seed, policy count 20).
+**Added:** Week 29 Day 2 (docs tidy-up). Updated in Week 29 Day 3 (M-Pesa demo seed, payment check script, policy count 20).
 
 ---
 
@@ -36,6 +36,7 @@ Rule of thumb for any future project:
 | `sql/seeds/ussd_demo_data_seed.sql` | Demo products and wallet money for Amina and Brio, so the USSD menu has something to show | in psql: `\i sql/seeds/ussd_demo_data_seed.sql` | on production |
 | `apps/api/scripts/seed-whatsapp-demo.js` | Gives Amina and Brio a FAKE WhatsApp number and a FAKE encrypted token | `cd apps/api` then `node scripts/seed-whatsapp-demo.js` | on production (it refuses) |
 | `apps/api/scripts/seed-daraja-demo.js` | Gives Amina's shop her Daraja SANDBOX settings (key, secret and passkey stored encrypted) so `POST /v1/orders/:id/pay` can work | `cd apps/api` then `node scripts/seed-daraja-demo.js` | on production or a database that is not on this computer (it refuses); never commit the `.env` it reads |
+| `apps/api/scripts/check-payment.js` | READ-ONLY. Shows the order status, each payment attempt (status, reason, whether a receipt exists) and the wallet total, for the latest order with a payment attempt or a given order id | `cd apps/api` then `node scripts/check-payment.js` or `node scripts/check-payment.js <order id>` | against a database that is not on this computer (it refuses); it never prints receipts, phone numbers or keys |
 
 ## ORDER FOR A FRESH LOCAL SETUP
 
