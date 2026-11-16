@@ -160,3 +160,23 @@ This audit says what actually happened, including where the AI help went beyond 
   - A callback that Safaricom cannot confirm yet (still processing) is not retried by us.
   - Late or wrong payments are marked `failed` with the receipt kept, but nothing alerts the shop owner.
   - There is no screen or endpoint to save a shop's Daraja settings; rows are created by SQL or the demo seed.
+  - The real Safaricom sandbox run happened on 16 November 2026 (section 6). It worked once end to end and failed once at the confirmation step, so that step is fragile. Reversals are not handled.
+
+---
+
+## 6. Real Safaricom sandbox run (16 November 2026)
+
+Sheryl ran the real sandbox herself: an ngrok tunnel, her own Safaricom sandbox app, Amina's shop and a KES 1,200 order. The AI guided each step and wrote two read-only helper scripts: `apps/api/scripts/check-payment.js` (committed) and `diagnose-stk-query.js` (a throw-away, not committed). What follows is what was seen, not guessed.
+
+| Run | What happened |
+|---|---|
+| 1 | The STK push was accepted (202). The prompt reached Sheryl's own phone and she paid. Safaricom's callback arrived and we answered 200. The attempt stayed `pending`: Safaricom's STK Query answered HTTP 500, error code `500.001.1001`, with an empty message, so by design nothing was credited. The order stayed `created` and the wallet did not change. |
+| 2 | The same steps with a fresh order. The callback arrived and the query answered 200 (`ResponseCode` 0, `ResultCode` 0, the id matched ours). The order became `paid`, the attempt became `paid` with a receipt, and the wallet grew by exactly 120000 cents, once. |
+
+**Findings**
+1. The whole path works against the real sandbox, once: STK push, callback, Safaricom confirmation, one transaction crediting the wallet.
+2. The confirmation step is **intermittent**. The same code failed in run 1 and passed in run 2. The cause is not known (the error message was empty). Because a genuine payment can be left `pending`, the design needs a fix: **keep the callback's receipt and amount when the confirmation cannot be done, retry the confirmation later (the reconciliation job), and credit only when it passes.** This is **not built**. Safaricom's query returns no receipt number, so without keeping the callback data a late retry could not credit.
+3. Two attempts remain `pending`: a push to Safaricom's test number that nobody paid, and run 1.
+4. **The sandbox used Sheryl's real M-Pesa balance.** KES 1,200 left her account in run 1 and Safaricom reversed it (her report). Run 2 took KES 1,200 as well; she says it will reverse by itself, and that has **not been confirmed yet**.
+5. **A reversal does not reach our system.** If Safaricom reverses a payment we already credited (run 2), our wallet keeps the credit. This is a real gap; for now it is demo data.
+6. Lesson: do not test the sandbox with a real phone number unless you are ready for real money to move for a while.
