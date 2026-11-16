@@ -44,7 +44,8 @@ apps/api/
 │   │   ├── withTenant.js               Reads tenant from JWT, sets req.db to tenant-scoped connection.
 │   │   ├── asyncHandler.js             Wraps async controllers so thrown errors reach the error handler.
 │   │   ├── resolveUssdTenant.js        USSD guard: finds the shop from the dialled service code, sets req.tenantId (Week 29 Day 1).
-│   │   └── resolveWhatsappTenant.js    WhatsApp guard: finds the shop from Meta's phone_number_id, sets req.tenantId (Week 29 Day 2).
+│   │   ├── resolveWhatsappTenant.js    WhatsApp guard: finds the shop from Meta's phone_number_id, sets req.tenantId (Week 29 Day 2).
+│   │   └── resolveMpesaTenant.js       M-Pesa callback guard: finds the shop from the callback URL, sets req.tenantId (Week 29 Day 3).
 │   ├── utils/
 │   │   ├── allowedOrigin.js            CORS rule: which websites may call the API (main site + every shop).
 │   │   ├── getShopSlug.js              Finds the shop word from the Origin (then Host) header.
@@ -56,28 +57,35 @@ apps/api/
 │   │   │   ├── login.js                POST /v1/login: finds the shop, returns a signed JWT cookie.
 │   │   │   └── me.js                   GET /v1/me: returns the logged-in user's profile.
 │   │   ├── products.routes.js          Maps product URLs to controller functions.
-│   │   ├── orders.routes.js            Maps order URLs to controller functions.
+│   │   ├── orders.routes.js            Maps order URLs to controller functions (POST /:id/pay added in Week 29 Day 3).
 │   │   ├── dashboard.routes.js         GET /v1/dashboard (protected).
 │   │   ├── tenants.routes.js           GET /v1/tenants/by-slug/:slug (public).
 │   │   ├── ussd.routes.js              POST /ussd (public, mounted with resolveUssdTenant + withTenant).
-│   │   └── whatsapp.routes.js          GET and POST /webhooks/whatsapp (public: Meta has no login cookie) (Week 29 Day 2).
+│   │   ├── whatsapp.routes.js          GET and POST /webhooks/whatsapp (public: Meta has no login cookie) (Week 29 Day 2).
+│   │   └── mpesa.routes.js             POST /callbacks/mpesa/:tenantId (public: Safaricom has no login cookie) (Week 29 Day 3).
 │   ├── services/
 │   │   ├── wallet.service.js           Append-only money ledger: credit, debit, balance.
-│   │   └── whatsapp.service.js         sendWhatsApp(db, to, body): decrypts the shop's token at the last moment and sends (Week 29 Day 2).
+│   │   ├── whatsapp.service.js         sendWhatsApp(db, to, body): decrypts the shop's token at the last moment and sends (Week 29 Day 2).
+│   │   └── daraja.service.js           M-Pesa for one shop: STK push and the STK query that confirms a payment; secrets decrypted only in memory (Week 29 Day 3).
 │   └── controllers/
 │       ├── products.controller.js      All product business logic and database queries.
 │       ├── orders.controller.js        All order business logic, state machine, transactions.
 │       ├── dashboard.controller.js     Dashboard numbers: orders today, wallet balance, latest products.
 │       ├── tenants.controller.js       Public shop lookup by slug (used by the web proxy).
 │       ├── ussd.controller.js          USSD menu: welcome, 1 products, 2 balance, 3 exit. Every reply 182 characters or less.
-│       └── whatsapp.controller.js      Verify handshake (GET) and inbound messages (POST): dedupe, customer, conversation, message in one transaction (Week 29 Day 2).
+│       ├── whatsapp.controller.js      Verify handshake (GET) and inbound messages (POST): dedupe, customer, conversation, message in one transaction (Week 29 Day 2).
+│       ├── payments.controller.js      POST /v1/orders/:id/pay: starts the M-Pesa prompt and saves a pending attempt; never marks anything paid (Week 29 Day 3).
+│       └── mpesa.callback.controller.js  The ONLY code that credits a wallet: verifies the callback with Safaricom, then one transaction (Week 29 Day 3).
 ├── tests/
 │   ├── pagination/
 │   │   └── products.pagination.test.js     Cursor pagination returns every product once.
-│   ├── isolation.test.js                   Attacks all 17 tenant tables at the database level (whatsapp_dedupe joined in Week 29 Day 2).
+│   ├── isolation.test.js                   Attacks all 19 tenant tables at the database level (whatsapp_dedupe joined in Week 29 Day 2; daraja_configs and payment_attempts in Week 29 Day 3).
 │   ├── kms.test.js                         Encryption: round trip, fresh IV, tamper, wrong shop, wrong key, generic error (9 tests).
 │   ├── whatsapp.service.test.js            Sender uses the right shop's token, never logs it, never leaks it in an error (10 tests).
 │   ├── wallet.service.test.js              Wallet ledger: credit, debit, bad amounts, balance.
+│   ├── daraja.service.test.js              M-Pesa service: right shop's keys, no secret logged, whole shillings, STK query rules (21 tests) (Week 29 Day 3).
+│   ├── payments.pay.test.js                Pay route: amount from the order, per shop, double tap, failures (13 tests) (Week 29 Day 3).
+│   ├── mpesa.callback.test.js              Callback: credits once, never on a guess, per shop, repeats safe (18 tests) (Week 29 Day 3).
 │   ├── allowedOrigin.test.js               CORS rule: shops in, look-alikes and garbage out (13 tests).
 │   ├── getShopSlug.test.js                 Shop word from headers, including the exact online bug (14 tests).
 │   ├── isolation/
@@ -91,7 +99,8 @@ apps/api/
 │       ├── error-handling.test.js          Bad input gets a clean answer and no connection leaks.
 │       └── not-found.test.js               Unknown URLs answer 404 in JSON, not HTML.
 ├── scripts/
-│   └── seed-whatsapp-demo.js           Demo WhatsApp settings for two shops, with fake encrypted tokens. Refuses production (Week 29 Day 2).
+│   ├── seed-whatsapp-demo.js           Demo WhatsApp settings for two shops, with fake encrypted tokens. Refuses production (Week 29 Day 2).
+│   └── seed-daraja-demo.js             Demo M-Pesa sandbox settings for Amina's shop, encrypted. Refuses production and non-local databases (Week 29 Day 3).
 └── docs/
     ├── INDEX.md                        This file.
     ├── AI_AUDIT_week_28_day3.md        Record of what AI wrote and what was done by hand.
@@ -100,23 +109,31 @@ apps/api/
     ├── AI_AUDIT_week_28_weekend.md     Same, for the Week 28 Weekend (Core Polish, staging).
     ├── AI_AUDIT_week_29_day1.md        Same, for Week 29 Day 1 (USSD per tenant). States openly that tenant resolution was AI-written.
     ├── AI_AUDIT_week_29_day2.md        Same, for Week 29 Day 2 (WhatsApp per tenant). States openly that token handling and tenant resolution were AI-written, at the student's choice.
+    ├── AI_AUDIT_week_29_day3.md        Same, for Week 29 Day 3 (M-Pesa per tenant), with the Money Audit. States openly that the ledger update and callback verification were AI-written, at the student's choice.
     ├── SEEDS_AND_SCRIPTS.md            Index of every seed and script, which folder each belongs in, and the fresh-setup order (Week 29 Day 2).
     ├── src/                            One guide per source file (same folders as src/).
     │   ├── middleware/
     │   │   ├── resolveUssdTenant.md    Guide for the USSD tenant guard.
-    │   │   └── resolveWhatsappTenant.md  Guide for the WhatsApp tenant guard.
+    │   │   ├── resolveWhatsappTenant.md  Guide for the WhatsApp tenant guard.
+    │   │   └── resolveMpesaTenant.md   Guide for the M-Pesa callback guard (Week 29 Day 3).
     │   ├── utils/
     │   │   ├── allowedOrigin.md        Guide for the CORS rule.
     │   │   ├── getShopSlug.md          Guide for the shop lookup.
     │   │   └── kms.md                  Guide for the encryption helper.
     │   ├── services/
-    │   │   └── whatsapp.service.md     Guide for the shared WhatsApp sender.
+    │   │   ├── whatsapp.service.md     Guide for the shared WhatsApp sender.
+    │   │   └── daraja.service.md       Guide for the M-Pesa service (Week 29 Day 3).
     │   ├── controllers/
-    │   │   └── whatsapp.controller.md  Guide for the verify handshake and inbound messages.
+    │   │   ├── whatsapp.controller.md  Guide for the verify handshake and inbound messages.
+    │   │   ├── payments.controller.md  Guide for the pay route (Week 29 Day 3).
+    │   │   └── mpesa.callback.controller.md  Guide for the callback that credits the wallet (Week 29 Day 3).
     │   └── routes/
-    │       └── whatsapp.routes.md      Guide for the WhatsApp routes.
+    │       ├── whatsapp.routes.md      Guide for the WhatsApp routes.
+    │       ├── mpesa.routes.md         Guide for the M-Pesa callback route (Week 29 Day 3).
+    │       └── orders.routes.md        Guide for the orders routes and the pay route (Week 29 Day 3).
     ├── scripts/
-    │   └── seed-whatsapp-demo.md       Guide for the WhatsApp demo seed script.
+    │   ├── seed-whatsapp-demo.md       Guide for the WhatsApp demo seed script.
+    │   └── seed-daraja-demo.md         Guide for the M-Pesa demo seed script (Week 29 Day 3).
     └── tests/                          One guide per test file (same folders as tests/).
         ├── isolation-proof.md          Evidence that every tenant table is locked (RLS).
         ├── allowedOrigin.test.md       Guide for the CORS tests.
@@ -125,12 +142,15 @@ apps/api/
         ├── kms.test.md                 Guide for the encryption tests.
         ├── whatsapp.cross-tenant.test.md  Guide for the WhatsApp cross-tenant test.
         ├── whatsapp.service.test.md    Guide for the WhatsApp sender tests.
+        ├── daraja.service.test.md      Guide for the M-Pesa service tests (Week 29 Day 3).
+        ├── payments.pay.test.md        Guide for the pay route tests (Week 29 Day 3).
+        ├── mpesa.callback.test.md      Guide for the callback tests (Week 29 Day 3).
         ├── not-found.test.md           Guide for the JSON 404 test.
         └── signup-atomic.test.md       Guide for the all-or-nothing signup test.
 ```
 
 Database files live outside `apps/api`: migrations in `sql/migrations/` (latest:
-`024_whatsapp_configs.sql`, added in Week 29 Day 2; before it `023_ussd_configs.sql` from Day 1 and `022_login_membership_lookup.sql`)
+`025_daraja_payments.sql`, added in Week 29 Day 3 (`daraja_configs` and `payment_attempts`); before it `024_whatsapp_configs.sql` from Day 2, `023_ussd_configs.sql` from Day 1 and `022_login_membership_lookup.sql`)
 and the full schema in `sql/SCHEMA.sql`. Seed files are in `sql/seeds/`
 (`ussd_configs_seed.sql` and `ussd_demo_data_seed.sql`, both safe to run many times).
 The USSD notes are in `ussd-quirks.md` and the WhatsApp security notes in `whatsapp-security.md`, both at the repo root.
@@ -183,6 +203,12 @@ Two kinds of route skip part of this chain:
   servers call it. The `GET` (verify handshake) needs no shop lock. The `POST` runs
   `resolveWhatsappTenant` (finds the shop from `phone_number_id`), then `withTenant`,
   then the controller (Week 29 Day 2).
+- **M-Pesa callback** (`/callbacks/mpesa/:tenantId`) has no login cookie either,
+  because Safaricom calls it. It runs `resolveMpesaTenant` (finds the shop from the URL),
+  then `withTenant`, then the controller, which asks Safaricom to confirm before it
+  credits anything (Week 29 Day 3).
+- **Pay** (`POST /v1/orders/:id/pay`) is a normal protected route: `requireAuth`, then
+  `withTenant`, then `payOrder` (Week 29 Day 3).
 - **Dashboard** (`/v1/dashboard`) runs the full chain: `requireAuth`, then
   `withTenant`, then the controller.
 
@@ -228,6 +254,13 @@ catch-all and answered with a JSON 404 (not Express's HTML page).
 |--------|----------------------|------------------------------------------------------------------------------|
 | GET    | /webhooks/whatsapp   | Meta's verify handshake. Query: `hub.mode=subscribe`, `hub.verify_token`, `hub.challenge`. Answers 200 with the challenge only if the token belongs to a shop and the challenge is plain (letters, digits, `_`, `-`, up to 200); otherwise 403 |
 | POST   | /webhooks/whatsapp   | Inbound messages. The shop is found from `entry[0].changes[0].value.metadata.phone_number_id`. An unknown or missing number answers 200 `{ data: { ignored: true }, error: null }` (so Meta does not retry). A known one saves the customer, conversation and message once, and answers with a count of saved and duplicate messages |
+
+### Payments (Week 29 Day 3)
+
+| Method | URL | What it does |
+|--------|-----|--------------|
+| POST   | /v1/orders/:id/pay | **Protected.** Starts an M-Pesa prompt for the order. The amount comes only from the order (`total_cents`, whole shillings). Optional body `{ "phone": "0711111111" }`. Answers 202 `{ data: { paymentAttemptId, status: 'pending', message }, error: null }`. Errors: 404 not found, 409 `order_not_payable`, `payment_in_progress` or `payments_not_set_up`, 400 validation, 502 `payment_provider_error`. It never marks the order paid |
+| POST   | /callbacks/mpesa/:tenantId | **Public on purpose** (Safaricom has no login cookie). Daraja's result message. The shop is the one in the URL. Always answers 200 `{ ResultCode: 0, ResultDesc: 'Accepted' }` except on a server fault. Credits the wallet only after our own pending attempt matches and Safaricom confirms |
 
 ### Dashboard (protected: JWT + tenant required)
 
@@ -532,6 +565,32 @@ timeout. A failed send carries only the status code (401 or 403 sets
 in an error**; the file has no `console` calls. Tested by `tests/kms.test.js` and
 `tests/whatsapp.service.test.js`. The security notes are in `whatsapp-security.md`.
 
+### 19. Money moves only after Safaricom confirms, and only once (Week 29 Day 3)
+
+Daraja callbacks are **not signed**, so anyone could post a fake "paid". The callback
+(`controllers/mpesa.callback.controller.js`) therefore never trusts the message alone:
+
+1. The shop comes from the URL only; the database lock shows only that shop's attempts.
+2. The `CheckoutRequestID` must match **our own pending** `payment_attempts` row (written
+   before the push, so a fast callback can always find it).
+3. We ask Safaricom with the STK Query (`queryStkStatus`). If it cannot confirm, nothing
+   changes and the attempt stays `pending`.
+4. The amount must equal the amount we asked for, and the order must still be `created`.
+5. In **one transaction** (row locks on the attempt and the order): credit
+   `wallet_entries` (reason `sale`, reference = the M-Pesa receipt), mark the attempt
+   `paid`, mark the order `paid`. Any error rolls all of it back.
+
+**Repeats are harmless:** a second callback finds a non-pending attempt; two at the same
+moment are serialised by the row lock; the database also refuses a repeated receipt
+(unique `(tenant_id, mpesa_reference)`) and a second paid attempt for one order.
+A wrong amount or a closed order is **never credited**: the attempt is marked `failed`
+(`amount_mismatch` or `order_not_open`) and the receipt is kept for a human to refund.
+**Never logged:** amounts, receipts, phones, keys. The shop's Daraja key, secret and
+passkey are stored encrypted (`daraja_configs`, same `utils/kms.js` as WhatsApp).
+Tested by `tests/mpesa.callback.test.js`, `tests/payments.pay.test.js` and
+`tests/daraja.service.test.js`. The notes on a lost or repeated callback are in
+`reconciliation.md` at the repo root.
+
 ---
 
 ## Settings (environment variables)
@@ -548,6 +607,9 @@ in an error**; the file has no `console` calls. Tested by `tests/kms.test.js` an
 | `KMS_KEY` | Encrypts stored secrets (WhatsApp tokens). 32 bytes, base64 (44 characters). Never commit it; `.env.example` has a placeholder. If it is lost, every stored token is unreadable (Week 29 Day 2) |
 | `WHATSAPP_API_BASE` | Optional. Where WhatsApp messages are sent. Defaults to `https://graph.facebook.com`; tests point it at a fake |
 | `WHATSAPP_API_VERSION` | Optional. Meta's API version. Defaults to `v21.0` |
+| `DARAJA_API_BASE` | Optional. Where M-Pesa calls go. Defaults to Safaricom's sandbox or production address by the shop's `env`; tests point it at a fake (Week 29 Day 3) |
+| `DARAJA_SANDBOX_CONSUMER_KEY`, `DARAJA_SANDBOX_CONSUMER_SECRET`, `DARAJA_SANDBOX_PASSKEY`, `DARAJA_SANDBOX_SHORTCODE` | Used only by `scripts/seed-daraja-demo.js`. Your sandbox values from Safaricom's developer portal. Never commit them; `.env.example` has placeholders |
+| `DARAJA_CALLBACK_BASE` | Used only by the seed script. The public https address Safaricom can reach (for example an ngrok tunnel); the seed adds `/callbacks/mpesa/<shop id>` |
 
 ---
 
@@ -571,7 +633,8 @@ The frontend divides by 100 when displaying to users.
 Run from `apps/api`: `npm test`
 Run only the isolation suites: `npm run test:isolation`
 
-Current result (13 November 2026, Week 29 Day 2): **22 suites, 198 tests passing**. Isolation only: 6 suites, 100 tests.
+Current result (16 November 2026, Week 29 Day 3): **25 suites, 259 tests passing**. Isolation only: 6 suites, 109 tests.
+Earlier result (13 November 2026, Week 29 Day 2): 22 suites, 198 tests passing. Isolation only: 6 suites, 100 tests.
 Earlier result (13 November 2026, Week 29 Day 1): 19 suites, 168 tests passing. Isolation only: 5 suites, 89 tests.
 Earlier result (10 November 2026): 15 suites, 141 tests passing. Isolation only: 81 tests.
 A Husky `pre-push` hook runs `npm run test:isolation` before every push.
@@ -593,6 +656,9 @@ fresh Postgres built by `scripts/reset-db.sh`.
 | `tests/kms.test.js` | Encrypt then decrypt returns the original; a fresh IV every time; a changed byte, a different shop id or a different key fails with the one generic error; the key is read at call time (9 checks) |
 | `tests/whatsapp.service.test.js` | The sender uses the current shop's token, never another shop's; never logs it; never puts it in an error; 401 and 403 set `whatsapp_token_rejected`; the stored token is encrypted (10 checks) |
 | `tests/isolation/whatsapp.cross-tenant.test.js` | Verify handshake accepts a real token and refuses wrong ones; a message for shop A is saved for A and invisible to B; repeats are skipped per shop; unknown or missing number answers 200 ignored; with shop A's lock, shop B's `whatsapp_dedupe` rows are invisible and cannot be written (11 checks) |
+| `tests/daraja.service.test.js` | The M-Pesa service uses only the locked shop's keys and till, never logs a secret, stores keys encrypted, refuses fractions of a shilling and bad phones, and the STK query returns paid or failed only on a clean Safaricom answer (21 checks) |
+| `tests/payments.pay.test.js` | The pay route charges the order's amount (never the body's), only for the logged-in shop, refuses unpayable orders and a double tap, keeps failed attempts, and leaks nothing (13 checks) |
+| `tests/mpesa.callback.test.js` | The callback credits once and only after Safaricom confirms; repeats, races, wrong amounts, cancelled orders, another shop, malformed bodies and a repeated receipt never double or wrongly credit (18 checks) |
 | `tests/errors/not-found.test.js` | Unknown URLs get a JSON 404 for GET and POST, and `/health` still works (4 checks) |
 | `tests/signup-atomic.test.js` | When seeding fails, signup fails cleanly and leaves no user and no shop behind (1 check) |
 
@@ -631,6 +697,10 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 | Add a screen or endpoint where a shop saves its own WhatsApp settings; reply to customers through `sendWhatsApp` from the webhook; try it against Meta's sandbox | Today the settings come from the seed script only, and the webhook saves messages but does not answer |
 | WhatsApp stretch goals: key rotation (the `v1.` prefix is there for it), message templates, a Meta business verification walkthrough | Not done in Week 29 Day 2 |
 | Clean old rows out of `whatsapp_dedupe` | It grows forever. A scheduled delete of rows older than a few days is enough |
+| Build the nightly reconciliation job | Described in `reconciliation.md` but not built: find attempts still `pending` after about 15 minutes, ask Safaricom with `queryStkStatus`, and apply or fail them with the same steps as the callback (Week 29 Day 3) |
+| Refund endpoint, a Slack alert for failed or unapplied payments, and telling the shop owner about a `failed` attempt that holds a receipt | Not done in Week 29 Day 3. Such payments are marked `failed` with the receipt kept |
+| Add a screen or endpoint where a shop saves its own Daraja settings; run the real Safaricom sandbox end to end | Today the settings come from `seed-daraja-demo.js`. Tests use a fake Safaricom |
+| Fix the old `orders.isolation.test.js` cleanup | It deletes orders directly; `payment_attempts.order_id` is `ON DELETE RESTRICT`, so leftover attempts could make that cleanup fail |
 | Answer `400` (not `500`) for a broken JSON body | Found on 14 November 2026: the central error handler turns a body parse error into `internal` |
 | Add `NULLIF(current_setting('app.current_tenant', TRUE), '')` to the older RLS rules | Only `memberships` and `whatsapp_dedupe` have it; the other 15 tables error on an empty setting instead of returning nothing (see `docs/tests/isolation-proof.md`) |
 | Fix the stale "81 isolation tests" comments in `ci.yml` | Left alone in Week 29 Day 2 |
@@ -688,9 +758,12 @@ Staging is already live (see above).
 
 **Done early (partly):** WhatsApp per tenant (Week 29 Day 2): `GET` and `POST /webhooks/whatsapp`, `whatsapp_configs`, `whatsapp_dedupe`, the encryption helper and the shared sender. Still to do: the signature check, replying from the webhook, a screen to save a shop's settings and a Meta sandbox test (see Known Follow-Ups).
 
+**Done early (partly):** M-Pesa per tenant (Week 29 Day 3): `daraja_configs` and `payment_attempts` (migration 025), `POST /v1/orders/:id/pay`, `POST /callbacks/mpesa/:tenantId` with Safaricom confirmation and a one-transaction wallet credit, and the Money Audit. Still to do: the nightly reconciliation job, refunds, alerts and a real sandbox run.
+
 ---
 
-*Last updated: Week 29 Day 2 (WhatsApp per tenant: webhook, encrypted tokens, dedupe, shared sender, seed script, docs tidy-up), 14 November 2026*  
+*Last updated: Week 29 Day 3 (M-Pesa per tenant: Daraja settings, STK push, verified callback, wallet credit, money audit, reconciliation notes), 16 November 2026*  
+*Earlier: Week 29 Day 2 (WhatsApp per tenant: webhook, encrypted tokens, dedupe, shared sender, seed script, docs tidy-up), 14 November 2026*  
 *Earlier: Week 29 Day 1 (USSD per tenant, JSON 404, signup field errors, signup atomicity test), 13 November 2026*  
 *Earlier: Week 28 Weekend (Task 8, staging deploy), 10 November 2026*  
 *Update this file every time a new endpoint or pattern is added.*
