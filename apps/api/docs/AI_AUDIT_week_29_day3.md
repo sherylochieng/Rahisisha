@@ -21,7 +21,7 @@ This audit says what actually happened, including where the AI help went beyond 
   - `apps/api/src/controllers/mpesa.callback.controller.js`: verifies the callback and credits `wallet_entries` (callback verification and ledger update).
   - `apps/api/src/middleware/resolveMpesaTenant.js`: finds the shop from the callback URL.
   - `apps/api/src/services/daraja.service.js`: `queryStkStatus`, the second check that asks Safaricom before crediting (callback verification).
-- `reconciliation.md` (the 5 to 7 sentences "in your own words") was also **written by the AI**. It is not in Sheryl's own words unless she rewrites it.
+- `reconciliation.md` (the 5 to 7 sentences "in your own words"): the AI wrote a **first draft**, and Sheryl then **rewrote it in her own words** (commit `6ba2559`, 16 November 2026). This is Sheryl's statement; the AI has not read the final version.
 
 **Sheryl's part in it:**
 
@@ -50,7 +50,7 @@ This audit says what actually happened, including where the AI help went beyond 
 | - | Tests | `tests/daraja.service.test.js`, `tests/payments.pay.test.js`, `tests/mpesa.callback.test.js`, `tests/isolation.test.js` | AI wrote them. Sheryl ran them. |
 | - | Demo data | `apps/api/scripts/seed-daraja-demo.js`, `.env.example` | AI wrote them. Placeholders only. |
 | - | Count updates | `scripts/reset-db.sh`, `.github/workflows/ci.yml` | AI gave the edits (18 to 20 policies). Sheryl applied them. |
-| 5 | Reconciliation notes | `reconciliation.md` | **AI wrote the 7 sentences.** |
+| 5 | Reconciliation notes | `reconciliation.md` | AI wrote a first draft. **Sheryl rewrote it in her own words** (her statement). |
 
 ---
 
@@ -150,8 +150,8 @@ This audit says what actually happened, including where the AI help went beyond 
 
 ## 5. Honest assessment against the 25/75 rule
 
-- The AI wrote **nearly all the code**, including the parts that were NOT allowed (ledger update, callback verification) and the reconciliation notes.
-- **What Sheryl did herself:** the design decision (both checks), every run, check and test, the migration, all git work, and deciding what to submit.
+- The AI wrote **nearly all the code**, including the parts that were NOT allowed (ledger update, callback verification). The reconciliation notes started as an AI draft, which Sheryl rewrote.
+- **What Sheryl did herself:** the design decision (both checks), every run, check and test, the migration, all git work, rewriting the reconciliation notes in her own words, and deciding what to submit.
 - **Tenant isolation:** proven by the isolation suite (109 checks) and by callback test 8, but the AI wrote the tests.
 - **Mutation checks:** the AI broke the callback on purpose five ways. Four were caught by the tests. The fifth (skipping the "still pending" re-check) was not, because the database's unique receipt rule also stops a repeat. That is a backup, not a gap.
 - **Not done (stretch goals):** refund endpoint, signature verification (Daraja does not sign), Slack alert for failures, the nightly reconciliation job itself.

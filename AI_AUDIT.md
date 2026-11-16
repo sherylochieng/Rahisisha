@@ -47,7 +47,7 @@ The lines are in `apps/api/src/utils/kms.js`, `apps/api/src/services/whatsapp.se
 
 ## Money Audit (Week 29 Day 3)
 
-The assignment lists the ledger update and callback verification as NOT allowed for AI. In Week 29 Day 3 the AI wrote both, at Sheryl's request, and this is declared openly. The AI also wrote `reconciliation.md`, which the assignment asks for in Sheryl's own words.
+The assignment lists the ledger update and callback verification as NOT allowed for AI. In Week 29 Day 3 the AI wrote both, at Sheryl's request, and this is declared openly. The AI wrote a first draft of `reconciliation.md`, which Sheryl then rewrote in her own words, as the assignment asks.
 
 The Money Audit lists **every line that touches money**, marked SELF, AI or MIXED, with a re-read column. It is section 3 of **`apps/api/docs/AI_AUDIT_week_29_day3.md`**.
 

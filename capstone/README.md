@@ -373,7 +373,7 @@ Folders such as `workers/`, `packages/` and `infra/` are scaffolds for later wee
 | [`apps/api/docs/AI_AUDIT_week_29_day2.md`](../apps/api/docs/AI_AUDIT_week_29_day2.md) | AI audit for Week 29 Day 2 (WhatsApp). States openly that token handling and tenant resolution were AI-written, at the student's choice |
 | [`whatsapp-security.md`](../whatsapp-security.md) | Short security notes for the WhatsApp webhook: what is protected and what is not yet |
 | [`apps/api/docs/AI_AUDIT_week_29_day3.md`](../apps/api/docs/AI_AUDIT_week_29_day3.md) | AI audit for Week 29 Day 3 (M-Pesa), with the Money Audit in section 3. States openly that the ledger update and callback verification were AI-written, at the student's choice |
-| [`reconciliation.md`](../reconciliation.md) | What happens when a callback never arrives or arrives twice, and what the nightly reconciliation job would do. AI-written, declared in the audit |
+| [`reconciliation.md`](../reconciliation.md) | What happens when a callback never arrives or arrives twice, and what the nightly reconciliation job would do. First draft by the AI, then rewritten by Sheryl in her own words (declared in the audit) |
 | [`apps/api/docs/SEEDS_AND_SCRIPTS.md`](../apps/api/docs/SEEDS_AND_SCRIPTS.md) | Index of every seed and script, which folder each belongs in, and the fresh-setup order |
 | [`ussd-quirks.md`](../ussd-quirks.md) | Short notes on USSD rules: the 182 character limit, the back key, CON vs END |
 | [Trello Board](https://trello.com/b/CB8yGexS/rahisisha-capstone-sprint) | Sprint task board — Weeks 28–30 |
