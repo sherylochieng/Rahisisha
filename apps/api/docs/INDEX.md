@@ -100,7 +100,8 @@ apps/api/
 │       └── not-found.test.js               Unknown URLs answer 404 in JSON, not HTML.
 ├── scripts/
 │   ├── seed-whatsapp-demo.js           Demo WhatsApp settings for two shops, with fake encrypted tokens. Refuses production (Week 29 Day 2).
-│   └── seed-daraja-demo.js             Demo M-Pesa sandbox settings for Amina's shop, encrypted. Refuses production and non-local databases (Week 29 Day 3).
+│   ├── seed-daraja-demo.js             Demo M-Pesa sandbox settings for Amina's shop, encrypted. Refuses production and non-local databases (Week 29 Day 3).
+│   └── check-payment.js                Read-only: shows the order, payment attempts and wallet total after a payment. Local database only (Week 29 Day 3).
 └── docs/
     ├── INDEX.md                        This file.
     ├── AI_AUDIT_week_28_day3.md        Record of what AI wrote and what was done by hand.
@@ -133,7 +134,8 @@ apps/api/
     │       └── orders.routes.md        Guide for the orders routes and the pay route (Week 29 Day 3).
     ├── scripts/
     │   ├── seed-whatsapp-demo.md       Guide for the WhatsApp demo seed script.
-    │   └── seed-daraja-demo.md         Guide for the M-Pesa demo seed script (Week 29 Day 3).
+    │   ├── seed-daraja-demo.md         Guide for the M-Pesa demo seed script (Week 29 Day 3).
+    │   └── check-payment.md            Guide for the read-only payment check script (Week 29 Day 3).
     └── tests/                          One guide per test file (same folders as tests/).
         ├── isolation-proof.md          Evidence that every tenant table is locked (RLS).
         ├── allowedOrigin.test.md       Guide for the CORS tests.
@@ -591,6 +593,8 @@ Tested by `tests/mpesa.callback.test.js`, `tests/payments.pay.test.js` and
 `tests/daraja.service.test.js`. The notes on a lost or repeated callback are in
 `reconciliation.md` at the repo root.
 
+**Real sandbox run (16 November 2026):** it worked end to end once. Once, Safaricom's confirmation query answered an error and a real payment stayed `pending` (nothing was credited, as designed). The planned fix, keeping the callback's receipt and amount for a later retry, is not built. Details: `AI_AUDIT_week_29_day3.md`, section 6.
+
 ---
 
 ## Settings (environment variables)
@@ -699,7 +703,9 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 | Clean old rows out of `whatsapp_dedupe` | It grows forever. A scheduled delete of rows older than a few days is enough |
 | Build the nightly reconciliation job | Described in `reconciliation.md` but not built: find attempts still `pending` after about 15 minutes, ask Safaricom with `queryStkStatus`, and apply or fail them with the same steps as the callback (Week 29 Day 3) |
 | Refund endpoint, a Slack alert for failed or unapplied payments, and telling the shop owner about a `failed` attempt that holds a receipt | Not done in Week 29 Day 3. Such payments are marked `failed` with the receipt kept |
-| Add a screen or endpoint where a shop saves its own Daraja settings; run the real Safaricom sandbox end to end | Today the settings come from `seed-daraja-demo.js`. Tests use a fake Safaricom |
+| Add a screen or endpoint where a shop saves its own Daraja settings | Today the settings come from `seed-daraja-demo.js`. Tests use a fake Safaricom; one real sandbox run was done on 16 November 2026 |
+| Make the Safaricom confirmation reliable: keep the callback's receipt and amount on the attempt when the confirmation fails, retry the confirmation later (the reconciliation job), and credit only when it passes | In the real sandbox run the confirmation query answered HTTP 500 (`500.001.1001`) once and a real payment stayed `pending`. Safaricom's query returns no receipt, so a retry needs the saved callback data. Needs a migration, tests and a re-read |
+| Handle reversals | Safaricom reversed the sandbox payments on 16 November 2026 but nothing tells us, so a credited payment stays credited |
 | Fix the old `orders.isolation.test.js` cleanup | It deletes orders directly; `payment_attempts.order_id` is `ON DELETE RESTRICT`, so leftover attempts could make that cleanup fail |
 | Answer `400` (not `500`) for a broken JSON body | Found on 14 November 2026: the central error handler turns a body parse error into `internal` |
 | Add `NULLIF(current_setting('app.current_tenant', TRUE), '')` to the older RLS rules | Only `memberships` and `whatsapp_dedupe` have it; the other 15 tables error on an empty setting instead of returning nothing (see `docs/tests/isolation-proof.md`) |
@@ -758,7 +764,7 @@ Staging is already live (see above).
 
 **Done early (partly):** WhatsApp per tenant (Week 29 Day 2): `GET` and `POST /webhooks/whatsapp`, `whatsapp_configs`, `whatsapp_dedupe`, the encryption helper and the shared sender. Still to do: the signature check, replying from the webhook, a screen to save a shop's settings and a Meta sandbox test (see Known Follow-Ups).
 
-**Done early (partly):** M-Pesa per tenant (Week 29 Day 3): `daraja_configs` and `payment_attempts` (migration 025), `POST /v1/orders/:id/pay`, `POST /callbacks/mpesa/:tenantId` with Safaricom confirmation and a one-transaction wallet credit, and the Money Audit. Still to do: the nightly reconciliation job, refunds, alerts and a real sandbox run.
+**Done early (partly):** M-Pesa per tenant (Week 29 Day 3): `daraja_configs` and `payment_attempts` (migration 025), `POST /v1/orders/:id/pay`, `POST /callbacks/mpesa/:tenantId` with Safaricom confirmation and a one-transaction wallet credit, and the Money Audit. A real sandbox run was done on 16 November 2026: it worked end to end once and failed once at the confirmation step. Still to do: a fix for that, the nightly reconciliation job, reversals, refunds and alerts.
 
 ---
 
