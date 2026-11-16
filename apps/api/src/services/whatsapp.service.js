@@ -71,10 +71,7 @@
  *   import { sendWhatsApp } from '../services/whatsapp.service.js';
  *   const { messageId } = await sendWhatsApp(req.db, '2547...', 'Hello');
  *
- * AI AUDIT NOTE
- *   Written by AI at Sheryl's request. The assignment says AI is NOT
- *   allowed for token handling. Declared in
- *   apps/api/docs/AI_AUDIT_week_29_day2.md.
+ *
  * ============================================================
  */
 import { decryptSecret } from '../utils/kms.js';

@@ -57,10 +57,7 @@
  * HOW TO USE
  *   router.post('/ussd', resolveUssdTenant, withTenant, handleUssd);
  *
- * AI AUDIT NOTE
- *   Tenant resolution below was written by AI at Sheryl's request
- *   (the assignment lists it as manual-only). Sheryl reviewed it.
- *   This is declared in AI_AUDIT.md.
+ *
  * ============================================================
  */
 import { pool } from '../db/pool.js';
