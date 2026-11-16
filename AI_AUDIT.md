@@ -10,6 +10,7 @@ This file is a map. The audits live next to the code they describe, in `apps/api
 | Week 28 Weekend | `apps/api/docs/AI_AUDIT_week_28_weekend.md` |
 | Week 29 Day 1 | `apps/api/docs/AI_AUDIT_week_29_day1.md` |
 | Week 29 Day 2 | `apps/api/docs/AI_AUDIT_week_29_day2.md` |
+| Week 29 Day 3 | `apps/api/docs/AI_AUDIT_week_29_day3.md` |
 
 ---
 
@@ -43,3 +44,17 @@ The lines are in `apps/api/src/middleware/resolveUssdTenant.js`, and each one is
 The assignment lists token handling and tenant resolution as NOT allowed for AI. In Week 29 Day 2 the AI wrote both, at Sheryl's request, and this is declared openly. The AI also wrote `whatsapp-security.md`, which the assignment asks for in Sheryl's own words.
 
 The lines are in `apps/api/src/utils/kms.js`, `apps/api/src/services/whatsapp.service.js` and `apps/api/src/middleware/resolveWhatsappTenant.js`, and each one is listed in section 3 of **`apps/api/docs/AI_AUDIT_week_29_day2.md`**.
+
+## Money Audit (Week 29 Day 3)
+
+The assignment lists the ledger update and callback verification as NOT allowed for AI. In Week 29 Day 3 the AI wrote both, at Sheryl's request, and this is declared openly. The AI also wrote `reconciliation.md`, which the assignment asks for in Sheryl's own words.
+
+The Money Audit lists **every line that touches money**, marked SELF, AI or MIXED, with a re-read column. It is section 3 of **`apps/api/docs/AI_AUDIT_week_29_day3.md`**.
+
+Covered there:
+
+- `apps/api/src/controllers/mpesa.callback.controller.js` (callback verification and the wallet credit)
+- `apps/api/src/middleware/resolveMpesaTenant.js` and `apps/api/src/routes/mpesa.routes.js`
+- `apps/api/src/services/daraja.service.js` (STK push and the Safaricom confirmation)
+- `apps/api/src/controllers/payments.controller.js` and `routes/orders.routes.js` (the pay route)
+- `sql/migrations/025_daraja_payments.sql` (secrets encrypted, unique receipt, one paid attempt per order)
