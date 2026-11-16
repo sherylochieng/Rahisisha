@@ -5,6 +5,7 @@
 **Database:** `rahisisha` (PostgreSQL), connected as `rahisisha_user`
 **Update, Week 29 Day 1 (13 November 2026):** migration 023 added the table `ussd_configs` (no RLS, on purpose). See "ADDED ON WEEK 29 DAY 1 (USSD)" and "TABLES WITHOUT RLS" below. The dated evidence above that section was not rewritten.
 **Update, Week 29 Day 2 (13 and 14 November 2026):** migration 024 added `whatsapp_configs` (no RLS, on purpose, token stored encrypted) and `whatsapp_dedupe` (RLS on and forced). The database now has **23 tables**: **17** with RLS and **6** without, and **18** rules (17 `tenant_isolation` plus `login_lookup`). See "ADDED ON WEEK 29 DAY 2 (WHATSAPP)" and "TABLES WITHOUT RLS" below. The dated evidence above that section was not rewritten.
+**Update, Week 29 Day 3 (15 and 16 November 2026):** migration 025 added `daraja_configs` (RLS on and forced, secrets stored encrypted) and `payment_attempts` (RLS on and forced). The database now has **25 tables**: **19** with RLS and **6** without, and **20** rules (19 `tenant_isolation` plus `login_lookup`). See "ADDED ON WEEK 29 DAY 3 (M-PESA PAYMENTS)" below. The dated evidence above that section was not rewritten.
 
 ---
 
@@ -394,6 +395,20 @@ WhatsApp adds a fourth way into the system: Meta's servers post customer message
 - Isolation suite on 13 November 2026: **6 suites, 100 tests passed**. Full suite the same day: **22 suites, 198 tests passed**. CI green.
 - Manual check on 14 November 2026 (local server and `psql`): a pretend Meta message for Amina's number was saved once, and sending it again answered `duplicates: 1`. With Amina's lock in `psql`, the message and its `whatsapp_dedupe` row were visible. With Brio's lock, both queries returned **0 rows**.
 
+### ADDED ON WEEK 29 DAY 3 (M-PESA PAYMENTS)
+
+Payments add a fifth way into the system: Safaricom's servers post the result of a customer's M-Pesa payment to **one shared callback address** (`POST /callbacks/mpesa/:tenantId`) with **no login cookie**. The shop is taken from the URL by `middleware/resolveMpesaTenant.js`, then `withTenant` sets the same `app.current_tenant` lock as every other route. The pay route (`POST /v1/orders/:id/pay`) is an ordinary protected route behind `requireAuth` and `withTenant`.
+
+- **Migration 025** added two tables:
+  - `daraja_configs`: one row per shop, with the Daraja **consumer key, consumer secret and passkey stored encrypted** (AES-256-GCM, `utils/kms.js`, shop id bound in). Unlike `whatsapp_configs`, it **has RLS** (`tenant_isolation`, `USING` and `WITH CHECK`, forced), because the shop is already known (from the login or from the callback URL) before the settings are read. Its primary key is `tenant_id`, so it has **no `id` column**.
+  - `payment_attempts`: one row per M-Pesa prompt, with the amount in cents, the Safaricom ids, the status and the receipt. It **has RLS** (same rule). Database backstops: `checkout_request_id` is unique, `(tenant_id, mpesa_reference)` is unique when set (a repeated receipt is refused), and `(order_id)` is unique where `status = 'paid'` (one paid attempt per order). `order_id` is `ON DELETE RESTRICT`.
+- **The guard test was updated** (`tests/isolation.test.js`): `daraja_configs` and `payment_attempts` were added to `TENANT_TABLES`. `daraja_configs` has no `id` column, so it is left out of the generic read, update and delete loop (`TABLES_WITH_ID`) and attacked in its own describe block of 5 checks, using a SAVEPOINT for the refused insert. `payment_attempts` is attacked by the generic loop.
+- **The policy count went from 18 to 20.** `scripts/reset-db.sh` and `.github/workflows/ci.yml` (`EXPECTED_POLICIES=20`) were updated.
+- **Isolation suite on 15 November 2026 (run locally by Sheryl): 6 suites, 109 tests passed.**
+- `tests/mpesa.callback.test.js` (18 checks, **18 passed**) proves among other things that shop B's callback address cannot pay shop A's attempt (check 8) and that nothing sensitive reaches the console (check 16). `tests/payments.pay.test.js` (13 checks) proves another shop's order cannot be paid (404). `tests/daraja.service.test.js` (21 checks) proves a shop's keys are used only while that shop's lock is set, that no lock means nobody's keys are used, and that a key copied into another shop's row will not decrypt.
+- Manual check on 15 November 2026 (`psql`): with Amina's lock, her `daraja_configs` row was visible and the three secret columns started with `v1.` (encrypted). With Brio's lock the same query returned **0 rows**.
+- **Not re-run yet:** Query A and Query B in this document were not repeated after migration 025. They are expected to show 19 tables with RLS and 20 rules (see "HOW TO REPEAT THIS PROOF"). Repeat them and add the result here when convenient.
+
 ---
 
 ## TABLES WITHOUT RLS (and why)
@@ -419,6 +434,10 @@ WhatsApp adds a fourth way into the system: Meta's servers post customer message
 6. **`whatsapp_configs` exception (Week 29 Day 2).** It has no RLS, so any code using the plain pool could read every shop's **encrypted** token and verify token. The tokens are useless without `KMS_KEY`, but that is one key for all shops: if `KMS_KEY` leaks together with a copy of the table, every token is readable. The shared sender filters by the shop lock, and a test proves it never uses another shop's token. Future steps: a database comment and a review rule on this table, key rotation (the stored format is versioned `v1.` for this), and a real cloud KMS.
 7. **Older rules cannot read an empty setting.** Found on 14 November 2026: after `RESET app.current_tenant` in `psql`, a query on `messages` fails with `invalid input syntax for type uuid: ""`, because only `memberships` and `whatsapp_dedupe` use `NULLIF(..., '')` in their rule (migration 022 and 024). The app is not affected (`withTenant` always sets a real shop first), but a reused connection with an empty setting would make those 15 tables error instead of returning nothing. A future migration can add `NULLIF` to the other rules.
 8. **`whatsapp_dedupe` grows forever.** Old message ids are never deleted. A scheduled clean-up of rows older than a few days is a future step.
+9. **Daraja callbacks are not signed (Week 29 Day 3).** Safaricom does not sign them, so anyone who learns a `CheckoutRequestID` could post a fake "paid". That is why the callback never credits on its own word: it needs a matching pending attempt of that shop AND Safaricom's own confirmation (STK Query). This is tested with a fake Safaricom only, **not** against Safaricom's real sandbox yet.
+10. **A lost callback leaves an attempt `pending` (Week 29 Day 3).** Safaricom does not retry. The nightly reconciliation job described in `reconciliation.md` is **not built yet**, so such an attempt stays `pending` until someone checks it.
+11. **Payments that cannot be applied are not alerted (Week 29 Day 3).** A wrong amount or a payment for a closed order is marked `failed` with the receipt kept, but nothing tells the shop owner, and there is no refund endpoint yet.
+12. **The old orders test cleanup (Week 29 Day 3).** `payment_attempts.order_id` is `ON DELETE RESTRICT`, so the older `orders.isolation.test.js` cleanup could fail if payment attempts still point at the orders it deletes.
 
 ---
 
@@ -440,11 +459,15 @@ Migration 023 added `ussd_configs`, a small phone book that maps a USSD service 
 
 Migration 024 added two WhatsApp tables. `whatsapp_configs` has **no RLS on purpose** (the shop is found from Meta's `phone_number_id` before it is known) and stores each shop's access token **encrypted**. `whatsapp_dedupe` **has RLS**, so there are now 17 shop tables and 18 rules. The generic attack loop cannot test `whatsapp_dedupe` (no `id` column), so it is covered by both coverage guards and attacked in its own test. A new test, `tests/isolation/whatsapp.cross-tenant.test.js` (11 checks), proves through the real webhook and directly at the database that a message for shop A never reaches shop B, that repeated messages are skipped per shop, and that shop A cannot write a dedupe row for shop B. The isolation suite now has 6 suites and 100 tests, and the full suite 22 suites and 198 tests, all passing, with CI green. Gaps that remain: `whatsapp_configs` sits outside RLS and is protected by encryption and code rules, one key protects all tokens, and the tenant lookup and the token code (`resolveWhatsappTenant.js`, `kms.js`, `whatsapp.service.js`) were AI-written at the student's request and are declared in `AI_AUDIT_week_29_day2.md`.
 
+### Week 29 Day 3 update (15 and 16 November 2026)
+
+Migration 025 added two payment tables, and both **have RLS**, so there are now 19 shop tables and 20 rules. `daraja_configs` holds each shop's M-Pesa keys encrypted, and unlike `whatsapp_configs` it needs no exception, because the shop is known before the settings are read. `payment_attempts` records every prompt before it is sent. The money rules sit in the database as well as in the code: a repeated receipt, a second paid attempt for one order and a duplicate `CheckoutRequestID` are all refused by unique indexes. The isolation suite passed locally (6 suites, 109 tests), and the callback test shows another shop's callback address cannot pay or touch a shop's attempt. Honest limits: the callback is unsigned and is tested only against a fake Safaricom, the reconciliation job is not built, and Query A and B still need to be re-run after migration 025.
+
 ---
 
 ## HOW TO REPEAT THIS PROOF
 
-1. Run Query A and Query B in `psql`. Query B should return 18 rows (it returned 17 until migration 024 added the `whatsapp_dedupe` rule).
+1. Run Query A and Query B in `psql`. Query B should return 20 rows after migration 025 (it returned 18 after migration 024 and 17 before it). Query A should list 19 tables with RLS enabled and forced.
 2. Run `npm test` (all suites) or `npm test -- tests/isolation.test.js` (the isolation suite).
 3. Compare with the expected results above.
 4. Any difference is a finding. Fix it before shipping.
