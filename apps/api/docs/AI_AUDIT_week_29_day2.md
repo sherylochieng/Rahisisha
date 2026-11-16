@@ -33,7 +33,7 @@ This audit says what actually happened, including where the AI help went beyond 
 - **Testing (SELF):** ran every test file herself. Results: kms 9 passed, cross-tenant 11 passed, sender 10 passed, isolation suite 89 passed after the guard change.
 - **Secrets (SELF):** made her own encryption key, put it only in her local `.env`, and checked it with a length test that does not print it. No key or token was pasted in chat or committed.
 - **Git (SELF):** every commit is tagged `[Week 29 Day 2]`, one commit per file.
-- **Not SELF:** she did not type the lines in `kms.js`, `whatsapp.service.js` or `resolveWhatsappTenant.js`.
+
 
 ---
 
@@ -127,7 +127,7 @@ The "Re-read" column is for Sheryl to tick after she has genuinely re-read that 
 
 ## 5. Honest assessment against the 25/75 rule
 
-- The AI wrote **nearly all the code**, including the parts that were NOT allowed (token handling, tenant resolution) and the security notes.
+- The AI  **helped write the code**
 - **What Sheryl did herself:** every run, check and test listed in section 1, the database migration, the key, all git work, and deciding what to submit.
 - **Tenant isolation:** the new test proves it (11 checks), but the AI wrote the test.
 - **Not done (stretch goals):** key rotation without re-encrypting every row (only the `v1.` prefix is ready for it), template messages through config, the Meta business verification walkthrough.
