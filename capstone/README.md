@@ -66,7 +66,7 @@ Owner opens dashboard → sees the sale, revenue, stock update
 | Owner approval gate — nothing goes public without sign-off | P0 — Week 29 | Planned |
 | WhatsApp announcement on product publish | P0 — Week 29 | Planned. The base is built (Week 29 Day 2): the webhook receives customer messages per shop and an encrypted-token sender exists, but nothing announces or replies yet |
 | AI chat assistant grounded in tenant catalog data only | P0 — Week 29 | Planned |
-| In-chat M-Pesa payment link | P0 — Week 29 | Partly. The base is built (Week 29 Day 3): a shop can start an M-Pesa prompt for an order and the verified callback credits the wallet, but there is no payment link in a chat yet and it has not run against Safaricom's real sandbox |
+| In-chat M-Pesa payment link | P0 — Week 29 | Partly. The base is built (Week 29 Day 3): a shop can start an M-Pesa prompt for an order and the verified callback credits the wallet, but there is no payment link in a chat yet and it has run end to end once against Safaricom's real sandbox (16 November 2026), with one intermittent failure at the confirmation step |
 | Inventory reservation — prevents double-selling | P0 — Week 29 | Table is in the schema; the logic is planned |
 | M-Pesa STK push + server-side callback confirmation | P0 — Week 29 | Planned |
 | Owner dashboard — sales, revenue, stock, orders | P0 — Week 30 | Dashboard home is done (orders today, wallet balance, latest products). The list pages are planned |
@@ -109,7 +109,8 @@ Owner opens dashboard → sees the sale, revenue, stock update
   - It was tested with automated tests, `curl` and `psql`, **not against Meta's sandbox**.
   - Stretch goals not done: key rotation, message templates, a Meta business verification walkthrough.
 - **M-Pesa (Week 29 Day 3) is built and tested, but not finished:**
-  - It was tested with a **fake Safaricom** and automated tests, **not yet against Safaricom's real sandbox** (that needs a public https callback address, for example an ngrok tunnel).
+  - It was tested with a **fake Safaricom** and automated tests, and **once against Safaricom's real sandbox** (16 November 2026, through an ngrok tunnel). The real run worked end to end once (order `paid`, wallet credited once) and failed once: Safaricom's confirmation query answered an error, so a real payment stayed `pending`. The cause is unknown. The planned fix (keep the callback's receipt and amount, retry the confirmation later) is **not built**.
+  - **The sandbox used a real M-Pesa balance** during the run (KES 1,200, reversed by Safaricom). A reversal does **not** reach our system, so a payment we already credited stays credited.
   - Daraja callbacks are **not signed**, so the callback is only believed after our own pending attempt matches and Safaricom's STK Query confirms.
   - The **nightly reconciliation job** (see `reconciliation.md`) is **not built**, so a payment whose callback never arrives stays `pending`.
   - A wrong amount or a payment for a closed order is **not credited**: it is marked `failed` and the receipt is kept. There is **no refund endpoint** and **no alert** yet.
@@ -263,6 +264,8 @@ node scripts/seed-daraja-demo.js
 4. Log in as Amina, create an order, and start the payment: `POST /v1/orders/<order id>/pay` with the login cookie and an empty body (or `{ "phone": "0711111111" }`). The answer is 202 `pending`, and the phone (in the sandbox, the simulator) asks for the PIN.
 5. Safaricom then posts the result to `/callbacks/mpesa/<Amina's shop id>`. If it is confirmed, the order becomes `paid` and Amina's wallet grows by the order total. Posting the same result again changes nothing.
 
+**Warning:** during the real run on 16 November 2026 the sandbox prompt appeared on a real phone and took KES 1,200 from a real M-Pesa balance, which Safaricom reversed later. Only use your own number, only for a small amount, and keep the confirmation SMS (forward it to 456 to ask for a reversal). Close the ngrok tunnel when you are done, because it makes your local API public. `node scripts/check-payment.js` (read-only) shows what the system recorded.
+
 The automated tests (`tests/mpesa.callback.test.js` and friends) do **not** need any of this: they use a fake Safaricom.
 
 ### Run the tests
@@ -414,7 +417,7 @@ Also in place since Week 29 Day 3 (M-Pesa):
 - **Credit once, in one transaction:** the wallet entry, the attempt and the order change together or not at all. A repeated callback, two at once, a repeated receipt or a second paid attempt for one order cannot credit twice (row locks plus unique indexes).
 - **`daraja_configs` and `payment_attempts` both have RLS**, and the Daraja key, secret and passkey are stored encrypted with the same helper as WhatsApp tokens. Amounts, receipts, phones and keys are never logged.
 - **`tests/mpesa.callback.test.js`** (18 checks) proves the callback credits once and never on a guess, and that another shop's callback address cannot pay a shop's attempt.
-- **Not yet in place:** a real Safaricom sandbox run, the nightly reconciliation job, refunds and alerts.
+- **Not yet in place:** a reliable confirmation step (it failed once in the real sandbox run), the nightly reconciliation job, handling of reversals, refunds and alerts.
 
 ---
 
@@ -468,7 +471,8 @@ Architecture and design week complete. No production code yet.
   - Demo seed `apps/api/scripts/seed-daraja-demo.js`, ten guide docs, and `reconciliation.md`
   - AI audit with the Money Audit (`AI_AUDIT_week_29_day3.md`), including the honest note that the ledger update and callback verification were AI-written
 - ✅ 25 suites, 259 tests passing (isolation: 6 suites, 109 tests)
-- ⏳ Not done on Day 3: a real Safaricom sandbox run, the nightly reconciliation job, refunds, a Slack alert, a settings screen
+- ✅ Real Safaricom sandbox run (16 November 2026): worked end to end once; once the confirmation query failed and left a real payment `pending` (see the audit, section 6)
+- ⏳ Not done on Day 3: a fix for that confirmation failure, the nightly reconciliation job, reversals, refunds, a Slack alert, a settings screen
 
 ---
 
