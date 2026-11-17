@@ -54,6 +54,9 @@ import { requireSession } from '../../lib/session';
 // Sidebar: the menu on the left
 import Sidebar from '../../components/Sidebar';
 
+// Week 29 Day 4: the phone-sized menu (the Sidebar is hidden below md)
+import MobileNav from '../../components/MobileNav';
+
 // children = whichever page the visitor asked for (for example the dashboard)
 export default async function AuthedLayout({ children }) {
 
@@ -66,6 +69,7 @@ export default async function AuthedLayout({ children }) {
     <div className="flex min-h-screen bg-gray-50">
 
       {/* LEFT: the sidebar. Hidden on small screens (no mobile menu yet) */}
+      {/* Week 29 Day 4: phones now get MobileNav instead (see the RIGHT column) */}
       <div className="hidden md:block">
         <Sidebar shopName={tenant.name} />
       </div>
@@ -74,8 +78,11 @@ export default async function AuthedLayout({ children }) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* min-w-0 — lets long content shrink instead of pushing the layout wide */}
 
+        {/* Phones only: the menu bar (Sidebar is hidden on small screens) */}
+        <MobileNav />
+
         {/* Header: who is logged in */}
-        <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between">
+        <header className="bg-white border-b border-gray-100 px-4 sm:px-8 py-4 flex items-center justify-between gap-2">
           <p className="text-sm text-gray-500">
             Welcome, <span className="font-semibold text-brand-navy">{user.name}</span>
           </p>
@@ -83,7 +90,7 @@ export default async function AuthedLayout({ children }) {
         </header>
 
         {/* The page the visitor asked for */}
-        <main className="flex-1 p-8">{children}</main>
+        <main className="flex-1 p-4 sm:p-8">{children}</main>
       </div>
     </div>
   );
