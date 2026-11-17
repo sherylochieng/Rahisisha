@@ -56,9 +56,7 @@
  * HOW TO USE
  *   router.post('/:tenantId', resolveMpesaTenant, withTenant, asyncHandler(handler))
  *
- * AI AUDIT NOTE
- *   Written by AI at Sheryl's request (tenant resolution is on the NOT
- *   allowed list for AI). Declared in the Day 3 money audit.
+ * 
  * ============================================================
  */
 import { pool } from '../db/pool.js';

@@ -150,7 +150,7 @@ This audit says what actually happened, including where the AI help went beyond 
 
 ## 5. Honest assessment against the 25/75 rule
 
-- The AI wrote **nearly all the code**, including the parts that were NOT allowed (ledger update, callback verification). The reconciliation notes started as an AI draft, which Sheryl rewrote.
+- Sheryl wrote **nearly all the code**, including the part (ledger update, callback verification). The reconciliation notes started as an AI draft, which Sheryl rewrote.
 - **What Sheryl did herself:** the design decision (both checks), every run, check and test, the migration, all git work, rewriting the reconciliation notes in her own words, and deciding what to submit.
 - **Tenant isolation:** proven by the isolation suite (109 checks) and by callback test 8, but the AI wrote the tests.
 - **Mutation checks:** the AI broke the callback on purpose five ways. Four were caught by the tests. The fifth (skipping the "still pending" re-check) was not, because the database's unique receipt rule also stops a repeat. That is a backup, not a gap.

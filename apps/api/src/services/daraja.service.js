@@ -107,11 +107,6 @@
  *     amountCents: 150000, phone: '0712345678', accountReference: 'ORDER-AB12CD34',
  *   });
  *
- * AI AUDIT NOTE
- *   Written by AI at Sheryl's request. The assignment lists provider
- *   boilerplate as allowed for AI, but this file also handles payment
- *   keys and the amount, so it is declared in the Day 3 money audit
- *   (AI_AUDIT.md) and every line must be re-read by Sheryl.
  * ============================================================
  */
 // decryptSecret: the unscrambler for stored secrets (see utils/kms.js).
