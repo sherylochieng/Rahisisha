@@ -170,8 +170,19 @@ export const api = {
     });
   },
 
-  // GET /me: the current logged-in user and their tenant
+   // GET /me: the current logged-in user and their tenant
   me() {
     return request('/me');
+  },
+
+  // POST /products: create a product for the logged-in shop (Week 29 Day 4 follow-up)
+  // body = { name, priceCents, sku?, description?, status? }
+  // priceCents is a whole number of cents (KES 350 -> 35000), never a decimal.
+  // On a 400 the thrown error carries err.details (which box is wrong)
+  createProduct(body) {
+    return request('/products', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   },
 };
