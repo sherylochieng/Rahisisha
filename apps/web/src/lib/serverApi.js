@@ -82,3 +82,42 @@ export async function serverGet(path) {
   const json = await res.json();
   return json.data;
 }
+
+
+// =============================================================================
+// serverGetPage  (Week 29 Day 4, ADDED below the original serverGet)
+// =============================================================================
+// WHY IT EXISTS
+//   serverGet hands back only the "data" part of the API's answer. A paged list
+//   (inbox, payments) ALSO needs "nextCursor" (the bookmark for the next page).
+//   serverGet throws that away, so this sibling returns both.
+//
+// RETURNS   { data, nextCursor }   (nextCursor is null on the last page)
+//
+// RULES: identical to serverGet. 401 -> /login. Any other failure THROWS, so a
+// broken API shows the error page and never an empty list that looks real.
+// Real life: serverGet is "give me the shop's numbers"; serverGetPage is "give
+// me this page of the register AND the bookmark to the next page".
+// =============================================================================
+export async function serverGetPage(path) {
+  // STEP 1: same login-cookie handling as serverGet
+  const cookieStore = await cookies();
+  const token = cookieStore.get('token')?.value;
+  if (!token) redirect('/login');
+
+  // STEP 2: call the API as the logged-in visitor, never cached
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { Cookie: `token=${token}` },
+    cache: 'no-store',
+  });
+
+  // STEP 3: 401 = not logged in (redirect); anything else not OK = throw
+  if (res.status === 401) redirect('/login');
+  if (!res.ok) {
+    throw new Error(`API ${path} failed with status ${res.status}`);
+  }
+
+  // STEP 4: return the list AND the bookmark
+  const json = await res.json();
+  return { data: json.data, nextCursor: json.nextCursor ?? null };
+}
