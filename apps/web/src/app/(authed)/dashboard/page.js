@@ -78,6 +78,15 @@ import { serverGet } from '../../../lib/serverApi';
 // ❌ BEFORE: no import. The empty message was a <p> written further down.
 import EmptyState from '../../../components/EmptyState';
 
+// Week 29 Day 4 follow-up: the shop link card (Open, Copy, Share)
+import ShopLinkCard from '../../../components/ShopLinkCard';
+// buildShopUrl: turns the shop word into the full public address
+import { buildShopUrl } from '../../../lib/shopUrl';
+// requireSession: gives us the logged-in shop (its name and address word)
+import { requireSession } from '../../../lib/session';
+// headers: lets the server see the address the owner is using (for the port)
+import { headers } from 'next/headers';
+
 // -----------------------------------------------------------------------------
 // formatKes — turn whole cents into a readable KES amount for display only
 //   350000 -> "KES 3,500.00"
@@ -109,6 +118,17 @@ export default async function DashboardPage() {
   // While we wait here, Next.js shows loading.js (the grey placeholder boxes)
   const { ordersToday, balanceCents, latestProducts } = await serverGet('/dashboard');
 
+  // STEP 1b (Week 29 Day 4 follow-up): build the shop's public link.
+  // The shop word comes from the login session, never from the visitor.
+  // If the word looks wrong, buildShopUrl returns null and the card is hidden
+  const { tenant } = await requireSession();
+  const host = (await headers()).get('host');
+  const shopUrl = buildShopUrl({
+    slug: tenant.slug,
+    host,
+    rootDomain: process.env.ROOT_DOMAIN,
+  });
+
   // STEP 2: draw the page
   return (
     <div className="space-y-8">
@@ -135,6 +155,10 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Week 29 Day 4 follow-up: the shop link, to open, copy and share.
+          Hidden if the link could not be built */}
+      {shopUrl && <ShopLinkCard url={shopUrl} shopName={tenant.name} />}
 
       {/* BOTTOM: the five newest products */}
       <div className="bg-white rounded-2xl border border-gray-100 p-6">
