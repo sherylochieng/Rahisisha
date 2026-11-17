@@ -39,6 +39,8 @@ import { resolveUssdTenant } from './middleware/resolveUssdTenant.js';
 import ussdRouter from './routes/ussd.routes.js';
 import whatsappRouter from './routes/whatsapp.routes.js';
 import mpesaRouter from './routes/mpesa.routes.js';
+import inboxRouter from './routes/inbox.routes.js';
+import walletRouter from './routes/wallet.routes.js';
 
 
 // Load .env variables (DATABASE_URL, JWT_SECRET, etc.) into process.env
@@ -97,6 +99,12 @@ app.use('/v1/orders', requireAuth, withTenant, ordersRouter);
 // database connection (req.db). The controller never sees a request that
 // skipped either one
 app.use('/v1/dashboard', requireAuth, withTenant, dashboardRouter);
+
+// Inbox route (Week 29 Day 4): WhatsApp + USSD in one list. Same double guard.
+app.use('/v1/inbox', requireAuth, withTenant, inboxRouter);
+
+// Wallet entries (Week 29 Day 4): read-only list for the Payments page.
+app.use('/v1/wallet', requireAuth, withTenant, walletRouter);
 
 // Tenants lookup: PUBLIC on purpose. No requireAuth, no withTenant.
 // The website's gate guard (proxy.js) calls this BEFORE anyone is logged in,
