@@ -58,10 +58,16 @@
  *     so the reply fits in 182 characters.
  *   - Results END the session (simple). A back/next level can be
  *     added later with CON.
+ *   - Week 29 Day 4: every request with a phone number is saved to
+ *     ussd_events (tenant, phone, session id, what was pressed). The
+ *     save is best effort and silent: if it fails the caller still gets
+ *     the menu. The phone number is stored but never logged.
  *
  * WHERE USED / FUTURE USES
  *   routes/ussd.routes.js. Later: language per tenant, ussd_events
  *   logging, a 60 second idle timeout.
+ *   Week 29 Day 4: ussd_events logging is now done (see the block after
+ *   the "Service unavailable" check). The unified inbox reads that table.
  *
  * TRADEOFFS
  *   Only 4 products fit on screen. More would need paging
@@ -73,6 +79,8 @@
  * AI AUDIT NOTE
  *   Menu boilerplate written by AI (allowed). Tenant resolution
  *   lives in middleware/resolveUssdTenant.js, see its note.
+ *   Week 29 Day 4: the ussd_events logging block was written by AI,
+ *   see AI_AUDIT_week_29_day4.md.
  * ============================================================
  */
 
@@ -150,6 +158,26 @@ async function handleUssd(req, res, next) {
     // close politely instead of crashing on rows[0].welcome_text.
     if (!cfg.rows[0]) {
       return send(res, 'END Service unavailable');
+    }
+
+    // Week 29 Day 4: remember this request so it shows in the unified inbox.
+    // Best effort: if the log fails, the caller still gets their menu.
+    // The phone number is stored but NEVER logged.
+    // WHY no WHERE/RLS worry: req.db is locked to this shop, and the
+    //   ussd_events policy only lets a row in for this shop.
+    // REAL LIFE: the waiter jots your table number on a pad as you sit
+    //   down. If the pen runs dry, you still get your menu.
+    const phone = req.body && req.body.phoneNumber;
+    if (phone) {
+      try {
+        await req.db.query(
+          `INSERT INTO ussd_events (tenant_id, phone, session_id, body)
+           VALUES ($1, $2, $3, $4)`,
+          [req.tenantId, String(phone), (req.body.sessionId || null), text]
+        );
+      } catch (_err) {
+        // intentionally silent: logging must never break the menu
+      }
     }
 
     // ---------- FIRST SCREEN: greeting + menu ----------
