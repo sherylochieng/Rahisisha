@@ -34,6 +34,7 @@
 --  23. whatsapp_dedupe (migration 024)
 --  24. daraja_configs (migration 025)
 --  25. payment_attempts (migration 025)
+--  26. ussd_events (migration 026)
 -- =============================================================
 
 
@@ -733,6 +734,29 @@ CREATE POLICY tenant_isolation ON payment_attempts
 
 
 -- =============================================================
+-- TABLE 26: ussd_events (migration 026, Week 29 Day 4)
+-- One row per USSD request, so the unified inbox can list USSD
+-- next to WhatsApp. body is what the caller typed ('' = just dialled).
+-- Never log or print the phone number.
+-- =============================================================
+CREATE TABLE IF NOT EXISTS ussd_events (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  phone       TEXT NOT NULL,
+  session_id  TEXT,
+  body        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ussd_events_tenant_idx
+  ON ussd_events (tenant_id, created_at DESC, id DESC);
+ALTER TABLE ussd_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ussd_events FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON ussd_events
+  USING      (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID)
+  WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID);
+
+
+-- =============================================================
 -- RLS CONTEXT FUNCTION
 -- Called at the start of every request by tenantContext.js:
 --   SELECT set_tenant_context('<tenantId>');
@@ -747,8 +771,8 @@ $$ LANGUAGE plpgsql;
 
 
 -- =============================================================
--- 25 tables total
--- 19 tables with RLS enabled (all tenant-owned tables)
+-- 26 tables total (ussd_events added in migration 026, Week 29 Day 4)
+-- 20 tables with RLS enabled (all tenant-owned tables)
 --  6 tables without RLS (tenants, users, webhook_events, audit_logs,
 --    ussd_configs and whatsapp_configs: both are looked up before any
 --    shop is known)
