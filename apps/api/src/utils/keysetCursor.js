@@ -57,8 +57,7 @@
 //   const c = decodeCursor(raw);   // { ts, id } or null (null = answer 400)
 //   const next = encodeCursor(lastRow.cursor_ts, lastRow.id);
 //
-// AI AUDIT NOTE
-//   Written by AI (declared in the Day 4 audit).
+//
 //
 // =============================================================================
 // EXPLAINED PIECE BY PIECE (simple words, real life)
