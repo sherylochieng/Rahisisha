@@ -5,6 +5,8 @@
 **Database:** `rahisisha` (PostgreSQL), connected as `rahisisha_user`
 **Update, Week 29 Day 1 (13 November 2026):** migration 023 added the table `ussd_configs` (no RLS, on purpose). See "ADDED ON WEEK 29 DAY 1 (USSD)" and "TABLES WITHOUT RLS" below. The dated evidence above that section was not rewritten.
 **Update, Week 29 Day 2 (13 and 14 November 2026):** migration 024 added `whatsapp_configs` (no RLS, on purpose, token stored encrypted) and `whatsapp_dedupe` (RLS on and forced). The database now has **23 tables**: **17** with RLS and **6** without, and **18** rules (17 `tenant_isolation` plus `login_lookup`). See "ADDED ON WEEK 29 DAY 2 (WHATSAPP)" and "TABLES WITHOUT RLS" below. The dated evidence above that section was not rewritten.
+**Update, Week 29 Day 4 (16 and 17 November 2026):** migration 026 added `ussd_events` (RLS on and forced). The database now has **26 tables**: **20** with RLS and **6** without, and **21** rules (20 `tenant_isolation` plus `login_lookup`). See "ADDED ON WEEK 29 DAY 4 (UNIFIED INBOX)" below.
+
 **Update, Week 29 Day 3 (15 and 16 November 2026):** migration 025 added `daraja_configs` (RLS on and forced, secrets stored encrypted) and `payment_attempts` (RLS on and forced). The database now has **25 tables**: **19** with RLS and **6** without, and **20** rules (19 `tenant_isolation` plus `login_lookup`). See "ADDED ON WEEK 29 DAY 3 (M-PESA PAYMENTS)" below. The dated evidence above that section was not rewritten.
 
 ---
@@ -466,9 +468,25 @@ Migration 025 added two payment tables, and both **have RLS**, so there are now 
 
 ---
 
+### ADDED ON WEEK 29 DAY 4 (UNIFIED INBOX)
+
+The inbox merges WhatsApp messages and USSD requests. USSD requests had no table, so migration 026 added one.
+
+- **Migration 026** added `ussd_events`: one row per USSD request (shop, caller phone, what was typed, time). It **has RLS** (`tenant_isolation`, `USING` and `WITH CHECK`, enabled AND forced). Unlike `ussd_configs` it can have RLS, because it is only written after the guard has found the shop from the service code.
+- **The guard test was updated** (`tests/isolation.test.js`): `ussd_events` was added to `TENANT_TABLES`. It has an `id`, so it joins the generic read, update and delete attack loop (4 checks), and a new block adds a fifth attack: **Brio cannot INSERT a `ussd_events` row for Acme** (a planted row would put a fake "customer message" in Acme's inbox).
+- **The policy count went from 20 to 21.** `scripts/reset-db.sh` (`EXPECTED_POLICIES=21`) and `.github/workflows/ci.yml` were updated.
+- **Isolation suite, run by the AI in a throw-away database on 16 November 2026: 6 suites, 114 tests passed** (109 before, plus 5 for `ussd_events`). **Sheryl ran `tests/isolation.test.js` on her own machine on 17 November 2026: 80 tests passed.** The whole isolation suite (`npm run test:isolation`) still has to be run by her, and her result should replace the AI's number here.
+- `tests/inbox.test.js` (16 checks) and `tests/wallet.entries.test.js` (11 checks) also prove isolation through the API: shop B sees only its own rows, shop A never sees B's text or money, and a shop A cursor used by shop B returns only B's rows.
+- **Cross-tenant 404:** `GET /v1/orders/:id` and `GET /v1/products/:id` for another shop's id answer 404 (existing tests `orders.isolation.test.js` and `products.cross-tenant.test.js`). The two new endpoints are lists with no id in the URL, so there is nothing to 404; they return only the caller's rows.
+- **Not re-run yet by Sheryl:** Query A and Query B. They are expected to show 20 tables with RLS and 21 rules.
+
+---
+
 ## HOW TO REPEAT THIS PROOF
 
 1. Run Query A and Query B in `psql`. Query B should return 20 rows after migration 025 (it returned 18 after migration 024 and 17 before it). Query A should list 19 tables with RLS enabled and forced.
 2. Run `npm test` (all suites) or `npm test -- tests/isolation.test.js` (the isolation suite).
 3. Compare with the expected results above.
 4. Any difference is a finding. Fix it before shipping.
+
+*Day 4 note: after migration 026, Query B should return 21 rows (20 `tenant_isolation` plus `login_lookup`) and Query A should list 20 tables with RLS enabled and forced.*
