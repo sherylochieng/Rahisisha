@@ -87,3 +87,20 @@ Every server-rendered page that needs private data from a separate API.
 
 - `apps/web/docs/src/lib/session.md`
 - `apps/api/docs/src/controllers/dashboard.controller.md` (the endpoint it calls today)
+
+---
+
+## ADDED IN WEEK 29 DAY 4: `serverGetPage`
+
+**Why:** `serverGet` returns only the `data` part of the API answer. Paged lists (Inbox, Payments) also need `nextCursor`, so a sibling function returns both.
+
+**Returns:** `{ data, nextCursor }` (`nextCursor` is `null` on the last page).
+
+**Rules:** identical to `serverGet`: 401 goes to `/login`; any other failure THROWS so a broken API shows the error page, never an empty list that looks real.
+
+**Piece by piece:**
+- `cookies()` and the `token` cookie: the visitor's login note, taken from the cookie jar.
+- `fetch(..., cache: 'no-store')`: always fresh, never an old copy.
+- `json.nextCursor ?? null`: the bookmark for the next page, or `null`.
+
+**Used by:** `inbox/page.js` and `payments/page.js`. **Known gap:** it repeats `serverGet`'s cookie code (a shared helper would remove the repetition).
