@@ -57,8 +57,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 // The menu as a list. ready: true = the page exists, false = coming soon
-const NAV_ITEMS = [
+// Week 29 Day 4: Inbox and Payments added (ready). `export` so MobileNav can
+// reuse the SAME list instead of keeping a second copy.
+export const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', ready: true  },
+  { label: 'Inbox',     href: '/inbox',     ready: true  },
+  { label: 'Payments',  href: '/payments',  ready: true  },
   { label: 'Products',  href: '/products',  ready: false },
   { label: 'Orders',    href: '/orders',    ready: false },
   { label: 'Wallet',    href: '/wallet',    ready: false },
