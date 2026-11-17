@@ -49,7 +49,8 @@ apps/api/
 │   ├── utils/
 │   │   ├── allowedOrigin.js            CORS rule: which websites may call the API (main site + every shop).
 │   │   ├── getShopSlug.js              Finds the shop word from the Origin (then Host) header.
-│   │   └── kms.js                      Encrypts and decrypts stored secrets (AES-256-GCM, key in KMS_KEY, locked to the shop id) (Week 29 Day 2).
+│   │   ├── kms.js                      Encrypts and decrypts stored secrets (AES-256-GCM, key in KMS_KEY, locked to the shop id) (Week 29 Day 2).
+│   │   ├── keysetCursor.js             Cursor (bookmark) helpers shared by the inbox and the payments list: microsecond-safe, validated (Week 29 Day 4).
 │   ├── routes/
 │   │   ├── auth/
 │   │   │   ├── auth.js                 Combines signup + login + me into one router.
@@ -59,6 +60,8 @@ apps/api/
 │   │   ├── products.routes.js          Maps product URLs to controller functions.
 │   │   ├── orders.routes.js            Maps order URLs to controller functions (POST /:id/pay added in Week 29 Day 3).
 │   │   ├── dashboard.routes.js         GET /v1/dashboard (protected).
+│   │   ├── inbox.routes.js             GET /v1/inbox (protected) (Week 29 Day 4).
+│   │   ├── wallet.routes.js            GET /v1/wallet/entries (protected, read only) (Week 29 Day 4).
 │   │   ├── tenants.routes.js           GET /v1/tenants/by-slug/:slug (public).
 │   │   ├── ussd.routes.js              POST /ussd (public, mounted with resolveUssdTenant + withTenant).
 │   │   ├── whatsapp.routes.js          GET and POST /webhooks/whatsapp (public: Meta has no login cookie) (Week 29 Day 2).
@@ -71,6 +74,8 @@ apps/api/
 │       ├── products.controller.js      All product business logic and database queries.
 │       ├── orders.controller.js        All order business logic, state machine, transactions.
 │       ├── dashboard.controller.js     Dashboard numbers: orders today, wallet balance, latest products.
+│       ├── inbox.controller.js         Unified inbox: WhatsApp + USSD merged with UNION ALL, newest first, cursor paging (Week 29 Day 4).
+│       ├── wallet.controller.js        Wallet entries grouped by Nairobi day with day totals and a running balance; read only (Week 29 Day 4).
 │       ├── tenants.controller.js       Public shop lookup by slug (used by the web proxy).
 │       ├── ussd.controller.js          USSD menu: welcome, 1 products, 2 balance, 3 exit. Every reply 182 characters or less.
 │       ├── whatsapp.controller.js      Verify handshake (GET) and inbound messages (POST): dedupe, customer, conversation, message in one transaction (Week 29 Day 2).
@@ -79,13 +84,15 @@ apps/api/
 ├── tests/
 │   ├── pagination/
 │   │   └── products.pagination.test.js     Cursor pagination returns every product once.
-│   ├── isolation.test.js                   Attacks all 19 tenant tables at the database level (whatsapp_dedupe joined in Week 29 Day 2; daraja_configs and payment_attempts in Week 29 Day 3).
+│   ├── isolation.test.js                   Attacks all 20 tenant tables at the database level (whatsapp_dedupe joined in Week 29 Day 2; daraja_configs and payment_attempts in Week 29 Day 3; ussd_events in Week 29 Day 4).
 │   ├── kms.test.js                         Encryption: round trip, fresh IV, tamper, wrong shop, wrong key, generic error (9 tests).
 │   ├── whatsapp.service.test.js            Sender uses the right shop's token, never logs it, never leaks it in an error (10 tests).
 │   ├── wallet.service.test.js              Wallet ledger: credit, debit, bad amounts, balance.
 │   ├── daraja.service.test.js              M-Pesa service: right shop's keys, no secret logged, whole shillings, STK query rules (21 tests) (Week 29 Day 3).
 │   ├── payments.pay.test.js                Pay route: amount from the order, per shop, double tap, failures (13 tests) (Week 29 Day 3).
 │   ├── mpesa.callback.test.js              Callback: credits once, never on a guess, per shop, repeats safe (18 tests) (Week 29 Day 3).
+│   ├── inbox.test.js                       Inbox: merged and newest first, paging loses/repeats nothing, shop isolation, USSD logging (16 tests) (Week 29 Day 4).
+│   ├── wallet.entries.test.js              Payments list: Nairobi days, day totals, running balance, paging, isolation (11 tests) (Week 29 Day 4).
 │   ├── allowedOrigin.test.js               CORS rule: shops in, look-alikes and garbage out (13 tests).
 │   ├── getShopSlug.test.js                 Shop word from headers, including the exact online bug (14 tests).
 │   ├── isolation/
@@ -111,6 +118,7 @@ apps/api/
     ├── AI_AUDIT_week_29_day1.md        Same, for Week 29 Day 1 (USSD per tenant). States openly that tenant resolution was AI-written.
     ├── AI_AUDIT_week_29_day2.md        Same, for Week 29 Day 2 (WhatsApp per tenant). States openly that token handling and tenant resolution were AI-written, at the student's choice.
     ├── AI_AUDIT_week_29_day3.md        Same, for Week 29 Day 3 (M-Pesa per tenant), with the Money Audit. States openly that the ledger update and callback verification were AI-written, at the student's choice.
+    ├── AI_AUDIT_week_29_day4.md        Same, for Week 29 Day 4 (unified inbox). States openly that the RLS policy and its isolation tests were AI-written, at the student's choice; the re-read boxes were ticked on her word that she re-read every line (the AI cannot check that).
     ├── SEEDS_AND_SCRIPTS.md            Index of every seed and script, which folder each belongs in, and the fresh-setup order (Week 29 Day 2).
     ├── src/                            One guide per source file (same folders as src/).
     │   ├── middleware/
@@ -152,10 +160,12 @@ apps/api/
 ```
 
 Database files live outside `apps/api`: migrations in `sql/migrations/` (latest:
-`025_daraja_payments.sql`, added in Week 29 Day 3 (`daraja_configs` and `payment_attempts`); before it `024_whatsapp_configs.sql` from Day 2, `023_ussd_configs.sql` from Day 1 and `022_login_membership_lookup.sql`)
+`026_ussd_events.sql`, added in Week 29 Day 4 (`ussd_events`, the USSD request log for the inbox); before it `025_daraja_payments.sql` from Week 29 Day 3 (`daraja_configs` and `payment_attempts`); before it `024_whatsapp_configs.sql` from Day 2, `023_ussd_configs.sql` from Day 1 and `022_login_membership_lookup.sql`)
 and the full schema in `sql/SCHEMA.sql`. Seed files are in `sql/seeds/`
 (`ussd_configs_seed.sql` and `ussd_demo_data_seed.sql`, both safe to run many times).
 The USSD notes are in `ussd-quirks.md` and the WhatsApp security notes in `whatsapp-security.md`, both at the repo root.
+
+**Week 29 Day 4 guides** (one per new file): `docs/src/db/026_ussd_events.md`, `docs/src/controllers/{inbox,wallet,ussd}.controller.md`, `docs/src/routes/{inbox,wallet}.routes.md`, `docs/src/utils/keysetCursor.md`, `docs/tests/{inbox,wallet.entries}.test.md`, and for the web app `apps/web/docs/src/lib/format.md`, `apps/web/docs/src/components/MobileNav.md`, `apps/web/docs/src/app/{inbox,payments}.{page,loading}.md`. The polish checklist is `docs/polish-checklist.md` at the repo root.
 Seeds and scripts are indexed in `docs/SEEDS_AND_SCRIPTS.md` (SQL only in `sql/seeds/`; whole-repo helpers in root `scripts/`; helpers that use the API's own code in `apps/api/scripts/`).
 
 Other files added in Week 28 Weekend, outside `apps/api/src`:
@@ -269,6 +279,8 @@ catch-all and answered with a JSON 404 (not Express's HTML page).
 | Method | URL           | What it does                                                                 |
 |--------|---------------|------------------------------------------------------------------------------|
 | GET    | /v1/dashboard | Returns `{ data: { ordersToday, balanceCents, latestProducts } }` for the logged-in shop |
+| GET    | /v1/inbox     | Returns `{ data: [{ id, channel, from, body, createdAt }], nextCursor, error }`: WhatsApp and USSD merged, newest first. Query: `limit` (default 20, max 100), `cursor`. Week 29 Day 4 |
+| GET    | /v1/wallet/entries | Returns the shop's wallet entries newest first, each with `day` (Nairobi), `dayTotalCents` and `balanceAfterCents`. Query: `limit` (default 50, max 100), `cursor`. Read only. Week 29 Day 4 |
 
 ### Products (protected: JWT + tenant required)
 
@@ -663,6 +675,8 @@ fresh Postgres built by `scripts/reset-db.sh`.
 | `tests/daraja.service.test.js` | The M-Pesa service uses only the locked shop's keys and till, never logs a secret, stores keys encrypted, refuses fractions of a shilling and bad phones, and the STK query returns paid or failed only on a clean Safaricom answer (21 checks) |
 | `tests/payments.pay.test.js` | The pay route charges the order's amount (never the body's), only for the logged-in shop, refuses unpayable orders and a double tap, keeps failed attempts, and leaks nothing (13 checks) |
 | `tests/mpesa.callback.test.js` | The callback credits once and only after Safaricom confirms; repeats, races, wrong amounts, cancelled orders, another shop, malformed bodies and a repeated receipt never double or wrongly credit (18 checks) |
+| `tests/inbox.test.js` | The inbox merges WhatsApp and USSD newest first, pages by 1, 2 and 3 without skipping or repeating (ties and microseconds), never shows another shop's rows, and a USSD dial is logged (16 checks, Day 4) |
+| `tests/wallet.entries.test.js` | The payments list groups by Nairobi day, day totals and the running balance are right on every page and match the dashboard, isolation, read only (11 checks, Day 4) |
 | `tests/errors/not-found.test.js` | Unknown URLs get a JSON 404 for GET and POST, and `/health` still works (4 checks) |
 | `tests/signup-atomic.test.js` | When seeding fails, signup fails cleanly and leaves no user and no shop behind (1 check) |
 
@@ -695,7 +709,7 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 | Set the database SSL mode to `verify-full`; give `pool.js` a connection timeout | Staging works, but the `pg` SSL warning shows and a stuck database would hang a request |
 | Remove the public demo accounts (password `Demo1234!`) and leftover test shops from staging | They are listed in `capstone/STAGING.md` under known gaps |
 | Keep `ussd_configs` free of private columns; cache `service_code -> tenant_id` if USSD traffic grows | It has no RLS on purpose (see `docs/tests/isolation-proof.md`). One extra query per USSD request is fine for now |
-| USSD stretch goals: language per tenant, a `ussd_events` table, 60 second idle timeout | Not done in Week 29 Day 1 |
+| USSD stretch goals: language per tenant, a `ussd_events` table, 60 second idle timeout | Not done in Week 29 Day 1. **Update, 17 November 2026:** the `ussd_events` table is now built (migration 026, Week 29 Day 4); language per tenant and the idle timeout are still not done |
 | Verify the `X-Hub-Signature-256` header on `POST /webhooks/whatsapp` | Not done in Week 29 Day 2, so anyone who knows a shop's `phone_number_id` can post a fake message to that shop. Listed in `whatsapp-security.md` |
 | Tell the shop owner when Meta rejects the token (`whatsapp_token_rejected`) | The error code exists, but nothing notifies the owner yet |
 | Add a screen or endpoint where a shop saves its own WhatsApp settings; reply to customers through `sendWhatsApp` from the webhook; try it against Meta's sandbox | Today the settings come from the seed script only, and the webhook saves messages but does not answer |
@@ -736,7 +750,11 @@ must end in `/v1` and is fixed when the site is built).
 |------|--------------|
 | `src/proxy.js` | Next.js 16 proxy (the old "middleware"): works out which shop the visitor wants from the subdomain (uses `ROOT_DOMAIN`). `www` and the bare domain are not shops |
 | `src/lib/session.js` | `requireSession`: reads the login cookie, redirects to login if missing |
-| `src/lib/serverApi.js` | `serverGet`: calls this API from server pages, forwarding the login cookie |
+| `src/lib/serverApi.js` | `serverGet` (data only) and `serverGetPage` (data + `nextCursor`, Week 29 Day 4): call this API from server pages, forwarding the login cookie |
+| `src/lib/format.js` | Money (`KES 1,500.00`, signed) and Nairobi time/day formatting for the Inbox and Payments pages (Week 29 Day 4) |
+| `src/components/MobileNav.js` | Menu bar for phones (the Sidebar is hidden below `md`) (Week 29 Day 4) |
+| `src/app/(authed)/inbox/page.js` (+ `loading.js`) | Inbox: WhatsApp and USSD, WA/USSD badges, older-messages paging, empty state (Week 29 Day 4) |
+| `src/app/(authed)/payments/page.js` (+ `loading.js`) | Payments: wallet entries grouped by day with day totals and a running balance (Week 29 Day 4) |
 | `src/components/Sidebar.js` | Left menu (Products, Orders, Wallet, Settings are marked "soon") |
 | `src/app/(authed)/layout.js` | Login check, sidebar and header for every logged-in page |
 | `src/app/(authed)/dashboard/page.js` | Dashboard home: real numbers and latest products |
@@ -768,7 +786,8 @@ Staging is already live (see above).
 
 ---
 
-*Last updated: Week 29 Day 3 (M-Pesa per tenant: Daraja settings, STK push, verified callback, wallet credit, money audit, reconciliation notes), 16 November 2026*  
+*Last updated: Week 29 Day 4 (unified inbox, payments page, `ussd_events` table, keyset paging, mobile menu, polish checklist), 17 November 2026*  
+*Earlier: Week 29 Day 3 (M-Pesa per tenant: Daraja settings, STK push, verified callback, wallet credit, money audit, reconciliation notes), 16 November 2026*  
 *Earlier: Week 29 Day 2 (WhatsApp per tenant: webhook, encrypted tokens, dedupe, shared sender, seed script, docs tidy-up), 14 November 2026*  
 *Earlier: Week 29 Day 1 (USSD per tenant, JSON 404, signup field errors, signup atomicity test), 13 November 2026*  
 *Earlier: Week 28 Weekend (Task 8, staging deploy), 10 November 2026*  
