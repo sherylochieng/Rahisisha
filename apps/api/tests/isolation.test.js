@@ -6,6 +6,7 @@
 // - Day 3 tested products and orders through the API. But Rahisisha has 19
 //   tables that hold shop data, and most have no URL (customers, messages,
 //   wallet_entries...). This file attacks ALL 19 at the database level
+//   (Week 29 Day 4 added ussd_events, so the list is now 20 tables)
 //
 // WHY IT IS IMPORTANT:
 // - Isolation is the promise the whole product stands on. One table with RLS
@@ -73,6 +74,7 @@ const TENANT_TABLES = [
   'whatsapp_dedupe',   // migration 024. Key is (tenant_id, message_id), no `id` column
   'daraja_configs',    // migration 025. Key is tenant_id, no `id` column
   'payment_attempts',  // migration 025. Has an `id`, so it joins the attack loop
+  'ussd_events',       // migration 026. Has an `id`, so it joins the attack loop
 ];
 
 // The attack loop below uses `WHERE id = $1`, so it only fits tables that have
@@ -115,7 +117,7 @@ async function one(sql, params) {
 
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 // beforeAll: runs ONCE. Opens the transaction and gives Acme one row in each
-// of the 19 tables. Order matters: parents first (a product before its
+// of the 20 tables. Order matters: parents first (a product before its
 // variants, a customer before its orders)
 beforeAll(async () => {
   client = await testPool.connect();
@@ -173,6 +175,9 @@ beforeAll(async () => {
   ids.payment_attempts = await one(
     'INSERT INTO payment_attempts (tenant_id, order_id, amount_cents, phone) VALUES ($1, $2, 100, $3) RETURNING id',
     [A, ids.orders, tag]);
+  // ussd_events (migration 026, Week 29 Day 4): one USSD request for Acme.
+  ids.ussd_events = await one(
+    "INSERT INTO ussd_events (tenant_id, phone, body) VALUES ($1, $2, '1') RETURNING id", [A, tag]);
   // daraja_configs has no id: its key is tenant_id. Acme may already have a
   // config, so update-if-exists. Everything is undone by the ROLLBACK anyway.
   await client.query(
@@ -336,5 +341,26 @@ describe('Isolation - daraja_configs (no id column)', () => {
     const { rows } = await client.query(
       'SELECT tenant_id FROM daraja_configs WHERE tenant_id = $1', [acmeTenantId]);
     expect(rows.length).toBe(1);
+  });
+});
+
+// --- ussd_events: can Brio plant a USSD row INSIDE Acme's inbox? -------------
+// The loop above proves Brio cannot read, change or delete Acme's row. This
+// block adds the WRITE attack: the inbox shows these rows to the shop owner,
+// so a planted row would put fake "customer messages" in Acme's inbox.
+describe('Isolation - ussd_events (write for another shop)', () => {
+  test('Brio cannot INSERT a ussd_events row for Acme', async () => {
+    await asTenant(brioTenantId);
+    await client.query('SAVEPOINT before_ussd_attack');
+    let refused = false;
+    try {
+      await client.query(
+        "INSERT INTO ussd_events (tenant_id, phone, body) VALUES ($1, 'x', 'planted')",
+        [acmeTenantId]);
+    } catch (err) {
+      refused = true;
+    }
+    await client.query('ROLLBACK TO SAVEPOINT before_ussd_attack');
+    expect(refused).toBe(true);
   });
 });
