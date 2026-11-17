@@ -114,8 +114,8 @@ This audit says what actually happened, including where the AI help went beyond 
 | `tests/inbox.test.js` | 16 | 16 passed in the AI's throw-away database, and **16 passed on Sheryl's own machine** (17 November 2026). |
 | `tests/wallet.entries.test.js` | 11 | 11 passed in the AI's database, and **11 passed on Sheryl's own machine**. |
 | `tests/isolation.test.js` | 80 | 80 passed on Sheryl's own machine (includes the new `ussd_events` checks). |
-| Isolation suite (`npm run test:isolation`) | 114 | 114 passed in the AI's database. Was 109. **Sheryl's own full run: to be filled in after she runs it.** |
-| Whole API suite (`npm test`) | 291 | 291 passed in the AI's database. **Sheryl's own full run: to be filled in after she runs it.** |
+| Isolation suite (`npm run test:isolation`) | 114 | 114 passed in the AI's database. Was 109. **Sheryl's own run, 17 November 2026: 6 suites, 114 tests passed.** |
+| Whole API suite (`npm test`) | 291 | 291 passed in the AI's database. **Sheryl's own run, 17 November 2026: 27 suites, 291 tests passed.** (Jest prints its usual "did not exit" warning at the end; it is harmless and already listed in the follow-ups.) |
 
 The new tests were **mutation-tested** by the AI: removing the ORDER BY, using a millisecond cursor, using only the date in the cursor, including outbound messages, using UTC days, and computing totals after paging each made at least one check fail. (One mutation, a millisecond cursor, was NOT caught at first; two rows were added so it now is.)
 
