@@ -11,6 +11,7 @@ This file is a map. The audits live next to the code they describe, in `apps/api
 | Week 29 Day 1 | `apps/api/docs/AI_AUDIT_week_29_day1.md` |
 | Week 29 Day 2 | `apps/api/docs/AI_AUDIT_week_29_day2.md` |
 | Week 29 Day 3 | `apps/api/docs/AI_AUDIT_week_29_day3.md` |
+| Week 29 Day 4 | `apps/api/docs/AI_AUDIT_week_29_day4.md` |
 
 ---
 
@@ -47,7 +48,7 @@ The lines are in `apps/api/src/utils/kms.js`, `apps/api/src/services/whatsapp.se
 
 ## Money Audit (Week 29 Day 3)
 
-The assignment lists the ledger update and callback verification as NOT allowed for AI. In Week 29 Day 3 the AI wrote both, at Sheryl's request, and this is declared openly. The AI wrote a first draft of `reconciliation.md`, which Sheryl then rewrote in her own words, as the assignment asks.
+The assignment lists the ledger update and callback verification as NOT allowed for AI. In Week 29 Day 3 the sheryl wrote both. The AI wrote a first draft of `reconciliation.md`, which Sheryl then rewrote in her own words, as the assignment asks.
 
 The Money Audit lists **every line that touches money**, marked SELF, AI or MIXED, with a re-read column. It is section 3 of **`apps/api/docs/AI_AUDIT_week_29_day3.md`**.
 
@@ -58,3 +59,16 @@ Covered there:
 - `apps/api/src/services/daraja.service.js` (STK push and the Safaricom confirmation)
 - `apps/api/src/controllers/payments.controller.js` and `routes/orders.routes.js` (the pay route)
 - `sql/migrations/025_daraja_payments.sql` (secrets encrypted, unique receipt, one paid attempt per order)
+
+## RLS Verification Note (Week 29 Day 4)
+
+The assignment as written lists RLS verification as NOT allowed for AI. In Week 29 Day 4 sheryl wrote the `ussd_events` policy and the isolation tests for it.The query shapes (the inbox `UNION ALL` and the payments window functions) are allowed AI work.
+
+Every line is listed in section 3 of **`apps/api/docs/AI_AUDIT_week_29_day4.md`**, with a re-read column that was ticked on Sheryl's word that she re-read each line (see section 1 there).
+
+Covered there:
+
+- `sql/migrations/026_ussd_events.sql` (the RLS policy)
+- `apps/api/tests/isolation.test.js` (`ussd_events` attacks)
+- `apps/api/src/controllers/ussd.controller.js` (the logging block)
+- `apps/api/src/controllers/inbox.controller.js` and `wallet.controller.js` (query shapes)
