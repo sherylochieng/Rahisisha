@@ -87,8 +87,18 @@ export default async function ProductsPage({ searchParams }) {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-2xl font-bold text-brand-navy">Products</h1>
-
+           {/* Week 29 Day 4 follow-up: title on the left, the Add product button on the right.
+          flex-wrap lets the button drop under the title on a small phone screen */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-bold text-brand-navy">Products</h1>
+        <Link
+          href="/products/new"
+          className="rounded-lg bg-brand-orange px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+        >
+          Add product
+        </Link>
+        
+      </div>
       {/* STEP 3a: no products yet */}
       {products.length === 0 ? (
         <EmptyState
