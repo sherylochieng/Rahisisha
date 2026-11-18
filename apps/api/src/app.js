@@ -41,6 +41,8 @@ import whatsappRouter from './routes/whatsapp.routes.js';
 import mpesaRouter from './routes/mpesa.routes.js';
 import inboxRouter from './routes/inbox.routes.js';
 import walletRouter from './routes/wallet.routes.js';
+import storefrontRouter from './routes/storefront.routes.js';
+import { resolveShopBySlug } from './middleware/resolveShopBySlug.js';
 
 
 // Load .env variables (DATABASE_URL, JWT_SECRET, etc.) into process.env
@@ -113,6 +115,15 @@ app.use('/v1/wallet', requireAuth, withTenant, walletRouter);
 app.use('/v1/tenants', tenantsRouter);
 
 
+
+// Storefront (follow-up to Week 29 Day 4): the PUBLIC shop page's data.
+// PUBLIC on purpose: a customer has no login cookie. Same "stamp, then lock"
+// pattern as USSD: resolveShopBySlug finds the shop from the address word and
+// stamps req.tenantId, then withTenant locks the database to that shop.
+// Read-only. Never add a write route behind this mount.
+app.use('/v1/storefront/:slug', resolveShopBySlug, withTenant, storefrontRouter);
+
+
 // USSD: PUBLIC on purpose. No requireAuth, because a phone has no login cookie.
 // Instead the guard resolveUssdTenant finds the shop from the service code,
 // then withTenant locks the database to that shop (same "stamp, then lock"
@@ -134,6 +145,8 @@ app.use('/webhooks/whatsapp', whatsappRouter);
 // mark an order paid and credit a wallet.
 // Must stay ABOVE the 404 catch-all at the bottom of this file.
 app.use('/callbacks/mpesa', mpesaRouter);
+
+
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 // Used by monitoring tools (and your tests) to confirm the server is alive
