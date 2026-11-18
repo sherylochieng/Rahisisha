@@ -152,9 +152,9 @@ export default function ShopLinkCard({ url, shopName }) {
         {message}
       </p>
 
-      {/* Honest note until the public shop page exists */}
+     {/* The public shop page now exists (follow-up to Week 29 Day 4): say what customers will see */}
       <p className="mt-1 text-xs text-gray-400">
-        Your public shop page (your products for customers) is coming soon.
+        Customers who open this link see your shop and the products you have set to active.
       </p>
     </div>
   );
