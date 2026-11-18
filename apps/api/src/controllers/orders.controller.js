@@ -10,6 +10,7 @@
 // =============================================================
 
 import { z } from 'zod';
+import { CURSOR_TS_SQL, decodeCursor, encodeCursor } from '../utils/keysetCursor.js';
 
 // ─── STATE MACHINE ────────────────────────────────────────────
 //
@@ -74,26 +75,65 @@ function validationError(res, zodError) {
 // HANDLER: listOrders
 // Route:   GET /v1/orders
 //
-// Returns paginated orders for this tenant.
-// Supports ?status= and ?channel= filters.
+// Returns paginated orders for this tenant, NEWEST FIRST, with the
+// customer's name and phone so the Orders page can say who ordered.
+//
+// Week 29 Day 4 follow-up (BEFORE -> AFTER):
+//   BEFORE: ORDER BY id, cursor = the last id. A uuid has no time order, so
+//           the list looked random, and it showed only customer_id.
+//   AFTER:  ORDER BY created_at DESC, id DESC with the same bookmark as the
+//           inbox and the wallet list (utils/keysetCursor.js). Each row also
+//           carries customer_name and customer_phone (LEFT JOIN customers).
+//           The old fields are all still there.
+//
+// Query params:
+//   ?limit=10     how many (1 to 100, default 10)
+//   ?cursor=...   the nextCursor of the previous page. A bad cursor = 400
 // =============================================================
 
 export async function listOrders(req, res) {
-  const limit  = Math.min(parseInt(req.query.limit) || 10, 100);
-  const cursor = req.query.cursor || null;
+  // Same rule as the wallet list: 1 to 100, default 10
+  const parsed = parseInt(req.query.limit, 10);
+  const limit = Math.min(Math.max(Number.isNaN(parsed) ? 10 : parsed, 1), 100);
 
+  // The bookmark. Anything that is not one of OUR bookmarks is a 400
+  let ts = null;
+  let id = null;
+  if (req.query.cursor) {
+    const c = decodeCursor(String(req.query.cursor));
+    if (!c) {
+      return res.status(400).json({
+        data: null,
+        error: { code: 'validation', message: 'Invalid cursor' },
+      });
+    }
+    ts = c.ts;
+    id = c.id;
+  }
+
+  // limit + 1 on purpose: the extra row tells us whether a next page exists.
+  // RLS (req.db) keeps only this shop's orders AND this shop's customers.
+  // LEFT JOIN: an order still shows even if its customer row is missing
   const { rows } = await req.db.query(
-    `SELECT id, customer_id, status, channel, total_cents, created_at
-     FROM orders
-     WHERE ($1::uuid IS NULL OR id > $1)
-     ORDER BY id
-     LIMIT $2`,
-    [cursor, limit + 1]
+    `SELECT o.id, o.customer_id, o.status, o.channel, o.total_cents, o.created_at,
+            c.name  AS customer_name,
+            c.phone AS customer_phone,
+            ${CURSOR_TS_SQL('o.created_at')} AS cursor_ts
+       FROM orders o
+       LEFT JOIN customers c ON c.id = o.customer_id
+      WHERE ($1::timestamptz IS NULL OR (o.created_at, o.id) < ($1::timestamptz, $2::uuid))
+      ORDER BY o.created_at DESC, o.id DESC
+      LIMIT $3`,
+    [ts, id, limit + 1]
   );
 
-  const hasMore    = rows.length > limit;
-  const data       = hasMore ? rows.slice(0, limit) : rows;
-  const nextCursor = hasMore ? data[data.length - 1].id : null;
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+  const nextCursor = hasMore ? encodeCursor(last.cursor_ts, last.id) : null;
+
+  // cursor_ts is only for building the bookmark, so it is not sent out
+  const data = page.map(({ cursor_ts, ...order }) => order);
 
   res.json({ data, nextCursor, error: null });
 }
