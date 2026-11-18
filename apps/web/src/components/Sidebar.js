@@ -64,7 +64,7 @@ export const NAV_ITEMS = [
   { label: 'Inbox',     href: '/inbox',     ready: true  },
   { label: 'Payments',  href: '/payments',  ready: true  },
   { label: 'Products',  href: '/products',  ready: true },
-  { label: 'Orders',    href: '/orders',    ready: false },
+  { label: 'Orders',    href: '/orders',    ready: true },
   { label: 'Wallet',    href: '/wallet',    ready: true },
   { label: 'Settings',  href: '/settings',  ready: false },
 ];
