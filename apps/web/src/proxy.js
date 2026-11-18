@@ -173,6 +173,19 @@ export async function proxy(request) {
   // STEP 5: write OUR sticky note on the visit going IN to the pages
   requestHeaders.set(TENANT_HEADER, tenant.id);
 
+  // STEP 5b (storefront, follow-up to Week 29 Day 4): someone who opens a
+  // shop's own address (brio-hardware.localhost:3001/) should see that shop's
+  // window, not the Rahisisha landing page. rewrite() shows /shop/<slug> while
+  // the address bar still says brio-hardware.localhost. Only the root "/" is
+  // rewritten: /login, /dashboard and every other page stay exactly as before.
+  // tenant.slug comes from our own API (already validated), never from the visitor.
+  if (pathname === '/') {
+    return NextResponse.rewrite(
+      new URL(`/shop/${tenant.slug}`, request.url),
+      { request: { headers: requestHeaders } }
+    );
+  }
+
   // STEP 6: let the visit continue, carrying the new headers
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
