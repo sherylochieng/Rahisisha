@@ -156,3 +156,22 @@ if (!nextStatus || !Object.hasOwn(STATUS_TRANSITIONS, nextStatus)) {
 
 - Two comments are out of date: a mention of `FOR UPDATE` in `createOrder` (the query does not use it) and a claim that `listOrders` supports `?status=` and `?channel=` filters (it does not yet).
 - Order status check returns 400, but a legal-format-but-illegal move returns 409 on purpose: the input is valid, the **state** conflicts.
+
+---
+
+## Follow-up to Week 29 Day 4: `listOrders` now pages by keyset and shows the customer
+
+**What changed.** `listOrders` used to page by order id. It now pages newest first on `(created_at, id)`, the same keyset rule the Inbox and Payments pages use (`utils/keysetCursor.js`), and it joins `customers` so each order carries `customer_name` and `customer_phone`.
+
+**Why.** The Orders page in the web app has to show "who ordered" and has to load older orders without skipping or repeating any. Paging by id cannot do that once orders are sorted by time, because two orders can share the same second.
+
+**How it works, piece by piece.**
+- `limit` is read as a whole number from 1 to 100; the default is 10. A value outside that range is clamped, not trusted.
+- `cursor` is decoded with `decodeCursor`. A cursor that is not ours gives `400 { data: null, error: { code: 'validation', message: 'Invalid cursor' } }` and no database query runs. Real-life example: someone edits the address bar and types `cursor=hello`; they get a clear refusal, not a server error.
+- The query is `ORDER BY o.created_at DESC, o.id DESC` with `WHERE (o.created_at, o.id) < ($cursorTime, $cursorId)`. Two orders created in the same microsecond still have a fixed order because the id breaks the tie.
+- `CURSOR_TS_SQL('o.created_at')` gives the time as text with 6 decimals so the cursor does not lose microseconds. The helper column `cursor_ts` is used to build `nextCursor` and then removed from each row before the answer is sent.
+- `LEFT JOIN customers`: an order whose customer is missing still shows up, with empty name and phone. Real-life example: a walk-in sale with no saved customer must not vanish from the list.
+
+**Danger.** Both tables are covered by the `tenant_isolation` lock because the query runs inside `withTenant`. Never run it on the bare pool: the join would then be the one place another shop's customer names could leak.
+
+**Tests.** `tests/orders.list.test.js` (8 checks): newest first, paging by 1, 2 and 3 loses and repeats nothing, customer fields present, bad cursor gives 400, limit is capped, and shop B never sees shop A's orders. Guide: `docs/tests/orders.list.test.md`.
