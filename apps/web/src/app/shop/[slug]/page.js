@@ -1,0 +1,211 @@
+// ═══════════════════════════════════════════════════════════
+// FILE: apps/web/src/app/shop/[slug]/page.js
+// ═══════════════════════════════════════════════════════════
+//
+// WHY THIS FILE EXISTS
+//   This is the shop window: the public page a customer sees when they
+//   open a shop's link (brio-hardware.rahisishabiashara.com). It shows the
+//   shop's name and the products it is selling, with prices.
+//
+// WHY IMPORTANT
+//   This is the page the owner shares on WhatsApp. It is the first thing
+//   a customer sees, and the base the cart and checkout will grow from.
+//
+// DANGER (what breaks without it)
+//   - The shop link opens the main Rahisisha landing page and the customer
+//     never sees the shop.
+//   - If this page ever called a private endpoint it would show private
+//     data to strangers. It only uses publicApi.js.
+//
+// WHAT IT SOLVES
+//   Shows { shop name, product grid, "More products" paging, a friendly
+//   empty state, a not-found screen for unknown shops }.
+//
+// SYSTEM DESIGN PRINCIPLE
+//   Server Component, public data only. The server asks the API and sends
+//   finished HTML: fast on a cheap phone, and good for link previews.
+//   Same paging idea as Orders: the page reads ?cursor= from the address
+//   and shows a link to the next page, so no JavaScript is needed.
+//
+// RULES (never break these)
+//   1. Use fetchStorefront only (public, no cookie). Never serverGet.
+//   2. Validate the cursor shape before sending it on.
+//   3. Show only what the API sends: name, description, price.
+//   4. Prices go through formatKes. Never do money maths here.
+//   5. A missing shop is notFound(), never a blank page.
+//
+// PRACTICAL EXAMPLES
+//   brio-hardware.localhost:3001      -> proxy.js rewrites "/" to this page
+//   localhost:3001/shop/brio-hardware -> the same page on the main address
+//   ...?cursor=<bookmark>             -> the next page of products
+//   localhost:3001/shop/nobody        -> the not-found screen
+//
+// DECISIONS
+//   - There are no product photos yet (the database has none), so each
+//     card shows a coloured tile with the product's first letter.
+//   - No add-to-cart button yet: the cart is the next step.
+//   - The page title is the shop's name, via generateMetadata, so a
+//     WhatsApp link preview says "Brio Hardware".
+//   - "Powered by Rahisisha Biashara" sits in a small footer.
+//
+// WHERE YOU WILL USE THIS IN FUTURE PROJECTS
+//   Any "one page per customer" catalogue: a menu, a portfolio, a
+//   property list.
+//
+// TRADEOFFS
+//   + Simple, fast, no client JavaScript.
+//   - No search, categories or photos yet. No cart yet.
+//
+// HOW TO USE
+//   Nothing to call. Open /shop/<slug>, or a shop's own address.
+//
+// AI AUDIT NOTE
+//   Written by AI at Sheryl's request (follow-up to Week 29 Day 4).
+//   Declared in docs/AI_AUDIT_week_29_day4.md.
+//
+// ═══════════════════════════════════════════════════════════
+// EXPLAINED PIECE BY PIECE (real life + where / when / how)
+// ═══════════════════════════════════════════════════════════
+//
+// 1. CURSOR_PATTERN  =  "IS THIS BOOKMARK SHAPED LIKE OURS?"
+//    Letters, numbers, - and _ only, up to 300 characters. Anything else
+//    is ignored and the first page is shown.
+//
+// 2. getPage(params, searchParams)  =  "FETCH WHAT THIS VISIT ASKED FOR"
+//    Next.js 16 gives params and searchParams as promises, so we await
+//    them. Both generateMetadata and the page need the same answer.
+//
+// 3. generateMetadata  =  "THE SIGN OVER THE DOOR"
+//    Sets the browser tab and link-preview title to the shop's name.
+//
+// 4. The header  =  "THE SHOP'S NAME BOARD"
+//    A dark navy band with the name in the display font.
+//
+// 5. The grid  =  "THE SHELVES"
+//    One card per product: a letter tile, the name, up to two lines of
+//    description, and the price in KES. 2 columns on a phone, 3 and 4
+//    on larger screens.
+//
+// 6. The empty state  =  "NOTHING IN THE WINDOW YET"
+//    Friendly words, not a blank screen.
+//
+// 7. "More products" link  =  "TURN THE PAGE"
+//    Only shown when the API gave us a nextCursor.
+// ═══════════════════════════════════════════════════════════
+
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+
+import { fetchStorefront } from '../../../lib/publicApi';
+import { formatKes } from '../../../lib/format';
+import EmptyState from '../../../components/EmptyState';
+
+// Same shape rule as the Orders page: only characters our bookmarks use
+const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,300}$/;
+
+// Read the address word and the bookmark, then ask the API once
+async function getPage(params, searchParams) {
+  const { slug } = await params;
+  const { cursor } = await searchParams;
+  const safeCursor =
+    typeof cursor === 'string' && CURSOR_PATTERN.test(cursor) ? cursor : null;
+
+  const page = await fetchStorefront(slug, safeCursor);
+  return { slug, cursor: safeCursor, page };
+}
+
+// The browser tab and link-preview title: the shop's name
+export async function generateMetadata({ params, searchParams }) {
+  const { page } = await getPage(params, searchParams);
+  if (!page) return { title: 'Shop not found' };
+  return {
+    title: page.shop.name,
+    description: `Shop online with ${page.shop.name}. Pay with M-Pesa.`,
+  };
+}
+
+export default async function ShopPage({ params, searchParams }) {
+  const { slug, cursor, page } = await getPage(params, searchParams);
+
+  // Unknown or closed shop: the not-found screen
+  if (!page) notFound();
+
+  const { shop, products, nextCursor } = page;
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+
+      {/* THE SHOP'S NAME BOARD */}
+      <header className="bg-brand-navy text-white">
+        <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold">{shop.name}</h1>
+          <p className="mt-1 text-sm text-gray-300">Shop online. Pay with M-Pesa.</p>
+        </div>
+      </header>
+
+      {/* THE SHELVES */}
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:py-8">
+        {products.length === 0 ? (
+          <EmptyState
+            title={cursor ? 'No more products' : 'Nothing for sale yet'}
+            message={
+              cursor
+                ? 'You have seen everything this shop has.'
+                : 'This shop has not added products yet. Please check back soon.'
+            }
+          />
+        ) : (
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+            {products.map((p) => (
+              <li
+                key={p.id}
+                className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white"
+              >
+                {/* No photos yet: a tile with the product's first letter */}
+                <div
+                  aria-hidden="true"
+                  className="flex h-28 items-center justify-center bg-brand-cream text-4xl font-display font-bold text-brand-orange sm:h-32"
+                >
+                  {p.name.trim().charAt(0).toUpperCase()}
+                </div>
+
+                <div className="flex flex-1 flex-col p-3">
+                  <h2 className="text-sm font-semibold text-brand-navy break-words">{p.name}</h2>
+                  {p.description && (
+                    <p className="mt-1 line-clamp-2 text-xs text-gray-500">{p.description}</p>
+                  )}
+                  <p className="mt-auto pt-3 text-sm font-bold text-brand-navy">
+                    {formatKes(p.price_cents)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* TURN THE PAGE */}
+        {(nextCursor || cursor) && (
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm">
+            {cursor && (
+              <Link href={`/shop/${slug}`} className="text-gray-600 underline">
+                Back to the first products
+              </Link>
+            )}
+            {nextCursor && (
+              <Link
+                href={`/shop/${slug}?cursor=${encodeURIComponent(nextCursor)}`}
+                className="rounded-lg bg-brand-orange px-4 py-2 font-semibold text-white hover:bg-brand-orange-dark"
+              >
+                More products
+              </Link>
+            )}
+          </div>
+        )}
+      </main>
+
+      <footer className="py-6 text-center text-xs text-gray-400">
+        Powered by Rahisisha Biashara
+      </footer>
+    </div>
+  );
+}
