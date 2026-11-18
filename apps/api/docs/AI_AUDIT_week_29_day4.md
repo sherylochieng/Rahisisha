@@ -133,3 +133,37 @@ The new tests were **mutation-tested** by the AI: removing the ORDER BY, using a
 4. Stretch goals (inbox filters, CSV export, keyboard shortcuts) were not built.
 5. USSD logging adds one insert per request and one row per tap.
 6. The migration must be run on her database (as `rahisisha_user`) before the inbox works there.
+
+
+---
+
+## FOLLOW-UP: dashboard fill-in (18 November 2026)
+
+After the Day 4 submission, Sheryl asked for the sidebar links to work and for each shop to see and share its public link. All the code below was **written by AI at her request**. She saved each file herself, ran the tests and the pages on her own machine, and committed one file at a time. Nothing here was written by hand by her.
+
+| What | Files | Who wrote it |
+|---|---|---|
+| Wallet link works (redirects to Payments) | `apps/web/src/app/(authed)/wallet/page.js`, `Sidebar.js` (one line) | AI |
+| Shop link card on the dashboard | `lib/shopUrl.js`, `components/ShopLinkCard.js`, `(authed)/dashboard/page.js` (24 lines added) | AI |
+| Products page, Add product form | `(authed)/products/page.js`, `loading.js`, `products/new/page.js`, `components/ProductForm.js`, `lib/kesToCents.js`, `lib/api.js` (`createProduct`) | AI |
+| Orders list API upgrade | `apps/api/src/controllers/orders.controller.js` (`listOrders`) | AI |
+| Orders list API tests (8 checks) | `apps/api/tests/orders.list.test.js` | AI |
+| Orders page | `(authed)/orders/page.js`, `loading.js`, `Sidebar.js` (one line) | AI |
+| Guide docs for all of the above | 11 files under `apps/web/docs/` and `apps/api/docs/tests/` | AI |
+
+**What was checked, and by whom**
+
+- Tests: the 8 new `orders.list` checks and the existing orders tests passed on Sheryl's machine (3 suites, 15 tests). The AI also broke the ordering on purpose and two tests failed, so the tests really catch that mistake.
+- Pages: Sheryl opened the dashboard card, Products (list and Add product), Wallet and Orders in the browser. Orders showed the empty state, because no test order was added.
+- Not checked yet: the Orders page with real orders in the list, the Copy and Share buttons on a phone, and the public shop page (not built yet: the shop link still opens the main landing page).
+
+**One mistake made on the way, and fixed:** `products/new/page.js` was first saved with a copy of the 305-line form code instead of the short 86-line page, so the page failed to build. It was fixed in commit `52c9ac32`, and the lesson is recorded in `products.new.page.md`.
+
+**Re-read boxes** (tick each only after you have read that file line by line):
+
+- [ ] `lib/shopUrl.js` and `lib/kesToCents.js`
+- [ ] `components/ShopLinkCard.js`
+- [ ] `components/ProductForm.js`
+- [ ] `controllers/orders.controller.js`, the new `listOrders`
+- [ ] `tests/orders.list.test.js`
+- [ ] the three new pages (Products, Orders, Wallet)
