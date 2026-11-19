@@ -152,3 +152,22 @@ What it does, in order:
 ## AI NOTE
 
 The error handler was AI-assisted. The wording of its validation response (message and `details`) was then changed by hand to match Task 3. Both are recorded in the AI audit.
+
+---
+
+## FOLLOW-UP (Week 29 Day 4): the public storefront mount
+
+One new line group was added after the `/v1/tenants` mount:
+
+```js
+app.use('/v1/storefront/:slug', resolveShopBySlug, withTenant, storefrontRouter);
+```
+
+- **What it is:** the PUBLIC data behind a shop's online page (`GET /v1/storefront/:slug`). No `requireAuth`, because a customer has no login cookie.
+- **Why it is still safe:** `resolveShopBySlug` finds the active shop from the address word and stamps `req.tenantId`, then `withTenant` locks the database to that shop. The same "stamp, then lock" pattern as USSD. The controller only reads active, not-deleted products and returns four fields.
+- **Order matters:** `resolveShopBySlug` first, `withTenant` second. Swapped, the lock would be set to `undefined`.
+- **Read-only:** never add a write route behind this mount. Checkout and payment will get their own routers and tests.
+- **Imports added:** `storefrontRouter` and `resolveShopBySlug`.
+- **Guides:** `docs/src/middleware/resolveShopBySlug.md`, `docs/src/controllers/storefront.controller.md`, `docs/src/routes/storefront.routes.md`, `docs/tests/isolation/storefront.cross-tenant.test.md`.
+
+*Written by AI at Sheryl's request (declared in `AI_AUDIT_week_29_day4.md`, follow-up section). Added 18 November 2026.*
