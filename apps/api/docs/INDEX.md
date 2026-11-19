@@ -44,6 +44,7 @@ apps/api/
 │   │   ├── withTenant.js               Reads tenant from JWT, sets req.db to tenant-scoped connection.
 │   │   ├── asyncHandler.js             Wraps async controllers so thrown errors reach the error handler.
 │   │   ├── resolveUssdTenant.js        USSD guard: finds the shop from the dialled service code, sets req.tenantId (Week 29 Day 1).
+│   │   ├── resolveShopBySlug.js        Public shop guard: finds the ACTIVE shop from the address word (slug), sets req.tenantId and req.shop (follow-up to Week 29 Day 4).
 │   │   ├── resolveWhatsappTenant.js    WhatsApp guard: finds the shop from Meta's phone_number_id, sets req.tenantId (Week 29 Day 2).
 │   │   └── resolveMpesaTenant.js       M-Pesa callback guard: finds the shop from the callback URL, sets req.tenantId (Week 29 Day 3).
 │   ├── utils/
@@ -63,6 +64,7 @@ apps/api/
 │   │   ├── inbox.routes.js             GET /v1/inbox (protected) (Week 29 Day 4).
 │   │   ├── wallet.routes.js            GET /v1/wallet/entries (protected, read only) (Week 29 Day 4).
 │   │   ├── tenants.routes.js           GET /v1/tenants/by-slug/:slug (public).
+│   │   ├── storefront.routes.js        GET /v1/storefront/:slug (public, read only, mounted with resolveShopBySlug + withTenant) (follow-up to Week 29 Day 4).
 │   │   ├── ussd.routes.js              POST /ussd (public, mounted with resolveUssdTenant + withTenant).
 │   │   ├── whatsapp.routes.js          GET and POST /webhooks/whatsapp (public: Meta has no login cookie) (Week 29 Day 2).
 │   │   └── mpesa.routes.js             POST /callbacks/mpesa/:tenantId (public: Safaricom has no login cookie) (Week 29 Day 3).
@@ -77,6 +79,7 @@ apps/api/
 │       ├── inbox.controller.js         Unified inbox: WhatsApp + USSD merged with UNION ALL, newest first, cursor paging (Week 29 Day 4).
 │       ├── wallet.controller.js        Wallet entries grouped by Nairobi day with day totals and a running balance; read only (Week 29 Day 4).
 │       ├── tenants.controller.js       Public shop lookup by slug (used by the web proxy).
+│       ├── storefront.controller.js    Public shop data: name and ACTIVE products only, 4 fields, newest first, keyset paging (follow-up to Week 29 Day 4).
 │       ├── ussd.controller.js          USSD menu: welcome, 1 products, 2 balance, 3 exit. Every reply 182 characters or less.
 │       ├── whatsapp.controller.js      Verify handshake (GET) and inbound messages (POST): dedupe, customer, conversation, message in one transaction (Week 29 Day 2).
 │       ├── payments.controller.js      POST /v1/orders/:id/pay: starts the M-Pesa prompt and saves a pending attempt; never marks anything paid (Week 29 Day 3).
@@ -101,6 +104,7 @@ apps/api/
 │   │   ├── products.cross-tenant.test.js   Cross-tenant checks for products.
 │   │   ├── login-lookup.isolation.test.js  Attacks the login_lookup rule on memberships.
 │   │   ├── ussd.cross-tenant.test.js       USSD: dialling shop A never shows shop B (8 checks, own shops).
+│   │   ├── storefront.cross-tenant.test.js USSD-style proof for the public shop door: shop A never shows shop B, drafts and private fields hidden, same 404 for unknown and suspended shops, read only (11 checks, own shops) (follow-up to Day 4).
 │   │   └── whatsapp.cross-tenant.test.js   WhatsApp: a message for shop A never reaches shop B; dedupe is per shop (11 checks, own shops).
 │   ├── signup-atomic.test.js               Signup is all-or-nothing: a failed seeding leaves no user and no shop.
 │   └── errors/
@@ -124,6 +128,7 @@ apps/api/
     ├── src/                            One guide per source file (same folders as src/).
     │   ├── middleware/
     │   │   ├── resolveUssdTenant.md    Guide for the USSD tenant guard.
+    │   │   ├── resolveShopBySlug.md    Guide for the public shop guard (follow-up to Week 29 Day 4).
     │   │   ├── resolveWhatsappTenant.md  Guide for the WhatsApp tenant guard.
     │   │   └── resolveMpesaTenant.md   Guide for the M-Pesa callback guard (Week 29 Day 3).
     │   ├── utils/
@@ -168,7 +173,7 @@ The USSD notes are in `ussd-quirks.md` and the WhatsApp security notes in `whats
 
 **Week 29 Day 4 guides** (one per new file): `docs/src/db/026_ussd_events.md`, `docs/src/controllers/{inbox,wallet,ussd}.controller.md`, `docs/src/routes/{inbox,wallet}.routes.md`, `docs/src/utils/keysetCursor.md`, `docs/tests/{inbox,wallet.entries}.test.md`, and for the web app `apps/web/docs/src/lib/format.md`, `apps/web/docs/src/components/MobileNav.md`, `apps/web/docs/src/app/{inbox,payments}.{page,loading}.md`. The polish checklist is `docs/polish-checklist.md` at the repo root.
 
-**Follow-up guides** (dashboard shop link, Products, Orders; written after Day 4): `docs/tests/orders.list.test.md`, and for the web app `apps/web/docs/src/lib/{shopUrl,kesToCents}.md`, `apps/web/docs/src/components/{ShopLinkCard,ProductForm}.md`, `apps/web/docs/src/app/{products.page,products.loading,products.new.page,orders.page,orders.loading,wallet.page}.md`. The AI declaration for this code is the follow-up section of `docs/AI_AUDIT_week_29_day4.md`.
+**Follow-up guides** (dashboard shop link, Products, Orders; written after Day 4): `docs/tests/orders.list.test.md`, and for the web app `apps/web/docs/src/lib/{shopUrl,kesToCents}.md`, `apps/web/docs/src/components/{ShopLinkCard,ProductForm}.md`, `apps/web/docs/src/app/{products.page,products.loading,products.new.page,orders.page,orders.loading,wallet.page}.md`. The AI declaration for this code is the follow-up section of `docs/AI_AUDIT_week_29_day4.md`. **Public shop page guides** (also written after Day 4): `docs/src/middleware/resolveShopBySlug.md`, `docs/src/controllers/storefront.controller.md`, `docs/src/routes/storefront.routes.md`, `docs/tests/isolation/storefront.cross-tenant.test.md`, `apps/web/docs/src/lib/publicApi.md`, `apps/web/docs/src/app/shop.page.md`, plus add-only notes in `docs/src/app.md`, `apps/web/docs/src/proxy.md` and `apps/web/docs/src/components/ShopLinkCard.md`. The AI declaration is "FOLLOW-UP 2" in `docs/AI_AUDIT_week_29_day4.md`.
 Seeds and scripts are indexed in `docs/SEEDS_AND_SCRIPTS.md` (SQL only in `sql/seeds/`; whole-repo helpers in root `scripts/`; helpers that use the API's own code in `apps/api/scripts/`).
 
 Other files added in Week 28 Weekend, outside `apps/api/src`:
@@ -256,6 +261,7 @@ catch-all and answered with a JSON 404 (not Express's HTML page).
 | Method | URL                          | What it does                                                    |
 |--------|------------------------------|-----------------------------------------------------------------|
 | GET    | /v1/tenants/by-slug/:slug    | Find an active shop by its slug (404 if unknown). Used by the web proxy. |
+| GET    | /v1/storefront/:slug         | PUBLIC (no login). A shop's name and its active, not-deleted products (id, name, description, price_cents), newest first. Query: `limit` (1 to 48, default 24), `cursor` (keyset; a bad one gives 400 `Invalid cursor`). Unknown, badly shaped and suspended shops all give the same 404 `Shop not found`. Read only. |
 
 ### USSD (public on purpose: a phone has no login cookie)
 
@@ -652,7 +658,8 @@ The frontend divides by 100 when displaying to users.
 Run from `apps/api`: `npm test`
 Run only the isolation suites: `npm run test:isolation`
 
-Current result (18 November 2026, after the dashboard, Products and Orders follow-up): **28 suites, 299 tests passing**.
+Current result (19 November 2026, after the public shop page): **29 suites, 310 tests passing**.
+Earlier result (18 November 2026, after the dashboard, Products and Orders follow-up): 28 suites, 299 tests passing.
 Earlier result (17 November 2026, Week 29 Day 4): 27 suites, 291 tests passing. Isolation only: 6 suites, 114 tests.
 Earlier result (16 November 2026, Week 29 Day 3): 25 suites, 259 tests passing. Isolation only: 6 suites, 109 tests.
 Earlier result (13 November 2026, Week 29 Day 2): 22 suites, 198 tests passing. Isolation only: 6 suites, 100 tests.
@@ -683,6 +690,7 @@ fresh Postgres built by `scripts/reset-db.sh`.
 | `tests/inbox.test.js` | The inbox merges WhatsApp and USSD newest first, pages by 1, 2 and 3 without skipping or repeating (ties and microseconds), never shows another shop's rows, and a USSD dial is logged (16 checks, Day 4) |
 | `tests/wallet.entries.test.js` | The payments list groups by Nairobi day, day totals and the running balance are right on every page and match the dashboard, isolation, read only (11 checks, Day 4) |
 | `tests/orders.list.test.js` | The Orders list is newest first, pages by 1, 2 and 3 without skipping or repeating, carries the customer's name and phone, refuses a bad cursor with 400, caps the limit, and never shows another shop's orders (8 checks, follow-up to Day 4) |
+| `tests/isolation/storefront.cross-tenant.test.js` | The public shop door, called with NO login: only the shop's active products in newest-first order, drafts, archived and deleted items hidden, only four fields public, shop A never shows shop B's secret product on any page size, A's bookmark on B's address shows only B's goods, a cookie from another shop changes nothing, unknown, badly shaped and suspended shops give the same 404, an empty shop is a normal 200, bad cursor 400, limit 1 to 48, POST/PATCH/PUT/DELETE find nothing (11 checks) |
 | `tests/errors/not-found.test.js` | Unknown URLs get a JSON 404 for GET and POST, and `/health` still works (4 checks) |
 | `tests/signup-atomic.test.js` | When seeding fails, signup fails cleanly and leaves no user and no shop behind (1 check) |
 
@@ -754,7 +762,9 @@ must end in `/v1` and is fixed when the site is built).
 
 | File | What it does |
 |------|--------------|
-| `src/proxy.js` | Next.js 16 proxy (the old "middleware"): works out which shop the visitor wants from the subdomain (uses `ROOT_DOMAIN`). `www` and the bare domain are not shops |
+| `src/proxy.js` | Next.js 16 proxy (the old "middleware"): works out which shop the visitor wants from the subdomain (uses `ROOT_DOMAIN`). `www` and the bare domain are not shops. A shop address's root `/` is rewritten to `/shop/<slug>` (the shop window); every other page is unchanged |
+| `src/lib/publicApi.js` | `fetchStorefront(slug, cursor)`: the public twin of `serverApi.js`. Calls `GET /v1/storefront/:slug` with NO cookie, never redirects to login, `no-store`; 404 gives `null`, a stale bookmark falls back to page one (follow-up to Week 29 Day 4) |
+| `src/app/shop/[slug]/page.js` | The public shop window: name board, product grid (letter tile, name, description, KES price), "More products" paging, empty state, not-found for unknown shops. No cart or photos yet (follow-up to Week 29 Day 4) |
 | `src/lib/session.js` | `requireSession`: reads the login cookie, redirects to login if missing |
 | `src/lib/serverApi.js` | `serverGet` (data only) and `serverGetPage` (data + `nextCursor`, Week 29 Day 4): call this API from server pages, forwarding the login cookie |
 | `src/lib/format.js` | Money (`KES 1,500.00`, signed) and Nairobi time/day formatting for the Inbox and Payments pages (Week 29 Day 4) |
@@ -764,7 +774,7 @@ must end in `/v1` and is fixed when the site is built).
 | `src/components/Sidebar.js` | Left menu. Dashboard, Inbox, Payments, Wallet, Products and Orders are links; only Settings is still marked "soon" |
 | `src/lib/shopUrl.js` | `buildShopUrl`: builds the shop's public address from its slug (`http://slug.localhost:3001` locally, `https://slug.rahisishabiashara.com` online); re-checks the slug |
 | `src/lib/kesToCents.js` | Turns what the owner types (`1,500` or `1500.50`) into whole cents, or `null` when it is not a valid price |
-| `src/components/ShopLinkCard.js` | Dashboard card showing the shop's link with Copy, WhatsApp share, phone Share and Open. The public shop page behind the link is not built yet |
+| `src/components/ShopLinkCard.js` | Dashboard card showing the shop's link with Copy, WhatsApp share, phone Share and Open. The link leads to the public shop page |
 | `src/components/ProductForm.js` | Add product form: name, price in shillings, status, optional SKU and description; duplicate SKU shows a kind message |
 | `src/app/(authed)/products/page.js` (+ `loading.js`, `new/page.js`) | Products list with an Add product button, and the Add product page. Edit and delete are not built yet |
 | `src/app/(authed)/orders/page.js` (+ `loading.js`) | Orders: newest first with customer, status colour, channel and total, older-orders paging, empty state |
@@ -782,7 +792,7 @@ check is the second lock.
 
 | Feature                             | Week            |
 |-------------------------------------|-----------------|
-| Dashboard pages: products (list and add done; edit and delete to do), orders (list done), wallet (done, same as Payments), settings (to do), public shop page (to do) | Week 29 |
+| Dashboard pages: products (list and add done; edit and delete to do), orders (list done), wallet (done, same as Payments), settings (to do), public shop page (done: products and prices; cart and checkout to do) | Week 29 |
 | M-Pesa STK push integration         | Week 29         |
 | WhatsApp Cloud API                  | Week 29         |
 | AI product enhancement (Claude API) | Week 29         |
@@ -799,7 +809,8 @@ Staging is already live (see above).
 
 ---
 
-*Last updated: 18 November 2026, after Week 29 Day 4 (shop link card on the dashboard, Products list and add, Orders list with customer details and keyset paging, Wallet link)*  
+*Last updated: 19 November 2026, after Week 29 Day 4 and the public shop page (guard, public endpoint, cross-shop test, shop page at `/shop/<slug>`, shop address rewrite)*  
+*Earlier: 18 November 2026, shop link card on the dashboard, Products list and add, Orders list with customer details and keyset paging, Wallet link*  
 *Earlier: Week 29 Day 4 (unified inbox, payments page, `ussd_events` table, keyset paging, mobile menu, polish checklist), 17 November 2026*  
 *Earlier: Week 29 Day 3 (M-Pesa per tenant: Daraja settings, STK push, verified callback, wallet credit, money audit, reconciliation notes), 16 November 2026*  
 *Earlier: Week 29 Day 2 (WhatsApp per tenant: webhook, encrypted tokens, dedupe, shared sender, seed script, docs tidy-up), 14 November 2026*  
