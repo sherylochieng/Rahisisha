@@ -73,3 +73,9 @@ Opens a new tab that cannot control this one. A standard safety habit.
 ---
 
 *Written by AI at Sheryl's request (declared in `AI_AUDIT_week_29_day4.md`, follow-up section). Last updated 18 November 2026.*
+
+---
+
+## FOLLOW-UP (18 November 2026): the "coming soon" note was replaced
+
+The public shop page now exists (`apps/web/src/app/shop/[slug]/page.js`), so the small note under the link no longer says it is "coming soon". It now reads: "Customers who open this link see your shop and the products you have set to active." Only that comment and sentence changed. Copy, WhatsApp, Share and Open work exactly as before, and the link they use now leads to the real shop window.
