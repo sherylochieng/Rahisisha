@@ -105,3 +105,27 @@ Any SaaS with an address per customer (Shopify, Slack, Notion style). The same f
 
 - `apps/api/docs/src/controllers/tenants.controller.md` (the endpoint it calls)
 - `apps/web/docs/src/lib/session.md` (the next gate: is the visitor logged in?)
+
+---
+
+## FOLLOW-UP (Week 29 Day 4): STEP 5b, the shop's own address shows the shop window
+
+After the shop is looked up and the `x-tenant-id` note is written, one block was added before the final "let the visit continue" step:
+
+```js
+if (pathname === '/') {
+  return NextResponse.rewrite(
+    new URL(`/shop/${tenant.slug}`, request.url),
+    { request: { headers: requestHeaders } }
+  );
+}
+```
+
+- **What it does:** a customer who opens `brio-hardware.localhost:3001` (or `brio-hardware.rahisishabiashara.com` online) sees the public shop page (`/shop/brio-hardware`). `rewrite` keeps the address bar as the shop's own address.
+- **Only the root `/`:** `/login`, `/dashboard` and every other page behave exactly as before. The plain main-domain root is still the Rahisisha landing page, because it never reaches this step (no shop word).
+- **Where the slug comes from:** our own API's answer (`tenant.slug`), already validated. Never from the visitor's path or headers.
+- **A real-life example:** Amina shares `aminas-boutique.rahisishabiashara.com` on WhatsApp. A customer taps it and lands on Amina's shop window, not on a page about Rahisisha.
+- **Known behaviour to remember:** an owner who opens their own shop address now also lands on the shop window. They reach the dashboard by `/login` or `/dashboard`.
+- **Guide for the page it shows:** `docs/src/app/shop.page.md`.
+
+*Written by AI at Sheryl's request (declared in `AI_AUDIT_week_29_day4.md`, follow-up section). Added 18 November 2026.*
