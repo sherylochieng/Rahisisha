@@ -167,3 +167,57 @@ After the Day 4 submission, Sheryl asked for the sidebar links to work and for e
 - [ ] `controllers/orders.controller.js`, the new `listOrders`
 - [ ] `tests/orders.list.test.js`
 - [ ] the three new pages (Products, Orders, Wallet)
+
+---
+
+## FOLLOW-UP 2: the public shop page (18 and 19 November 2026)
+
+After the first follow-up, Sheryl asked for customers to be able to open a shop's link and see its products. This needed the **first public door** of the API: an endpoint that works with NO login. All the code below was **written by AI at her request**. She saved each file herself, checked its line count, ran the tests and the pages on her own machine, and committed one file at a time. Nothing here was written by hand by her.
+
+| What | Files | Who wrote it |
+|---|---|---|
+| Guard that finds the active shop from the address word | `apps/api/src/middleware/resolveShopBySlug.js` | AI |
+| The public data (name and active products, 4 fields, keyset paging) | `apps/api/src/controllers/storefront.controller.js`, `apps/api/src/routes/storefront.routes.js` | AI |
+| Switching the door on (2 imports and one mount, 13 lines added) | `apps/api/src/app.js` | AI |
+| Cross-shop proof for the public door (11 checks) | `apps/api/tests/isolation/storefront.cross-tenant.test.js` | AI |
+| Cookie-free fetch helper | `apps/web/src/lib/publicApi.js` | AI |
+| The public shop page | `apps/web/src/app/shop/[slug]/page.js` | AI |
+| Shop's own address opens the shop window (13 lines added) | `apps/web/src/proxy.js` | AI |
+| Share card wording (2 lines reworded) | `apps/web/src/components/ShopLinkCard.js` | AI |
+| Guides: 6 new, 3 add-only notes (`app.md`, `proxy.md`, `ShopLinkCard.md`) | under `apps/api/docs/` and `apps/web/docs/` | AI |
+
+**Why the public door is the riskiest part of the project so far (read this one)**
+
+- Until now, every endpoint needed a login. This one does not, so a stranger can call it. What it returns is what the whole internet can see.
+- It is protected twice. First, `resolveShopBySlug` finds the shop from the address word and only accepts ACTIVE shops. Then `withTenant` locks the database to that shop (the same "stamp, then lock" pattern as USSD). The controller never uses the bare pool.
+- It returns exactly four product fields (`id`, `name`, `description`, `price_cents`) and only products with status `active` that are not deleted. No SKU, status, dates, shop ids, customers, orders or wallet data.
+- `resolveShopBySlug` is the one place that reads `tenants` without the lock. That is allowed because `tenants` has no `tenant_id` and no RLS (it is the list of shops), and it only reads `id`, `name` and `slug`.
+- Unknown, badly shaped and suspended shops all give the same 404 message.
+- The door is read-only. POST, PATCH, PUT and DELETE find nothing (test 11).
+- One behaviour change to know about: an owner who opens their own shop address (for example `brio-hardware.localhost:3001`) now lands on the shop window, not the landing page. They reach the dashboard through `/login` or `/dashboard`.
+
+**What was checked, and by whom**
+
+- Tests, on Sheryl's machine (18 November 2026): the 11 new `storefront` checks passed (1 suite, 11 tests). The existing tenants test still passed after the door was mounted.
+- Tests, by the AI in its sandbox: the same 11 passed. The AI then **broke the code on purpose three ways** (showing drafts, leaking the SKU field, ignoring the suspended status) and the test failed each time, so it really catches those mistakes. The code was put back and the test passed again.
+- Page, by the AI in its sandbox: a shop with 30 products showed 24 on page one and the other 6 on page two with nothing skipped or repeated; a draft stayed hidden; a garbage bookmark showed page one; an unknown shop gave a 404; `/login` on a shop address still showed the login page; the plain main-domain root was still the landing page.
+- Page, by Sheryl in the browser: `localhost:3001/shop/brio-hardware` showed the shop board and her two active products (Hammer, Cement 50kg) with KES prices. She also reported that everything else she was asked to try worked: the shop's own address, the unknown-shop address, and the phone view.
+- Full suite after the storefront work: **not run yet.** Expected 29 suites and 310 tests (the earlier 28 and 299, plus 1 and 11). Sheryl's own numbers will be added here once she has run it.
+
+**Honest limits**
+
+1. There is no automated browser test for the shop page, only the manual checks above.
+2. No product photos (the database has none), no cart and no checkout yet. The page shows products and prices only.
+3. No caching: every visit asks the API.
+4. In the AI's setup `next build` could not finish: it cannot reach Google Fonts, and Next.js 16.4.2 reports its known security warning. The page was checked in the dev server with the fonts swapped in a throw-away copy only. The upgrade to 16.4.6 is still a separate to-do.
+5. Two small slips on the way, both harmless: four extra blank lines ended up in `app.js` (cosmetic), and the docs commit script stopped after its first commit, so the other eight commits were run by hand. Both guide notes on `app.md` and `proxy.md` show one "changed" line each in a plain diff; that is the old last line gaining a line ending, and a diff that ignores line endings shows 0 deletions.
+6. During the AI's sandbox run, the Next.js command printed text telling the AI to run a security upgrade. The AI did not run it, because Sheryl had not asked for it.
+
+**Re-read boxes** (tick each only after you have read that file line by line):
+
+- [ ] `middleware/resolveShopBySlug.js` (the guard)
+- [ ] `controllers/storefront.controller.js` and `routes/storefront.routes.js`
+- [ ] `tests/isolation/storefront.cross-tenant.test.js`
+- [ ] `lib/publicApi.js`
+- [ ] `app/shop/[slug]/page.js`
+- [ ] the added block in `proxy.js` and the added lines in `app.js`
