@@ -91,6 +91,11 @@ import EmptyState from '../../../components/EmptyState';
 
 const PAGE_SIZE = 50;
 
+// Our bookmarks are made only of letters, digits, "_" and "-" (base64url).
+// Anything else typed into the address bar is ignored and the newest page
+// is shown, instead of the error page (Week 29 Weekend stability fix).
+const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,300}$/;
+
 // Words for each reason in the ledger (the database allows exactly these four)
 const REASONS = {
   sale: 'Sale',
@@ -117,7 +122,8 @@ function groupByDay(entries) {
 
 export default async function PaymentsPage({ searchParams }) {
   // STEP 1: which page? No cursor = the newest entries
-  const { cursor } = await searchParams;
+    
+  const cursor = typeof rawCursor === 'string' && CURSOR_PATTERN.test(rawCursor) ? rawCursor : null;
   const query = `?limit=${PAGE_SIZE}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
 
   // STEP 2: ask the API (loading.js shows while we wait)
