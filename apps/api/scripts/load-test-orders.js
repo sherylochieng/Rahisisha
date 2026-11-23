@@ -83,6 +83,104 @@
 //   Written by AI at Sheryl's request for the Week 29 weekend. Declared in the
 //   weekend audit. Sheryl ran it and pasted the real results.
 
+// ═══════════════════════════════════════════════════════════
+// EXPLAINED PIECE BY PIECE (real life + where / when / how)
+// ═══════════════════════════════════════════════════════════
+//
+// THE BIG PICTURE
+//   A market stall owner's phone buzzes with orders all morning. This script
+//   pretends to be those customers for TWO stalls at the same time, then
+//   reports how quickly each order was taken and whether any failed. A
+//   separate SQL check (in the guide) then proves no order landed in the
+//   wrong stall's book.
+//
+// 1. const API  =  WHERE THE APP LIVES
+//    Defaults to http://localhost:3000 (this computer). Can be changed with
+//    LOAD_API, but guard() refuses anything that is not this computer.
+//
+// 2. const SHOPS  =  THE TWO STALLS
+//    Name, owner phone (for login), password (from the environment, never
+//    from this file) and a customer-phone marker: Aminas Boutique's customers
+//    all start with 254722, Brio Hardware's with 254733. The marker is the
+//    secret to the "no bleed" proof: if a 254722 customer ever shows up in
+//    Brio's book, an order crossed over.
+//    WHERE: the two demo shops. WHEN: every run.
+//
+// 3. TOTAL_ORDERS, WINDOW_MS, BURST_CONCURRENCY, BURST  =  THE KNOBS
+//    100 orders in total (50 each). WINDOW_MS is the 60 seconds the paced run
+//    is spread over. BURST_CONCURRENCY is how many orders are in flight at
+//    once in the rush version. BURST is true when you add --burst.
+//    REAL LIFE: "one customer every 0.6 seconds" versus "twenty customers
+//    walk in at the same moment".
+//
+// 4. guard()  =  THE SAFETY CHECK AT THE DOOR
+//    Refuses to start unless the address is localhost / 127.0.0.1 and both
+//    passwords are set. REAL LIFE: the practice-room key that cannot open
+//    the real shop. It throws plain messages that never contain a password.
+//
+// 5. pause(ms)  =  "WAIT A MOMENT"
+//    Used to space the paced orders 0.6 seconds apart.
+//
+// 6. percentile(sorted, p)  =  "95 OUT OF 100 WERE FASTER THAN THIS"
+//    Takes a sorted list of times and returns the one that p percent of them
+//    fall under. REAL LIFE: "95% of customers waited less than a second".
+//    The median (p = 50) is the typical customer; the 95th shows how bad the
+//    unlucky ones had it. WHERE: the RESULTS block at the end.
+//
+// 7. login(shop)  =  THE OWNER SIGNS IN
+//    Posts the phone and password, reads the login cookie called "token"
+//    from the answer, and keeps it on the shop object. Throws a plain
+//    message if the login fails. REAL LIFE: showing your staff badge once
+//    and then carrying it.
+//
+// 8. pickProduct(shop)  =  CHOOSE WHAT TO ORDER
+//    Lists the shop's products and picks the cheapest, so every order is
+//    tiny and identical. Any slowness then comes from the system, not from
+//    different order sizes.
+//
+// 9. placeOrder(shop, n)  =  ONE CUSTOMER AT THE COUNTER
+//    Builds a unique customer phone (marker + a number), sends one order for
+//    one item, and measures how many milliseconds the answer took. Returns
+//    the shop name, the status number (201 means created, 0 means the
+//    request itself failed) and the time. It reads the body so the
+//    connection is released, otherwise a long run would slowly clog.
+//
+// 10. main()  =  THE WHOLE SHOW
+//     a. guard(), then log in as both owners and choose a product each.
+//     b. Build 100 jobs, alternating shop A, shop B, A, B...
+//     c. PACED: start one job every 0.6 seconds WITHOUT waiting for the
+//        previous answer (customers arrive on a clock, whether or not the
+//        last one has been served), then wait for all to finish.
+//        BURST: keep 20 jobs in flight at once until all are done (a rush).
+//     d. Count the successes and failures, the status codes, the per-shop
+//        counts, the total time, the orders per second, and the fastest,
+//        median, 95% and slowest answer time. Only counts and timings are
+//        printed, never a password.
+//     e. If any order failed, set a failing exit code.
+//
+// 11. main().catch(...)  =  THE LAST NET
+//     Prints only the message of any unexpected error and sets a failing
+//     exit code. Never a whole error object.
+//
+// HOW TO READ THE RESULTS
+//   - Created = 100 and Failed = 0: every order was taken.
+//   - "Answer time" median: what a typical customer feels.
+//   - "95% under": what the unlucky customers feel. A big gap between median
+//     and 95% (like 12 ms versus 1,045 ms in the rush run on 23 November
+//     2026) means orders are queuing for something.
+//   - Then run the SQL check in the guide. The speed numbers say "it was
+//     fast"; only the SQL check says "it was safe".
+//
+// COMMON MISTAKES
+//   - Running it against the wrong database: the guard stops non-local
+//     addresses, but a local database you care about would still get 100
+//     extra orders. Use the practice database.
+//   - Running the SQL check hours later: it only looks at the last 15
+//     minutes, so older orders are not counted.
+//   - Forgetting the two LOAD_PASSWORD_* variables: the guard says so.
+//
+// ═══════════════════════════════════════════════════════════
+
 // ---------- settings you can change ----------
 
 // Where the API listens. Must be on this computer (see guard()).
