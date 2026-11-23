@@ -42,6 +42,8 @@ After the script prints `OK aminas-boutique: env=sandbox shortcode=174379`, Amin
 
 `callback_url` is built as `DARAJA_CALLBACK_BASE` plus `/callbacks/mpesa/<shop id>`; it must be public https for Safaricom to reach it.
 
+**Week 29 Day 5 (added):** the script now sets up **both** demo shops, Amina's Boutique and Brio Hardware, so the two-shop demo can run a sandbox payment for each. Both use the same sandbox keys, but each row is encrypted with its own shop id and its `callback_url` ends in its own shop id. Before Day 5 only Amina was seeded, so paying a Brio order failed cleanly; the automated tests still cover that case and do not use this script.
+
 ## WHERE USED / FUTURE USES
 
 Local demos and the sandbox walk-through.
@@ -65,10 +67,12 @@ Refuses production and any database host that is not localhost.
 
 Reads the sandbox values from `.env` and refuses missing ones or a callback base that is not https.
 
-### `main()`
+### `seedShop()` and `main()`
 
-Finds Amina's shop, encrypts the three secrets with the shop's id, then inserts or updates `daraja_configs` under that shop's lock. Prints only `OK ...`.
+(Day 5: the shop work moved into `seedShop()`, and `main()` checks the guard and settings once, then calls it for each shop in `SHOP_SLUGS`.)
+
+Finds the shop (Amina's, then Brio's), encrypts the three secrets with the shop's id, then inserts or updates `daraja_configs` under that shop's lock. Prints only `OK ...`.
 
 ---
 
-*Written by AI at Sheryl's request (declared in `AI_AUDIT_week_29_day3.md`). Last updated 16 November 2026.*
+*Written by AI at Sheryl's request (declared in `AI_AUDIT_week_29_day3.md`). Last updated 23 November 2026 (Week 29 Day 5: both shops).*

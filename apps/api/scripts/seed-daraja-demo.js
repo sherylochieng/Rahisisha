@@ -54,8 +54,12 @@
 //     Safaricom must be able to reach it, so it has to be a public https
 //     address (a tunnel such as ngrok, or the staging server). If the address
 //     changes, change DARAJA_CALLBACK_BASE and run this again.
-//   - Only Amina is seeded. One shop is enough to try a payment; Brio having
-//     NO config is also useful: paying a Brio order must fail cleanly.
+//   - Week 29 Day 5: Brio Hardware is now seeded too, so the two-shop demo
+//     can run a sandbox payment for EACH shop. Both shops use the same
+//     sandbox keys, but every row is encrypted with its OWN shop id and its
+//     callback_url ends in its OWN shop id. (Before Day 5 only Amina was
+//     seeded, so paying a Brio order failed cleanly. That behaviour is still
+//     covered by the automated tests, which do not use this script.)
 //
 // WHERE USED / FUTURE USES
 //   Local manual testing. Later: a real "connect M-Pesa" screen replaces it.
@@ -84,8 +88,9 @@ import { pool } from '../src/db/pool.js';
 // Using the SAME function means a demo row is built exactly like a real one.
 import { encryptSecret } from '../src/utils/kms.js';
 
-// The shop we set up. Same slug the other seeds use.
-const SHOP_SLUG = 'aminas-boutique';
+// The shops we set up. Same slugs the other seeds use.
+// Week 29 Day 5: Brio Hardware added for the two-shop demo.
+const SHOP_SLUGS = ['aminas-boutique', 'brio-hardware'];
 
 // guard: stop unless this is clearly a local, non-production setup.
 // Real life: a "training mode" key that only opens the practice room.
@@ -138,11 +143,9 @@ function readSettings() {
   return settings;
 }
 
-async function main() {
-  // Check the guard and the settings BEFORE touching anything.
-  guard();
-  const s = readSettings();
-
+// seedShop: does the whole job for ONE shop (find it, scramble the keys,
+// write the row). main() calls it once per shop in SHOP_SLUGS.
+async function seedShop(SHOP_SLUG, s) {
   // Find the shop by its slug. ($1 is a safe slot. The tenants table has
   // no RLS, so a plain query works.)
   const { rows } = await pool.query('SELECT id FROM tenants WHERE slug = $1', [SHOP_SLUG]);
@@ -197,6 +200,16 @@ async function main() {
 
   // Print only the safe facts. Keys, secrets and passkeys are NEVER printed.
   console.log(`OK ${SHOP_SLUG}: env=sandbox shortcode=${s.shortcode}`);
+}
+
+// main: checks the guard and the settings ONCE, then seeds each shop.
+async function main() {
+  // Check the guard and the settings BEFORE touching anything.
+  guard();
+  const s = readSettings();
+  for (const slug of SHOP_SLUGS) {
+    await seedShop(slug, s);
+  }
 }
 
 // Run main(). If anything throws, print ONLY the message (never the whole
