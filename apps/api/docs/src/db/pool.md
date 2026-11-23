@@ -81,3 +81,30 @@ The connection details come from the environment (your `.env` file). **That file
 ## IN TESTS
 
 Each test file gets its own copy of the pool. Close it in `afterAll` with `await pool.end()`, or Jest prints "did not exit one second after the test run".
+
+
+---
+
+## WEEK 29 WEEKEND FIX: WHAT HAPPENS WHEN THE LINE DROPS
+
+**What was wrong.** The pool had no instruction for what to do when a connection drops. A connection that is sitting unused in the pool reports the problem as an "error event". If nobody is listening for that event, Node treats it as fatal and **stops the whole API**. The chaos test found it on 23 November 2026: cutting the connections with `pg_terminate_backend` crashed the API, and it stayed down until someone restarted it.
+
+**Real life.** The phone line between the shop and the filing cabinet goes dead for a second. Before: the shop shuts and stays shut. Now: someone notes "the line dropped" in the logbook and the next customer is served on a fresh line.
+
+**The fix.** At the end of `pool.js`:
+
+```js
+pool.on('error', (err) => {
+  console.error('Database connection dropped (the pool will reconnect):', err.message);
+});
+```
+
+- `pool.on('error', ...)` means "if a pooled connection reports a problem, run this".
+- The pool then throws the dead connection away and opens a fresh one for the next request.
+- It logs only `err.message`, never the whole error object. The whole object contains the connection details (user, database, host), which do not belong in a log.
+
+**The guard.** `apps/api/tests/pool.error-handler.test.js` fails if this listener is removed. Never delete that test to make a change pass.
+
+**Where you will use this in future projects.** Any Node app that uses a `pg` pool (or any pooled client) needs this listener. Add it the day you create the pool, and test it by cutting the connection on purpose.
+
+**What it does not cover.** A request in the middle of a query when the connection dies still fails for that one customer, with a clean error, not a crash. See `RUNBOOK.md`, section 13.
