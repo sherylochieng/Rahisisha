@@ -1,0 +1,139 @@
+﻿reflog-demo.txt
+===============
+
+What this is: a recording of my git reflog practice for Week 29 Day 5, Task 3.
+Date: 23 November 2026
+Where: PowerShell inside VS Code, in the Rahisisha repo, on a throwaway branch.
+
+How it was made: I started PowerShell's recorder (Start-Transcript) and ran the
+commands below. The recorder saved my commands but NOT Git's replies, so the
+replies below were copied word for word from my terminal screen. The recorder's
+header (computer and user details) was left out on purpose.
+
+One PowerShell detail: HEAD@{1} must be written in quotes ("HEAD@{1}") in
+PowerShell, because PowerShell treats @{ } as its own special symbol. My first
+try without quotes failed with an error, and the second try with quotes worked.
+Both are shown.
+
+The story in four moves:
+1. Make a throwaway branch (so main is never at risk).
+2. Disaster: git reset --hard HEAD~3 throws away the last 3 commits.
+3. Open the diary (git reflog) and find where I was before the mistake.
+4. Rescue: git reset --hard "HEAD@{1}" brings the 3 commits back.
+
+-------------------------------------------------------------------------------
+THE SESSION
+-------------------------------------------------------------------------------
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> Start-Transcript -Path reflog-demo.txt
+Transcript started, output file is reflog-demo.txt
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git checkout -b throwaway
+Switched to a new branch 'throwaway'
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git --no-pager log --oneline -4
+d8e3a7e9f (HEAD -> throwaway, origin/main, main) docs: update INDEX.md for the public shop page [Week 29 Day 4 follow-up]
+24d98c4f1 docs(audit): add follow-up 2, the public shop page [Week 29 Day 4 follow-up]
+f20ba92d4 docs(ShopLinkCard): note the reworded shop-page line [Week 29 Day 4 follow-up]
+a5630ba96 docs(proxy): note STEP 5b, the shop address shows the shop window [Week 29 Day 4 follow-up]
+
+--- THE DISASTER: throw away the last 3 commits ---
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git reset --hard HEAD~3
+HEAD is now at a5630ba96 docs(proxy): note STEP 5b, the shop address shows the shop window [Week 29 Day 4 follow-up]
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git --no-pager log --oneline -3
+a5630ba96 (HEAD -> throwaway) docs(proxy): note STEP 5b, the shop address shows the shop window [Week 29 Day 4 follow-up]
+5285da25d docs(app): note the public storefront mount [Week 29 Day 4 follow-up]
+273426afc docs(storefront): guide for the public shop page [Week 29 Day 4 follow-up]
+
+(The three commits d8e3a7e9f, 24d98c4f1 and f20ba92d4 are gone from the log.)
+
+--- OPEN THE DIARY: the reflog still remembers ---
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git --no-pager reflog -6
+a5630ba96 (HEAD -> throwaway) HEAD@{0}: reset: moving to HEAD~3
+d8e3a7e9f (origin/main, main) HEAD@{1}: checkout: moving from main to throwaway
+d8e3a7e9f (origin/main, main) HEAD@{2}: checkout: moving from throwaway to main
+a5630ba96 (HEAD -> throwaway) HEAD@{3}: reset: moving to HEAD~3
+d8e3a7e9f (origin/main, main) HEAD@{4}: checkout: moving from main to throwaway
+d8e3a7e9f (origin/main, main) HEAD@{5}: commit: docs: update INDEX.md for the public shop page [Week 29 Day 4 follow-up]
+
+(HEAD@{1} is the last place I stood BEFORE the reset: commit d8e3a7e9f.
+HEAD@{3} is an earlier practice run of the same mistake, which the diary also remembers.)
+
+--- FIRST RESCUE ATTEMPT: PowerShell reads @{ } as its own symbol, so it fails ---
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git reset --hard HEAD@{1}
+error: unknown switch `e'
+usage: git reset [--mixed | --soft | --hard | --merge | --keep] [-q] [<commit>]
+   or: git reset [-q] [<tree-ish>] [--] <pathspec>...
+   or: git reset [-q] [--pathspec-from-file [--pathspec-file-nul]] [<tree-ish>]
+   or: git reset --patch [<tree-ish>] [--] [<pathspec>...]
+   or: DEPRECATED: git reset [-q] [--stdin [-z]] [<tree-ish>]
+
+    --no-refresh          skip refreshing the index after reset
+    --refresh             opposite of --no-refresh
+    --mixed               reset HEAD and index
+    --soft                reset only HEAD
+    --hard                reset HEAD, index and working tree
+    --merge               reset HEAD, index and working tree
+    --keep                reset HEAD but keep local changes
+    --[no-]recurse-submodules[=<reset>]
+                          control recursive updating of submodules
+    -p, --[no-]patch      select hunks interactively
+    --[no-]auto-advance   auto advance to the next file when selecting hunks interactively
+    -U, --unified <n>     generate diffs with <n> lines context
+    --inter-hunk-context <n>
+                          show context between diff hunks up to the specified number of lines
+    -N, --[no-]intent-to-add
+                          record only the fact that removed paths will be added later
+    --[no-]pathspec-from-file <file>
+                          read pathspec from file
+    --[no-]pathspec-file-nul
+                          with --pathspec-from-file, pathspec elements are separated with NUL character
+    -z                    DEPRECATED (use --pathspec-file-nul instead): paths are separated with NUL character
+    --[no-]stdin          DEPRECATED (use --pathspec-from-file=- instead): read paths from <stdin>
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git --no-pager log --oneline -4
+a5630ba96 (HEAD -> throwaway) docs(proxy): note STEP 5b, the shop address shows the shop window [Week 29 Day 4 follow-up]
+5285da25d docs(app): note the public storefront mount [Week 29 Day 4 follow-up]
+273426afc docs(storefront): guide for the public shop page [Week 29 Day 4 follow-up]
+4d2fbfccd docs(storefront): guide for publicApi.js [Week 29 Day 4 follow-up]
+
+(Nothing changed: the failed command did not move anything.)
+
+--- THE RESCUE: quotes around HEAD@{1} ---
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git reset --hard "HEAD@{1}"
+HEAD is now at d8e3a7e9f docs: update INDEX.md for the public shop page [Week 29 Day 4 follow-up]
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git --no-pager log --oneline -4
+d8e3a7e9f (HEAD -> throwaway, origin/main, main) docs: update INDEX.md for the public shop page [Week 29 Day 4 follow-up]
+24d98c4f1 docs(audit): add follow-up 2, the public shop page [Week 29 Day 4 follow-up]
+f20ba92d4 docs(ShopLinkCard): note the reworded shop-page line [Week 29 Day 4 follow-up]
+a5630ba96 docs(proxy): note STEP 5b, the shop address shows the shop window [Week 29 Day 4 follow-up]
+
+(All three commits are back, starting with d8e3a7e9f.)
+
+--- TIDY UP: back to main, delete the practice branch ---
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git checkout main
+Switched to branch 'main'
+Your branch is up to date with 'origin/main'.
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git branch -D throwaway
+Deleted branch throwaway (was d8e3a7e9f).
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> git status -sb
+## main...origin/main
+?? commit-docs.ps1
+?? docs-batch3.zip
+?? reflog-demo.txt
+
+PS C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA> Stop-Transcript
+Transcript stopped, output file is C:\Users\Sheshe\Desktop\MC-BACKEND\WEEK-27\RAHISISHA\reflog-demo.txt
+
+-------------------------------------------------------------------------------
+END OF SESSION
+-------------------------------------------------------------------------------
