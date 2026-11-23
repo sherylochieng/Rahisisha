@@ -18,6 +18,9 @@
 //   - The "cursor" in the address bar is typed by the visitor, so it is only
 //     passed along (URL-encoded), never trusted. The API checks it and answers
 //     400 for a made-up one, which shows the error page, not someone else's data.
+//     (Week 29 Weekend: obvious junk, like "@@bad!!", is now ignored and the
+//     newest page is shown. A cursor that LOOKS valid but is fake still gets
+//     the API's 400 and the error page.)
 //   - If the API fails, serverGetPage THROWS, so the error page shows. We never
 //     draw an empty inbox that is really a failure.
 //
@@ -70,6 +73,8 @@
 // PIECE 4: STEP 1, searchParams  =  "WHICH PAGE OF THE LIST?"
 //   In this Next.js version searchParams is a Promise, so we await it. No
 //   cursor means the newest page. The cursor is URL-encoded and only passed on.
+//   (Week 29 Weekend) A cursor with characters our bookmarks never contain is
+//   ignored first, so a mangled link shows the newest page, not an error.
 //
 // PIECE 5: STEP 2, serverGetPage  =  "ASK THE API"
 //   Runs on the server with the visitor's login cookie. While it waits, Next.js
@@ -97,6 +102,11 @@ import EmptyState from '../../../components/EmptyState';
 // How many messages per page (the API allows up to 100)
 const PAGE_SIZE = 20;
 
+// Our bookmarks are made only of letters, digits, "_" and "-" (base64url).
+// Anything else typed into the address bar is ignored and the newest page
+// is shown, instead of the error page (Week 29 Weekend stability fix).
+const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,300}$/;
+
 // PIECE 1: the badge. Real life: the coloured sticker on a mail tray
 // (green = WhatsApp, amber = USSD). Anything unknown still shows its own name.
 const CHANNELS = {
@@ -120,7 +130,8 @@ function ChannelBadge({ channel }) {
 // PIECE 2: the page. searchParams is a Promise in this version of Next.js
 export default async function InboxPage({ searchParams }) {
   // STEP 1: which page? No cursor = the newest messages
-  const { cursor } = await searchParams;
+  const { cursor: rawCursor } = await searchParams;
+  const cursor = typeof rawCursor === 'string' && CURSOR_PATTERN.test(rawCursor) ? rawCursor : null;
   const query = `?limit=${PAGE_SIZE}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
 
   // STEP 2: ask the API. While we wait here, Next.js shows loading.js
