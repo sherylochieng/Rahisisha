@@ -126,6 +126,7 @@ Written by AI at Sheryl's request, from the commands and results she ran on 23 N
 10. [Something went wrong](#10-something-went-wrong)
 11. [Secrets and safety rules](#11-secrets-and-safety-rules)
 12. [What this does not cover](#12-what-this-does-not-cover)
+13. [Chaos test: cut the database connection](#13-chaos-test-cut-the-database-connection)
 
 ---
 
@@ -154,9 +155,11 @@ Never paste the prompt line (`PS C:\...>` or `$`) back into a terminal. Paste on
 | The API (Express) | `apps/api` | 3000 | `npm run dev` |
 | The web app (Next.js) | `apps/web` | 3001 | `npm run dev` |
 | The database (Postgres, installed on Windows) | Windows service | 5432 | Starts with Windows |
-| Redis (USSD sessions) | Docker container `rahisisha_redis` | 6379 | `docker start rahisisha_redis` |
+| Redis (installed, but **not used by any code yet**) | Docker container `rahisisha_redis` | 6379 | Not needed today (see the note below the table) |
 | The public tunnel (ngrok) | Only for M-Pesa demos | none (points at 3000) | `ngrok http 3000` |
 | Docker Postgres (`rahisisha_postgres`) | Docker, **stopped on purpose** | 5432 | Do not start it (see section 3) |
+
+**Redis note (corrected 23 November 2026):** the `ioredis` and `connect-redis` packages are installed and `REDIS_URL` exists in `.env.example`, but no file in `apps/api/src` uses Redis. USSD works without it (the phone sends the whole menu path each time). Redis becomes useful when sessions or queues are added. Earlier notes that said "USSD sessions live in Redis" were wrong.
 
 Where the settings live:
 
@@ -200,11 +203,7 @@ This only pauses it. Nothing is deleted. Do not run `docker compose up` for the 
 Open one VS Code terminal per item. Keep each one open.
 
 1. **Docker Desktop:** open it from the Start menu and wait until it says the engine is running (1 to 2 minutes). Windows may ask about the firewall: tick **Private networks** only, then Allow.
-2. **Redis:**
-
-```powershell
-docker start rahisisha_redis
-```
+2. **Redis:** not needed today (no code uses it). Skip this step. If a future feature needs it: `docker start rahisisha_redis`.
 
 3. **Postgres:** nothing to do, the Windows service is already running. Check it with the command in section 3.
 4. **The API** (terminal 1):
@@ -241,7 +240,6 @@ Run these when you are not sure the app is working.
 |---|---|---|
 | API answers | `curl.exe -X POST http://localhost:3000/ussd -d "serviceCode=*384*101#" -d "sessionId=h1" -d "phoneNumber=+254711111111" -d "text="` | A reply starting with `CON` |
 | Web app answers | `curl.exe -I http://localhost:3001/login` | `HTTP/1.1 200 OK` |
-| Redis is up | `docker ps` | A line for `rahisisha_redis` |
 | Only one Postgres | the command in section 3 | Only `postgres` lines |
 | Isolation locks hold | `cd apps/api` then `npm run test:isolation` | 7 suites, 125 tests passed |
 | Everything works | `cd apps/api` then `npm test` | 29 suites, 310 tests passed |
@@ -443,6 +441,8 @@ Commit messages: one piece per commit, tagged with the week and day, for example
 | `Jest did not exit one second after the test run` | A harmless note at the end of `npm test` | Check the `passed` lines above it |
 | `git push` is blocked | A test in the pre-push hook failed | Read which test failed. Do not skip the hook. Fix it, commit, push again |
 | Wrong database answers (shop lock seems off) | The app may have used the Docker superuser database | Section 3, then run `npm run test:isolation` |
+| The API terminal shows `Unhandled 'error' event ... terminating connection due to administrator command` and `app crashed` | A database connection was cut and nothing handled it (the bug found by the chaos test) | `apps/api/src/db/pool.js` must contain `pool.on('error', ...)`. Run `npm test -- pool.error-handler`. See section 13 |
+| `Database connection dropped (the pool will reconnect)` in the API terminal | A connection was lost, and the pool is recovering. This is the fix working | Nothing, unless it repeats many times a minute. Then check Postgres |
 | `reset-db.sh` stops at "type the database name" | It is a safety check | Type `rahisisha` and press Enter |
 
 If something is not in this table: stop, copy the exact error text, and do not run commands you do not understand.
@@ -464,7 +464,64 @@ If something is not in this table: stop, copy the exact error text, and do not r
 ## 12. What this does not cover
 
 - **Roles** (`rahisisha_user`, `postgres`) are not inside the dump. The restore only worked because they already existed. On a new server, create them first (the reset script does this).
-- **Redis** is not backed up. USSD sessions live there and are short-lived, so they are not worth restoring.
+- **Redis** is not backed up, and does not need to be today: no code uses it yet.
 - **Secrets** (the `.env` file, `KMS_KEY`) are not in the dump (see section 11).
 - **Production.** All of this was run on a local practice database. A production restore needs the same steps plus a maintenance window and a second person watching.
-- **The chaos test** (stopping a part mid-demo and checking recovery) is not written up here yet. It is added after the test is run.
+- **Other chaos tests.** Only one was run: cutting the database connections (section 13). Stopping the whole Postgres service, a slow database, or a full disk were not tested.
+
+---
+
+## 13. Chaos test: cut the database connection
+
+**What a chaos test is:** a fire drill for the app. You break one part on purpose, once, while the app is running, and watch two things: does it fail politely, and does it recover by itself?
+
+**What we cut:** the connections between the API and the database. In real life this happens when Postgres restarts, the laptop sleeps, or the network blips. It was done with `pg_terminate_backend`, which closes the API's connections from the database side.
+
+**Why not the notification service:** the assignment names a notification-service and a queue. Neither exists yet (`apps/workers` is an empty scaffold), and Redis is not used by any code (see the note in section 2). The database is the part the app cannot live without, so that is what we cut.
+
+### 13.1 How to repeat it
+
+1. Start the API (section 4) and check USSD answers (section 5).
+2. In Git Bash, open an admin session and leave it open:
+
+```bash
+psql -h localhost -U postgres -d rahisisha
+```
+
+3. In PowerShell, make the API open a connection:
+
+```powershell
+curl.exe -X POST http://localhost:3000/ussd -d "serviceCode=*384*101#" -d "sessionId=c1" -d "phoneNumber=+254711111111" -d "text="
+```
+
+4. Straight away, at the `rahisisha=#` prompt, cut the connections. The API closes idle connections after 30 seconds, so do this quickly:
+
+```sql
+SELECT count(*) AS cut, count(*) FILTER (WHERE pg_terminate_backend(pid)) AS terminated FROM pg_stat_activity WHERE datname = 'rahisisha' AND usename = 'rahisisha_user' AND pid <> pg_backend_pid();
+```
+
+5. Wait 5 seconds, then dial again:
+
+```powershell
+curl.exe -X POST http://localhost:3000/ussd -d "serviceCode=*384*101#" -d "sessionId=c2" -d "phoneNumber=+254711111111" -d "text=1"
+```
+
+### 13.2 What happened (23 November 2026)
+
+| | Before the fix | After the fix |
+|---|---|---|
+| API terminal | `Unhandled 'error' event` ... `[nodemon] app crashed` | `Database connection dropped (the pool will reconnect): terminating connection due to administrator command` |
+| Is the API still running? | **No, it stayed down** until restarted | **Yes** |
+| Dial after the cut | `curl: (7) Failed to connect to localhost port 3000` | Amina's product list |
+
+**The bug:** `apps/api/src/db/pool.js` had no listener for pool errors. When a connection that was sitting unused in the pool was cut, Node treated the report as an unhandled error and stopped the whole API. One small blip would have taken every shop offline.
+
+**The fix:** `pool.on('error', ...)` in `pool.js` writes the problem to the log (only the message, never the whole error object, because that holds connection details) and carries on. The pool throws the dead connection away and opens a fresh one for the next request.
+
+**The guard:** `apps/api/tests/pool.error-handler.test.js` fails if the listener is removed (checked: it failed without the fix and passed with it).
+
+### 13.3 What this does not prove
+
+- Only **idle** connections were cut. A request that is in the middle of a query when the connection dies will fail with an error for that one customer (a clean `500`, not a crash). That was not tested here.
+- Stopping the whole Postgres service and starting it again was not tested.
+- The recovery was checked on USSD only. Orders, wallet and the other routes use the same pool, but were not each tried after a cut.
