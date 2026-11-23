@@ -17,6 +17,20 @@
 
 **Reviewing the Week 29 Day 3 work (M-Pesa payments per tenant)?** Look at the commits tagged `[Week 29 Day 3]`, read [`apps/api/docs/AI_AUDIT_week_29_day3.md`](../apps/api/docs/AI_AUDIT_week_29_day3.md) (section 3 is the Money Audit) and [`reconciliation.md`](../reconciliation.md), and see "Try M-Pesa locally" below.
 
+**Reviewing the Week 29 Day 4 work (dashboard pages and the public shop page)?** Look at the commits tagged `[Week 29 Day 4]` and `[Week 29 Day 4 follow-up]`, read [`apps/api/docs/AI_AUDIT_week_29_day4.md`](../apps/api/docs/AI_AUDIT_week_29_day4.md), and see the public shop page at `/shop/<slug>` (`GET /v1/storefront/:slug`).
+
+**Reviewing the Week 29 Day 5 work (two-shop demo and Git reflog recovery)?** Read [`demo-script.md`](demo-script.md) (the five-part script), [`../demo-week29.md`](../demo-week29.md) (the written record of the run, with real results), [`../reflog-demo.txt`](../reflog-demo.txt) (the recovery practice), [`../reflog-notes.md`](../reflog-notes.md) (Sheryl's own notes) and [`apps/api/docs/AI_AUDIT_week_29_day5.md`](../apps/api/docs/AI_AUDIT_week_29_day5.md).
+
+### Week 29 summary (tag `v0.29.0`)
+
+- **USSD per shop:** one shared `/ussd` endpoint. The shop is found from the dialled service code, never the phone number.
+- **WhatsApp per shop:** one shared webhook. The shop is found from the number id in Meta's message. Tokens are stored encrypted. Messages are saved, but there is no reply yet.
+- **M-Pesa per shop:** each shop has its own encrypted Daraja settings. The wallet is credited only after our own pending payment matches and Safaricom confirms, and only once. Refunds, reversals and reconciliation are not built.
+- **Dashboard pages:** the inbox (WhatsApp and USSD together) and the payments ledger, each reading only that shop's rows.
+- **Public shop page:** `/shop/<slug>` shows a shop's active products to anyone, without a login.
+- **Two-shop demo (Day 5):** Aminas Boutique and Brio Hardware ran USSD, WhatsApp and a sandbox M-Pesa payment each. Inboxes and wallets stayed separate. No video yet; the written record is `demo-week29.md`.
+- **Tests:** 29 suites and 310 tests pass, including 7 isolation suites with 125 tests.
+
 ## What is Rahisisha?
 
 **Rahisisha** is a multi-tenant SaaS platform built for small product businesses in Kenya ... boutiques, dress shops, and informal sellers who currently run their entire business through WhatsApp manually. A customer messages "iko stock?", the owner replies by hand, sends an M-Pesa number, waits for confirmation, and updates stock in a notebook. Rahisisha replaces that entire loop with one signup: the owner uploads a product photo, the AI enhances it in the business's own brand colours and adds real text layers ,,price, name, logo ...then automatically announces it on WhatsApp. The AI answers customer questions from the real catalog, the M-Pesa STK push fires automatically when a customer taps Buy, stock updates itself, and the owner sees everything on one dashboard , without touching a single customer chat. Instagram and Facebook auto-posting are planned for the growth phase after the MVP launch.
