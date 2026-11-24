@@ -54,15 +54,32 @@
 //   import ShopLinkCard from '../../../components/ShopLinkCard';
 // =============================================================================
 
-import { useState } from 'react';
+// useEffect (Week 29 Weekend): lets us ask the browser about the Share sheet
+// AFTER the page has loaded, not while it is first being drawn
+import { useEffect, useState } from 'react';
 
 export default function ShopLinkCard({ url, shopName }) {
   // Short message after a click: '' (nothing), 'Copied!' or a gentle error
   const [message, setMessage] = useState('');
 
   // Is the phone-style Share sheet available in this browser?
-  // (checked on click, so the server-side drawing never touches `navigator`)
-  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  //
+  // WEEK 29 WEEKEND FIX (stability, no new feature)
+  //   WHAT CHANGED: canShare now starts as false and is switched on by
+  //   useEffect right after the page loads.
+  //   WHY: before, it read `navigator` while drawing. The server has no Share
+  //   sheet (it drew 3 buttons) but the browser has one (it drew 4), so React
+  //   saw two different pages and printed "Hydration failed" in the terminal.
+  //   Now both start with the same 3 buttons, and the Share button appears a
+  //   moment later in browsers that support it. Same result for the owner,
+  //   no error.
+  //   BEFORE (kept here for the record):
+  //     const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => {
+    // Runs only in the browser, after the first drawing matched the server's
+    setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
+  }, []);
 
   // The words that go with the link when it is shared
   const shareText = `Visit ${shopName} online: ${url}`;
@@ -167,8 +184,13 @@ export default function ShopLinkCard({ url, shopName }) {
 //                       and the clipboard. Real life: a counter with a person
 //                       behind it, not a printed menu
 // useState('')        : a small memory for the "Copied!" note
-// canShare            : asks "does this browser have a Share sheet?". Phones
-//                       usually do, laptops often do not
+// canShare + useEffect: asks "does this browser have a Share sheet?" AFTER the
+//                       page has loaded, never during the first drawing. Real
+//                       life (Kenya): the mama mboga hangs the same 3-line
+//                       price sign every morning, and adds the 4th line
+//                       ("M-Pesa Till") only once the inspector confirms the
+//                       Till is allowed. Phones usually have the Share sheet,
+//                       laptops often do not
 // whatsappHref        : a WhatsApp address with the message already written.
 //                       encodeURIComponent protects it from odd characters
 // handleCopy          : copies the link. Real life: photocopying your business
