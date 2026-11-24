@@ -75,6 +75,8 @@ cd apps/web && npm install && cd ../..
 psql -U postgres -c "CREATE ROLE rahisisha_user LOGIN PASSWORD 'choose-a-password';"
 ```
 
+If it answers `role "rahisisha_user" already exists`, that is fine: skip this step.
+
 **3. Build the database.** This creates it, loads the schema, checks the isolation locks and loads demo data. It asks you to type the database name (`rahisisha`) and two passwords:
 
 ```bash
@@ -94,8 +96,9 @@ Open `apps/api/.env` and set:
 - `JWT_SECRET` to any long random text
 - `KMS_KEY` to 32 random bytes in base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 - `PORT=3000`
+- `WEB_ORIGIN=http://localhost:3001` (the list of websites the API accepts calls from; without it the browser is refused and the signup page says "We couldn't reach the server")
 
-Open `apps/web/.env.local` and set `NEXT_PUBLIC_API_URL=http://localhost:3000`.
+Open `apps/web/.env.local` and set `NEXT_PUBLIC_API_URL=http://localhost:3000/v1`. It must END in `/v1`. Without it the signup page says "Route not found".
 
 What every variable means, and which are secret: [docs/secrets.md](docs/secrets.md). Never commit `.env` files.
 
@@ -194,7 +197,8 @@ Reviewing the Week 28 Weekend work? Look at the commits tagged `[Week 28 Weekend
 ## How much of this has been tested
 
 - **Tested on the author's laptop:** `./scripts/dev-up.sh` (refuses when a port is busy, starts both programs, stops both on Ctrl+C), the health check, the API tests and the isolation tests.
-- **Written from the real scripts but not yet run from a brand-new clone on a clean machine:** steps 1 to 4 (clone, install, create the user, build the database, settings files).
+- **Followed step by step from a fresh clone (24 November 2026):** clone, install the three folders, build the database (`reset-db.sh` on a scratch database), settings files, `./scripts/dev-up.sh`, health check, signup and adding a product in the browser. This test found two mistakes in the first version of these steps (`WEB_ORIGIN` and the `/v1` ending of `NEXT_PUBLIC_API_URL`), which are now fixed above.
+- **Not run on a truly clean machine:** it was a fresh clone on the author's own laptop, where the `rahisisha_user` role already existed, so step 2 (creating the role) was not executed.
 - **Not tested:** real M-Pesa money (sandbox only), a real WhatsApp number, USSD on a real phone.
 
 ## Piece by piece (simple words)
