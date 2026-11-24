@@ -110,9 +110,7 @@ const STATUS_STYLES = {
 // DashboardPage — a Server Component. "async" lets us await data right here
 // -----------------------------------------------------------------------------
 export default async function DashboardPage() {
-  // await new Promise((resolve) => setTimeout(resolve, 3000)); // TEMP TEST: remove after
-  //   throw new Error('TEMP TEST: remove after');
-
+  
   // STEP 1: ask the API for the morning summary.
   // Returns { ordersToday, balanceCents, latestProducts }
   // While we wait here, Next.js shows loading.js (the grey placeholder boxes)
