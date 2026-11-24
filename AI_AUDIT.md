@@ -15,6 +15,7 @@ This file is a map. The audits live next to the code they describe, in `apps/api
 | Week 29 Day 5 | `apps/api/docs/AI_AUDIT_week_29_day5.md` |
 | Week 29 Weekend | `apps/api/docs/AI_AUDIT_week_29_weekend.md` |
 | Week 30 Day 1 | `apps/api/docs/AI_AUDIT_week_30_day1.md` |
+| Week 30 Day 2 | `apps/api/docs/AI_AUDIT_week_30_day2.md` |
 
 ---
 
@@ -99,3 +100,13 @@ The assignment allows AI for test case generation and bug description drafting, 
 The AI wrote `qa/manual-plan.md`, `load-check.md` and `launch-blockers.md` (the text only). Sheryl ran every test, load run and QA case on her own computer, and the results are hers. No production code was changed.
 
 Details, including one mistake the AI made in issue #6 and what is not verified, are in **`apps/api/docs/AI_AUDIT_week_30_day1.md`**.
+
+## Documentation and Runbook Note (Week 30 Day 2)
+
+The assignment allows AI to draft prose and requires an audit. In Week 30 Day 2 the AI wrote `docs/secrets.md`, `docs/api-reference.md`, `docs/RUNBOOK.md`, the root `README.md` with its architecture diagram, and `scripts/dev-up.sh`. The AI read the real routes, controllers and scripts first, so the documents describe the code as it is today. Sheryl ran every command, pasted every result and made every commit herself, one file per commit, with no AI attribution lines.
+
+The AI made two mistakes in the first README quickstart: it left out `WEB_ORIGIN` and it told the reader to set `NEXT_PUBLIC_API_URL` without `/v1`. Sheryl followed the README step by step from a fresh clone, with a scratch database she then dropped, and that test found both. They are fixed in the README and in the two `.env.example` files. The only production-adjacent change is to those example files. No application code, money, ledger, tenant or RLS code was changed.
+
+What is not verified: the curl examples in the API reference were written from the code and not all run; only one of the eight runbook incidents was reproduced on purpose; the README was followed on the author's own laptop, not a clean machine, so creating the database user was not run; and the stretch goals were not attempted.
+
+Details are in **`apps/api/docs/AI_AUDIT_week_30_day2.md`**.
