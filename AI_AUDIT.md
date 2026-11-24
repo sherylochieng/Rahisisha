@@ -13,6 +13,7 @@ This file is a map. The audits live next to the code they describe, in `apps/api
 | Week 29 Day 3 | `apps/api/docs/AI_AUDIT_week_29_day3.md` |
 | Week 29 Day 4 | `apps/api/docs/AI_AUDIT_week_29_day4.md` |
 | Week 29 Day 5 | `apps/api/docs/AI_AUDIT_week_29_day5.md` |
+| Week 29 Weekend | `apps/api/docs/AI_AUDIT_week_29_weekend.md` |
 
 ---
 
@@ -81,3 +82,11 @@ The assignment allows AI for the demo script and does **not** allow it for the d
 `reflog-demo.txt` was assembled by the AI from the terminal output Sheryl pasted, because PowerShell's recorder did not save Git's replies. The file says so at the top.
 
 The one code change is `apps/api/scripts/seed-daraja-demo.js`, which now sets up Brio Hardware as well as Amina's Boutique. It is described in section 3 of **`apps/api/docs/AI_AUDIT_week_29_day5.md`**.
+
+## Weekend Stability Note (Week 29 Weekend)
+
+The weekend assignment gave no AI rules, so the AI's work is declared in full. The AI wrote the test scripts (`scripts/demo-run.mjs`, `apps/api/scripts/load-test-orders.js`), their guides, `RUNBOOK.md`, `PERFORMANCE.md` and `NEXT.md`. Sheryl ran every script on her own computer, and the results in the documents are hers.
+
+The AI changed production code once: a 3-line database error handler in `apps/api/src/db/pool.js`, with a test, after Sheryl's chaos test crashed the API. The AI also wrote four small web fixes (a loading screen for the public shop page, a bad-cursor fix for the inbox and payments pages, and a hydration fix in `ShopLinkCard.js`). The weekend did not touch money, ledger, tenant or RLS code.
+
+Everything is listed in **`apps/api/docs/AI_AUDIT_week_29_weekend.md`**, including what went wrong and what is not verified (no video, WhatsApp simulated, M-Pesa sandbox only, only idle database connections cut).
