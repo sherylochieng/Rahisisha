@@ -133,13 +133,20 @@ the database is leaked without `KMS_KEY`, they stay unreadable.
 
 ## 6. Gaps found while writing this page
 
-These are honest notes, to be fixed when the project is finished:
+These are honest notes, to be fixed when the project is finished.
 
-- `apps/api/.env.example` does not list `WEB_ORIGIN`, `ROOT_DOMAIN`,
-  `COOKIE_DOMAIN`, `SHOP_SLUG`, or the optional `WHATSAPP_*` and
-  `DARAJA_API_BASE` variables.
-- `apps/api/.env.example` shows the database user as `postgres`. A superuser
-  **bypasses** row-level security, so the app must use `rahisisha_user`.
+**Fixed on 24 November 2026** (found by following the README from a fresh
+clone):
+
+- `apps/api/.env.example` now lists `WEB_ORIGIN` and, commented out,
+  `ROOT_DOMAIN` and `COOKIE_DOMAIN`, and shows the database user as
+  `rahisisha_user` (a superuser **bypasses** row-level security).
+- `apps/web/.env.example` now shows `NEXT_PUBLIC_API_URL` ending in `/v1`.
+
+**Still open:**
+
+- `apps/api/.env.example` does not list `SHOP_SLUG`, or the optional
+  `WHATSAPP_*` and `DARAJA_API_BASE` variables.
 - `apps/web/.env.example` does not list `ROOT_DOMAIN`.
 - The root `.env.example` lists `REDIS_URL`, but no code reads it (Redis is
   not used yet).
