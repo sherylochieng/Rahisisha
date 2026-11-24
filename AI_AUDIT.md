@@ -14,6 +14,7 @@ This file is a map. The audits live next to the code they describe, in `apps/api
 | Week 29 Day 4 | `apps/api/docs/AI_AUDIT_week_29_day4.md` |
 | Week 29 Day 5 | `apps/api/docs/AI_AUDIT_week_29_day5.md` |
 | Week 29 Weekend | `apps/api/docs/AI_AUDIT_week_29_weekend.md` |
+| Week 30 Day 1 | `apps/api/docs/AI_AUDIT_week_30_day1.md` |
 
 ---
 
@@ -90,3 +91,11 @@ The weekend assignment gave no AI rules, so the AI's work is declared in full. T
 The AI changed production code once: a 3-line database error handler in `apps/api/src/db/pool.js`, with a test, after Sheryl's chaos test crashed the API. The AI also wrote four small web fixes (a loading screen for the public shop page, a bad-cursor fix for the inbox and payments pages, and a hydration fix in `ShopLinkCard.js`). The weekend did not touch money, ledger, tenant or RLS code.
 
 Everything is listed in **`apps/api/docs/AI_AUDIT_week_29_weekend.md`**, including what went wrong and what is not verified (no video, WhatsApp simulated, M-Pesa sandbox only, only idle database connections cut).
+
+## QA Sweep and Severity Note (Week 30 Day 1)
+
+The assignment allows AI for test case generation and bug description drafting, and does **not** allow it for severity calls and launch blockers. In Week 30 Day 1 the AI wrote the 43 manual test cases and the text of GitHub issues #4 to #8 (allowed). **Sheryl set every severity and decided the launch-blockers list.** The AI only listed facts for each decision. This is Sheryl's statement, and the AI cannot prove who chose the words.
+
+The AI wrote `qa/manual-plan.md`, `load-check.md` and `launch-blockers.md` (the text only). Sheryl ran every test, load run and QA case on her own computer, and the results are hers. No production code was changed.
+
+Details, including one mistake the AI made in issue #6 and what is not verified, are in **`apps/api/docs/AI_AUDIT_week_30_day1.md`**.
