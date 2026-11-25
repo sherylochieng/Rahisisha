@@ -9,10 +9,13 @@
 // WHY THIS FILE EXISTS:
 // - The owner needs a way to add a product: a name, a price, an optional code
 //   (SKU), an optional description and a status
+// - Week 30 Day 3: the SAME form now also EDITS a product (issues #6 and #7).
+//   Give it a `product` and it starts filled in and saves changes
 //
 // WHY IMPORTANT:
 // - Without it the only way to add products is by hand in the database. A shop
 //   cannot run on that
+// - Without edit, a typo in a price can never be fixed from the app
 //
 // DANGER (if this file does not exist):
 // - Products can only come from seed scripts, and the Products page stays empty
@@ -20,6 +23,7 @@
 // WHAT IT SOLVES:
 // - A friendly form with the problems shown next to the right box
 // - Converts the typed price (shillings) into whole cents before sending
+// - In edit mode, converts the stored cents back into shillings for the box
 //
 // SYSTEM DESIGN PRINCIPLE: Check twice, trust once
 // - The form checks first, only to give a fast, friendly answer. The API checks
@@ -28,7 +32,9 @@
 // RULES:
 // - Money is sent as whole cents (priceCents), made by kesToCents. Never
 //   multiply a decimal by 100 here
-// - All API calls go through lib/api.js (api.createProduct), never fetch()
+// - Money shown in a box comes from centsToKes (whole-number maths, no / 100)
+// - All API calls go through lib/api.js (api.createProduct, api.updateProduct),
+//   never fetch()
 // - Empty optional boxes are LEFT OUT of the request. Sending "" for the SKU
 //   would clash with the "one SKU per shop" rule in the database
 // - The price must fit the database column (a 32-bit whole number of cents,
@@ -45,22 +51,30 @@
 //    in the list right away
 // 4. Status starts as "active" (on sale), because most owners add products to
 //    sell them. Draft and archived are one click away
+// 5. (Week 30) One form for both jobs. `product` empty = ADD, `product` given =
+//    EDIT. Two forms would drift apart and every fix would be needed twice
 //
 // PRACTICAL EXAMPLE:
 // - Amina types "Red dress", "1,500" and presses Add product. The API gets
 //   { name: "Red dress", priceCents: 150000, status: "active" } and she lands
 //   on the list with her new dress at the top
+// - Later she opens the dress, changes the price to "1,200" and presses Save
+//   changes. The API gets a PATCH with priceCents 120000, and the list shows it
 //
 // WHERE USED:
-// - (authed)/products/new/page.js
+// - (authed)/products/new/page.js        (ADD mode)
+// - (authed)/products/[id]/edit/page.js  (EDIT mode)
 //
 // TRADEOFFS:
 // + No libraries, small, reuses FormError, SubmitButton and useFormState
-// - No image upload yet, and no edit or delete (later steps)
+// - No image upload yet
+// - Editing cannot CLEAR the SKU or the description. The API leaves a field
+//   alone when it is not sent, and this form leaves empty boxes out (known limit)
 //
 // HOW TO USE:
 //   import ProductForm from '../../../../components/ProductForm';
-//   <ProductForm />
+//   <ProductForm />                      // add a new product
+//   <ProductForm product={product} />    // edit an existing product
 // =============================================================================
 
 import { useState } from 'react';
@@ -69,6 +83,7 @@ import { useRouter } from 'next/navigation';
 
 import { api } from '../lib/api';
 import { kesToCents } from '../lib/kesToCents';
+import { centsToKes } from '../lib/centsToKes';
 import { useFormState } from '../hooks/useFormState';
 import FormError from './FormError';
 import SubmitButton from './SubmitButton';
@@ -91,7 +106,11 @@ function FieldError({ id, message }) {
   );
 }
 
-export default function ProductForm() {
+// product = null  -> ADD mode (empty boxes, button says "Add product")
+// product = {...} -> EDIT mode (boxes filled in, button says "Save changes")
+// Real life: the same order book, used for a new order or to correct an old one.
+export default function ProductForm({ product = null }) {
+  const isEdit = Boolean(product);
   const router = useRouter();
   const { error, loading, startSubmit, failSubmit } = useFormState();
 
@@ -132,7 +151,14 @@ export default function ProductForm() {
     if (description) body.description = description;
 
     try {
-      await api.createProduct(body);
+      // EDIT sends a PATCH to the existing product. ADD sends a new one.
+      // Note: the API ignores an empty SKU or description on edit, so clearing
+      // those two boxes does not remove them (known limit, see issue #6).
+      if (isEdit) {
+        await api.updateProduct(product.id, body);
+      } else {
+        await api.createProduct(body);
+      }
 
       // STEP 4a: success. Go to the list and re-read it so the new product shows
       router.push('/products');
@@ -177,6 +203,7 @@ export default function ProductForm() {
           type="text"
           required
           maxLength={200}
+          defaultValue={product?.name ?? ''}
           disabled={loading}
           aria-invalid={fieldErrors.name ? 'true' : 'false'}
           aria-describedby={fieldErrors.name ? 'name-error' : undefined}
@@ -196,6 +223,7 @@ export default function ProductForm() {
           name="price"
           type="text"
           inputMode="decimal"
+          defaultValue={isEdit ? centsToKes(product.price_cents) : ''}
           required
           disabled={loading}
           aria-invalid={fieldErrors.price ? 'true' : 'false'}
@@ -216,6 +244,7 @@ export default function ProductForm() {
           name="sku"
           type="text"
           maxLength={60}
+          defaultValue={product?.sku ?? ''}
           disabled={loading}
           aria-invalid={fieldErrors.sku ? 'true' : 'false'}
           aria-describedby={fieldErrors.sku ? 'sku-error' : undefined}
@@ -238,6 +267,7 @@ export default function ProductForm() {
           name="description"
           rows={3}
           maxLength={1000}
+          defaultValue={product?.description ?? ''}
           disabled={loading}
           className={inputClass(false)}
           placeholder="A short note customers will read"
@@ -252,7 +282,7 @@ export default function ProductForm() {
         <select
           id="status"
           name="status"
-          defaultValue="active"
+          defaultValue={product?.status ?? 'active'}
           disabled={loading}
           aria-invalid={fieldErrors.status ? 'true' : 'false'}
           aria-describedby={fieldErrors.status ? 'status-error' : undefined}
@@ -269,7 +299,7 @@ export default function ProductForm() {
       <div className="flex items-center gap-4 pt-2">
         <div className="w-44">
           <SubmitButton loading={loading} loadingText="Saving...">
-            Add product
+            {isEdit ? 'Save changes' : 'Add product'}
           </SubmitButton>
         </div>
         <Link href="/products" className="text-sm font-medium text-gray-600 hover:underline">
@@ -302,4 +332,20 @@ export default function ProductForm() {
 //                       appears. Real life: after adding stock, walk back to
 //                       the shelf and see it there
 // noValidate          : our messages replace the browser's pop-up bubbles
+//
+// Week 30 additions
+// product = null      : a form that can be handed an existing product, like a
+//                       pre-printed order slip with the customer's details
+//                       already written in
+// isEdit              : a yes-or-no label: "are we correcting an old one, or
+//                       writing a new one?". The rest of the form asks only this
+// defaultValue        : what a box shows when the page opens. Empty when adding,
+//                       the old value when editing. The owner types over it
+// centsToKes(...)     : the database holds 35000, the owner must see 350.
+//                       Without it, saving would turn KES 350 into KES 35,000
+// api.updateProduct   : tells the API "change product number so-and-so". The
+//                       same friendly checks run first, so a bad price is
+//                       stopped before it is sent
+// empty SKU on edit   : the API leaves a field alone when it is not sent, so
+//                       blanking the SKU box does not remove the SKU (known limit)
 // =============================================================================
