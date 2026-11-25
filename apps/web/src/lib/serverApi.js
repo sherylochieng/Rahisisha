@@ -121,3 +121,36 @@ export async function serverGetPage(path) {
   const json = await res.json();
   return { data: json.data, nextCursor: json.nextCursor ?? null };
 }
+
+// -----------------------------------------------------------------------------
+// serverGetOptional: like serverGet, but "not found" is an answer, not a crash
+// -----------------------------------------------------------------------------
+// WHY: the Edit page asks for ONE product. If the id is wrong, or the product
+// was deleted, or it belongs to another shop, the API says 404 (or 400 for a
+// badly shaped id). serverGet throws on that, which shows the scary error page.
+// Here we return null instead, so the page can show the friendly "not found".
+//
+// REAL LIFE: asking the shopkeeper for a dress that is not in stock. "We don't
+// have it" is a normal answer, not a fire.
+//
+// Everything else behaves like serverGet: no login -> /login, 401 -> /login,
+// any other failure throws, so real problems are still loud.
+export async function serverGetOptional(path) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('token')?.value;
+  if (!token) redirect('/login');
+
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { Cookie: `token=${token}` },
+    cache: 'no-store',
+  });
+
+  if (res.status === 401) redirect('/login');
+  if (res.status === 404 || res.status === 400) return null;
+  if (!res.ok) {
+    throw new Error(`API ${path} failed with status ${res.status}`);
+  }
+
+  const json = await res.json();
+  return json.data;
+}
