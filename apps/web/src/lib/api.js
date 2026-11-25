@@ -179,10 +179,31 @@ export const api = {
   // body = { name, priceCents, sku?, description?, status? }
   // priceCents is a whole number of cents (KES 350 -> 35000), never a decimal.
   // On a 400 the thrown error carries err.details (which box is wrong)
-  createProduct(body) {
+    createProduct(body) {
     return request('/products', {
       method: 'POST',
       body: JSON.stringify(body),
     });
   },
+
+  // PATCH /products/:id: change a product (Week 30, issue #6).
+  // body = any of { name, priceCents, sku, description, status }.
+  // Only the fields you send are changed. A field you leave out stays as it is.
+  // Real life: rubbing out one price on the board, not rewriting the whole board.
+  updateProduct(id, body) {
+    return request(`/products/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  },
+
+  // DELETE /products/:id: remove a product from the list (Week 30, issue #6).
+  // The API only hides it (a "soft delete"), so past orders keep their records.
+  // The API answers 204 with no body, which request() handles (it returns null).
+  deleteProduct(id) {
+    return request(`/products/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
 };
+
