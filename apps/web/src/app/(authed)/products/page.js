@@ -15,7 +15,8 @@
 //   catalogue
 //
 // WHAT IT SOLVES:
-// - A paged, read-only list of this shop's products, drawn on the server
+// - A paged list of this shop's products, drawn on the server, with Edit and
+//   Delete on every row
 // - A friendly empty box for a brand-new shop
 //
 // SYSTEM DESIGN PRINCIPLE: The page never touches the database
@@ -31,13 +32,17 @@
 //   first page is shown, so a mangled address never crashes the page
 // - If the API fails, serverGetPage THROWS, so we never show an empty list
 //   that looks real
-// - This page only READS. Adding, editing and deleting come in later steps
+// - This page READS the list. Adding is at /products/new and editing at
+//   /products/[id]/edit. Delete is a button in each row (DeleteProductButton,
+//   a small client component placed inside this server page)
 //
 // DECISIONS:
 // 1. 20 products per page (the API allows up to 100)
 // 2. Only a "Next page" and "Back to first page" link. The products API pages
 //    forward by id, so there is no "previous page" link
 // 3. A product with no SKU shows a dash, not the word "null"
+// 4. (Week 30) Edit and Delete sit on their own line under each product, so
+//    they fit on a phone screen
 //
 // PRACTICAL EXAMPLE:
 // - Brio Hardware opens /products and sees "Cement 50kg  KES 750.00  active"
@@ -47,8 +52,8 @@
 // - Sidebar.js and MobileNav.js link to /products
 //
 // TRADEOFFS:
-// + Simple, fast, no client-side code
-// - Read-only for now, and no search or filter yet
+// + Simple and fast. The only client-side piece is the Delete button
+// - No search or filter yet, and no product images yet
 //
 // HOW TO USE:
 // - Open /products while logged in. The (authed) layout runs the login check
@@ -61,6 +66,7 @@ import { serverGetPage } from '../../../lib/serverApi';
 // formatKes: 75000 -> "KES 750.00"
 import { formatKes } from '../../../lib/format';
 import EmptyState from '../../../components/EmptyState';
+import DeleteProductButton from '../../../components/DeleteProductButton';
 
 // How many products per page
 const PAGE_SIZE = 20;
@@ -97,7 +103,7 @@ export default async function ProductsPage({ searchParams }) {
         >
           Add product
         </Link>
-        
+
       </div>
       {/* STEP 3a: no products yet */}
       {products.length === 0 ? (
@@ -110,7 +116,7 @@ export default async function ProductsPage({ searchParams }) {
           {/* STEP 3b: the list. divide-y draws a thin line between rows */}
           <ul className="divide-y divide-gray-100">
             {products.map((product) => (
-              <li key={product.id} className="p-4 flex items-center justify-between gap-3">
+              <li key={product.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
                 {/* Left: name, code and price. min-w-0 lets a long name shrink */}
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-brand-navy break-words">{product.name}</p>
@@ -129,6 +135,20 @@ export default async function ProductsPage({ searchParams }) {
                 >
                   {product.status}
                 </span>
+
+                {/* Week 30: row actions. flex-wrap on the <li> and w-full here put
+                    these on their own line under the name and status, so they fit
+                    on a phone */}
+                <div className="flex w-full items-center gap-4">
+                  <Link
+                    href={`/products/${product.id}/edit`}
+                    className="text-sm font-medium text-brand-orange hover:underline"
+                    aria-label={`Edit ${product.name}`}
+                  >
+                    Edit
+                  </Link>
+                  <DeleteProductButton productId={product.id} productName={product.name} />
+                </div>
               </li>
             ))}
           </ul>
@@ -173,4 +193,18 @@ export default async function ProductsPage({ searchParams }) {
 // product.sku || '—'   : no code? show a dash instead of "null"
 // nextCursor           : the API's bookmark for the following page, or null
 //                        when this is the last page
+//
+// Week 30 additions
+// Edit link            : a normal link to /products/<id>/edit, the page that
+//                        opens the form with the old values filled in. Real
+//                        life: a pen mark beside a line in the stock book,
+//                        "tap here to correct this one"
+// DeleteProductButton  : the Delete button with the "are you sure?" step. This
+//                        page stays a SERVER page and the button is one small
+//                        CLIENT piece placed inside it. Real life: the shop
+//                        window is the server, and the button is one little
+//                        lever a customer can pull
+// flex-wrap + w-full   : on a narrow phone the row would be too crowded with
+//                        name, price, status, Edit and Delete. These drop the
+//                        actions onto their own line under the product
 // =============================================================================
