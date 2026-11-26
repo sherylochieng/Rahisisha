@@ -32,8 +32,9 @@
 //      the door works for strangers.
 //
 // WHAT IT SOLVES
-//   Proof for the public door: right shop, only active products, only four
-//   fields, paging that loses nothing, closed and unknown shops give the
+//   Proof for the public door: right shop, only active products, only five
+//   fields (id, name, description, price_cents and, since Week 30, image_url),
+//   paging that loses nothing, closed and unknown shops give the
 //   same 404, and the door is read-only.
 //
 // SYSTEM DESIGN PRINCIPLE
@@ -52,6 +53,17 @@
 //   active products, once each, and never B's secret one.
 //
 // DECISIONS
+//   - (Week 30) The agreed public fields grew from four to five: image_url, the
+//     product photo address, joined on purpose. This test is the guard that
+//     noticed (it failed until we updated the list deliberately). Nothing else
+//     was added: still no SKU, status, dates or tenant id as fields.
+//   - (Week 30) Prod-3 is given a photo address and the others have none, so
+//     test 3b can prove "photo address when there is one, null when there is
+//     not". The test address has no shop id in it on purpose. NOTE: a REAL photo
+//     address contains the shop's folder, which is the shop id. That id is not a
+//     secret (it gives no access; every protected call still needs the login and
+//     the database lock), but it IS visible inside a photo link. Recorded in the
+//     Week 30 notes as a known, accepted tradeoff.
 //   - The expected order is newest first: Prod-3, Prod-2, Prod-1 (Prod-2
 //     and Prod-3 are set apart in time so the order is certain; the tie
 //     rule itself is proven by the Orders test).
@@ -93,6 +105,20 @@
 //
 // 5. The tests  =  "THE ATTACKS AND THE CHECKS"
 //    Each test is one question a nervous shop owner would ask.
+//
+// 6. (Week 30) PHOTO_A and the sixth column of PRODUCTS_A  =  "ONE PRODUCT WITH A PHOTO"
+//    Prod-3 gets a photo address, the rest get none. Real life: one item in
+//    the shop window has a picture pinned to it, the others only a price tag.
+//
+// 7. (Week 30) Test 3 now lists five fields  =  "THE AGREED SHELF LABELS"
+//    The test says exactly which five things a stranger may see. If someone
+//    adds a sixth by accident (a phone number, a cost price), this test fails.
+//    That is how we found out image_url was new: the pre-push check stopped
+//    the push until we agreed the list on purpose.
+//
+// 8. (Week 30) Test 3b  =  "THE PICTURE IS THERE WHEN IT SHOULD BE"
+//    Checks that Prod-3 returns its photo address exactly, and the others
+//    return null (not a missing field, not an empty word).
 // ═══════════════════════════════════════════════════════════
 
 import crypto from 'node:crypto';
@@ -116,11 +142,15 @@ const slugS = `sf-s-${rand}`;   // suspended shop
 
 let tenantA; let tenantB; let tenantE; let tenantS;
 
-// [name, status, deleted?, UTC time, price in cents]  (oldest first)
+// Week 30: a stand-in photo address for one product. It has NO shop id inside
+// on purpose, so test 3 can still prove that no tenant id leaks as a field.
+const PHOTO_A = 'https://res.cloudinary.com/democloud/image/upload/v1/sf-photo-test.jpg';
+
+// [name, status, deleted?, UTC time, price in cents, photo address (optional)]  (oldest first)
 const PRODUCTS_A = [
   ['Prod-1',        'active',   false, '2026-01-01 06:00:00+00', 10000],
   ['Prod-2',        'active',   false, '2026-01-02 06:00:00+00', 20000],
-  ['Prod-3',        'active',   false, '2026-01-03 06:00:00.123456+00', 30000],
+  ['Prod-3',        'active',   false, '2026-01-03 06:00:00.123456+00', 30000, PHOTO_A],
   ['Draft-A',       'draft',    false, '2026-01-04 06:00:00+00', 40000],
   ['Archived-A',    'archived', false, '2026-01-05 06:00:00+00', 50000],
   ['Deleted-A',     'active',   true,  '2026-01-06 06:00:00+00', 60000],
@@ -166,12 +196,12 @@ beforeAll(async () => {
   [tenantA, tenantB, tenantE, tenantS] = made;
 
   await withLock(tenantA, async (db) => {
-    for (const [name, status, deleted, ts, price] of PRODUCTS_A) {
+    for (const [name, status, deleted, ts, price, photo] of PRODUCTS_A) {
       await db.query(
-        `INSERT INTO products (tenant_id, name, description, price_cents, status, sku, created_at, deleted_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        `INSERT INTO products (tenant_id, name, description, price_cents, status, sku, created_at, deleted_at, image_url)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [tenantA, name, `About ${name}`, price, status, `SKU-${name}-${rand}`, ts,
-         deleted ? '2026-02-01 00:00:00+00' : null]);
+         deleted ? '2026-02-01 00:00:00+00' : null, photo ?? null]);
     }
   });
 
@@ -223,14 +253,26 @@ describe('GET /v1/storefront/:slug (public door, follow-up to Week 29 Day 4)', (
 
   test('3. only the agreed fields are public: no SKU, status, dates or tenant id', async () => {
     const res = await get(slugA);
+    // Week 30: image_url (the product photo address) joined the agreed public
+    // fields on purpose. It is a public Cloudinary link, null when no photo.
     expect(Object.keys(res.body.data.products[0]).sort())
-      .toEqual(['description', 'id', 'name', 'price_cents']);
+      .toEqual(['description', 'id', 'image_url', 'name', 'price_cents']);
     expect(Number.isInteger(res.body.data.products[0].price_cents)).toBe(true);
     expect(Object.keys(res.body.data).sort()).toEqual(['products', 'shop']);
     const text = JSON.stringify(res.body);
     expect(text).not.toContain('SKU-');
     expect(text).not.toContain(tenantA);
     expect(text).not.toContain(tenantB);
+  });
+
+  // Week 30: the photo address is returned as-is when there is one, and is
+  // null (present, but empty) when the owner added no photo.
+  test('3b. a product with a photo returns its address, one without returns null', async () => {
+    const products = (await get(slugA)).body.data.products;
+    const withPhoto = products.find((p) => p.name === 'Prod-3');
+    const withoutPhoto = products.find((p) => p.name === 'Prod-2');
+    expect(withPhoto.image_url).toBe(PHOTO_A);
+    expect(withoutPhoto.image_url).toBeNull();
   });
 
   test("4. shop A's window never shows shop B's goods, on any page size", async () => {
