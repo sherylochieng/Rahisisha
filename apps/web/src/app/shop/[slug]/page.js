@@ -125,6 +125,12 @@
 // 10. (Week 30) <BasketBar slug={slug} />  =  "THE PAY COUNTER AT THE FRONT"
 //    Appears only when something is in the basket. Shows the count and the
 //    total, and the orange Checkout button takes the customer to the payment page.
+//    It is solid navy so it stands out from the white page.
+//
+// 11. (Week 30) <BasketLink slug={slug} />  =  "THE SIGN ABOVE THE KIOSK DOOR"
+//    A small "Basket (2)" chip at the right of the navy header. A second way to
+//    reach the checkout, at the spot a laptop user looks first (top right). It
+//    draws nothing while the basket is empty.
 // ═══════════════════════════════════════════════════════════
 
 import Link from 'next/link';
@@ -137,6 +143,7 @@ import EmptyState from '../../../components/EmptyState';
 import { CartProvider } from '../../../components/CartProvider';
 import AddToBasket from '../../../components/AddToBasket';
 import BasketBar from '../../../components/BasketBar';
+import BasketLink from '../../../components/BasketLink';
 
 // Same shape rule as the Orders page: only characters our bookmarks use
 const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,300}$/;
@@ -178,9 +185,16 @@ export default async function ShopPage({ params, searchParams }) {
 
       {/* THE SHOP'S NAME BOARD */}
       <header className="bg-brand-navy text-white">
-        <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
-          <h1 className="font-display text-2xl sm:text-3xl font-bold">{shop.name}</h1>
-          <p className="mt-1 text-sm text-gray-300">Shop online. Pay with M-Pesa.</p>
+        {/* (Week 30) flex + justify-between: the shop's name on the left, the
+            Basket chip on the right. min-w-0 lets a long shop name wrap
+            instead of pushing the chip off the screen. */}
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-8 sm:py-10">
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold">{shop.name}</h1>
+            <p className="mt-1 text-sm text-gray-300">Shop online. Pay with M-Pesa.</p>
+          </div>
+          {/* (Week 30) The Basket chip. Shows only when the basket has items. */}
+          <BasketLink slug={slug} />
         </div>
       </header>
 
