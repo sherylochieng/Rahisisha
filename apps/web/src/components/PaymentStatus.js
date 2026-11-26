@@ -5,10 +5,12 @@
 // WHY THIS FILE EXISTS
 //   Everything the customer sees AFTER tapping "Pay with M-Pesa":
 //     WAITING   "Check your phone. Enter your M-Pesa PIN."   (updates by itself)
+//               + after 15 seconds a button: "I've paid, check my payment"
 //     PAID      a green tick, the M-Pesa receipt code, the order, and an
 //               optional box: "Where should we deliver?"
 //     FAILED    a kind reason ("You cancelled the request", "Wrong PIN"...)
-//               with a big "Try again" button
+//               with a big "Try again" button. Also shown when a check finds
+//               that NOTHING was paid ("No payment was found").
 //   It asks the shop's till "has the payment come through?" every 2 seconds
 //   until the answer is final.
 //
@@ -48,8 +50,11 @@
 //   1. Poll every 2 seconds for the first 2 minutes, then every 5 seconds
 //      (gentle on a customer's data bundle).
 //   2. Stop polling the moment the payment is PAID or FAILED.
-//   3. After 45 seconds of waiting, offer help: "Send the request again" and
-//      "Use a different number".
+//   3. After 15 seconds of waiting, offer "I've paid, check my payment". It asks
+//      Safaricom (through our till) what really happened. There is NO "send
+//      again" button while waiting: a second prompt is offered ONLY after a
+//      check (or the polling) finds the first one failed. This is what stops a
+//      customer being charged twice.
 //   4. A "not found" answer means the remembered order is stale: hand control
 //      back to the form (onChangeDetails).
 //   5. The delivery note is OPTIONAL, 1 to 300 characters, and only offered
@@ -74,9 +79,12 @@
 //   + Resilient and calm, no manual refreshing.
 //   - Polling is simple but not instant (up to 2 seconds late). A push channel
 //     (websocket) would be instant but is far heavier for a small shop.
-//   - If Safaricom's callback never arrives, the screen stays on "waiting" and
-//     relies on the help buttons. Reconciliation (asking Safaricom directly) is
-//     planned later.
+//   - If Safaricom's callback never arrives, the screen stays on "waiting" until
+//     the customer presses the check button (the till then asks Safaricom
+//     directly and records the answer). A scheduled sweeper that does this
+//     without a click is planned later.
+//   - The old "Send the request again" button on the waiting screen was removed
+//     on purpose: it caused a real double charge (KES 640 for a KES 320 order).
 //
 // HOW TO USE
 //   import PaymentStatus from './PaymentStatus';
@@ -88,7 +96,12 @@
 //                       "has the M-Pesa message come in yet?" She stops looking
 //                       the moment she has an answer, and goes home when you do.
 //   WaitingView       = "Check your phone, enter your PIN, I will wait here."
-//   after 45 seconds  = "Not seeing the prompt? I can send it again."
+//   after 15 seconds  = "I paid but nothing happened." You ask her to phone
+//                       Safaricom and check. She does NOT ring your phone again
+//                       until she knows whether you paid.
+//   handleCheck       = her phone call to Safaricom, and what she tells you:
+//                       "yes, paid" (receipt), "nothing was paid, try again", or
+//                       "they are still looking, please wait".
 //   PaidView          = "Received, thank you!" She writes the M-Pesa code on
 //                       your slip, then asks "where should the rider bring it?"
 //   FailedView        = "That didn't go through, you cancelled it. Want to try
@@ -105,15 +118,15 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useCart } from './CartProvider';
 import { formatKes } from '../lib/format';
-import { fetchOrderStatus, startPayment, saveDeliveryNote } from '../lib/checkoutApi';
+import { fetchOrderStatus, startPayment, saveDeliveryNote, checkPayment } from '../lib/checkoutApi';
 
 // How often we ask the till (milliseconds).
 const POLL_FAST_MS = 2000;
 const POLL_SLOW_MS = 5000;
 // After this long, we ask less often.
 const SLOW_AFTER_MS = 120000;
-// After this many seconds of waiting, we offer help.
-const HELP_AFTER_SECONDS = 45;
+// After this many seconds of waiting, we show "I've paid, check my payment".
+const CHECK_AFTER_SECONDS = 15;
 
 // What to tell the customer for each failure reason the server can give.
 // Every one says what happened AND what to do.
@@ -158,6 +171,11 @@ export default function PaymentStatus({ slug, orderId, phoneDisplay, onChangeDet
   // "Try again" in progress, and its error if the till refused.
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState(null);
+  // "I've paid, check my payment" in progress, and what it told the customer.
+  const [checking, setChecking] = useState(false);
+  const [checkNote, setCheckNote] = useState(null);
+  // True once a check found that NOTHING was paid (changes the failed wording).
+  const [confirmedUnpaid, setConfirmedUnpaid] = useState(false);
 
   // So the polling loop can call the latest onChangeDetails without restarting.
   const resetRef = useRef(onChangeDetails);
@@ -224,7 +242,7 @@ export default function PaymentStatus({ slug, orderId, phoneDisplay, onChangeDet
   }, [slug, orderId, attempt]);
 
   // ── THE WAITING CLOCK ──
-  // Counts seconds while we are waiting, so we can offer help after 45 seconds.
+  // Counts seconds while we are waiting, so we can offer the check button after 15 seconds.
   useEffect(() => {
     if (!isWaiting) return undefined;
     setWaitedSec(0);
@@ -261,6 +279,44 @@ export default function PaymentStatus({ slug, orderId, phoneDisplay, onChangeDet
     setAttempt((a) => a + 1);
   }
 
+  // ── "I'VE PAID, CHECK MY PAYMENT" ──
+  // Asks the till to phone Safaricom and find out what really happened.
+  // Three possible answers: paid (receipt screen), failed (nothing was paid, so
+  // "Try again" is now safe), or pending (Safaricom is still deciding: wait).
+  async function handleCheck() {
+    // A double tap does nothing.
+    if (checking) return;
+    setChecking(true);
+    setCheckNote(null);
+    const r = await checkPayment(slug, orderId);
+    setChecking(false);
+
+    if (!r.ok) {
+      if (r.error.code === 'not_found') {
+        // The remembered order is stale: start fresh.
+        resetRef.current();
+        return;
+      }
+      // Offline, too soon, or any other refusal: show the kind message.
+      setCheckNote({ kind: 'error', text: r.error.message });
+      return;
+    }
+
+    // Show the fresh answer straight away (the polling loop agrees on its next ask).
+    setOrder(r.data);
+    const ps = r.data.payment.status;
+    if (ps === 'failed') {
+      // Safaricom confirmed nothing was paid.
+      setConfirmedUnpaid(true);
+    } else if (ps !== 'paid' && r.data.orderStatus !== 'paid' && r.data.orderStatus !== 'packed') {
+      // Still pending: Safaricom has not decided yet.
+      setCheckNote({
+        kind: 'info',
+        text: 'We asked Safaricom and it is still processing your payment. Please wait a minute and check again. Do not pay again.',
+      });
+    }
+  }
+
   // The first answer has not arrived yet.
   if (!order) {
     return (
@@ -281,6 +337,7 @@ export default function PaymentStatus({ slug, orderId, phoneDisplay, onChangeDet
         totalCents={order.totalCents}
         retrying={retrying}
         retryError={retryError}
+        confirmedUnpaid={confirmedUnpaid}
         onRetry={handleRetry}
         onChangeDetails={onChangeDetails}
       />
@@ -293,10 +350,9 @@ export default function PaymentStatus({ slug, orderId, phoneDisplay, onChangeDet
       totalCents={order.totalCents}
       waitedSec={waitedSec}
       trouble={trouble}
-      retrying={retrying}
-      retryError={retryError}
-      onRetry={handleRetry}
-      onChangeDetails={onChangeDetails}
+      checking={checking}
+      checkNote={checkNote}
+      onCheck={handleCheck}
     />
   );
 }
@@ -328,10 +384,10 @@ function TroubleNote() {
 // WAITING: "Check your phone"
 // ═════════════════════════════════════════════════════════════════════════════
 function WaitingView({
-  phoneDisplay, totalCents, waitedSec, trouble, retrying, retryError, onRetry, onChangeDetails,
+  phoneDisplay, totalCents, waitedSec, trouble, checking, checkNote, onCheck,
 }) {
-  // After 45 seconds with no answer, show the help buttons.
-  const needsHelp = waitedSec >= HELP_AFTER_SECONDS;
+  // After 15 seconds with no answer, show the "check my payment" button.
+  const canCheck = waitedSec >= CHECK_AFTER_SECONDS;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6 text-center" aria-live="polite">
@@ -374,29 +430,27 @@ function WaitingView({
         {trouble && <TroubleNote />}
       </div>
 
-      {/* After 45 seconds: help for a prompt that never arrived. */}
-      {needsHelp && (
+      {/* After 15 seconds: let the customer ask what really happened. There is
+          deliberately NO "send again" button here: a second prompt is offered only
+          after a check finds that nothing was paid. */}
+      {canCheck && (
         <div className="mt-6 border-t border-gray-100 pt-5">
-          <p className="text-sm text-gray-600">Not seeing the M-Pesa message?</p>
-          {retryError && (
-            <p role="alert" className="mt-2 text-sm text-red-600">
-              {retryError.message}
+          <p className="text-sm text-gray-600">Already entered your PIN, or got an M-Pesa message?</p>
+          {checkNote && (
+            <p
+              role={checkNote.kind === 'error' ? 'alert' : 'status'}
+              className={`mt-2 text-sm ${checkNote.kind === 'error' ? 'text-red-600' : 'text-brand-navy'}`}
+            >
+              {checkNote.text}
             </p>
           )}
           <button
             type="button"
-            onClick={onRetry}
-            disabled={retrying}
+            onClick={onCheck}
+            disabled={checking}
             className="mt-3 h-12 w-full rounded-lg bg-brand-orange text-base font-bold text-white transition hover:bg-brand-orange-dark active:scale-95 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {retrying ? 'Sending…' : 'Send the request again'}
-          </button>
-          <button
-            type="button"
-            onClick={onChangeDetails}
-            className="mt-3 text-sm text-gray-600 underline hover:text-brand-navy"
-          >
-            Use a different number
+            {checking ? 'Checking with M-Pesa…' : "I've paid, check my payment"}
           </button>
         </div>
       )}
@@ -407,9 +461,18 @@ function WaitingView({
 // ═════════════════════════════════════════════════════════════════════════════
 // FAILED: a kind reason and a big "Try again"
 // ═════════════════════════════════════════════════════════════════════════════
-function FailedView({ reason, totalCents, retrying, retryError, onRetry, onChangeDetails }) {
+function FailedView({
+  reason, totalCents, retrying, retryError, confirmedUnpaid, onRetry, onChangeDetails,
+}) {
   // Our own wording for the reason; an unknown reason uses the generic one.
-  const words = REASONS[reason] || REASONS.failed;
+  // When a check has just confirmed that nothing was paid, say that plainly
+  // (the generic wording would wrongly tell the customer to contact the shop).
+  const words = confirmedUnpaid && (!reason || reason === 'failed')
+    ? {
+        title: 'No payment was found',
+        text: 'We checked with M-Pesa and no money was taken for this order. You can safely try again.',
+      }
+    : REASONS[reason] || REASONS.failed;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6 text-center" aria-live="polite">
