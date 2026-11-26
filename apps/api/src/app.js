@@ -44,6 +44,7 @@ import walletRouter from './routes/wallet.routes.js';
 import storefrontRouter from './routes/storefront.routes.js';
 import checkoutRouter from './routes/checkout.routes.js';
 import { resolveShopBySlug } from './middleware/resolveShopBySlug.js';
+import adminAuthRouter from './routes/adminAuth.routes.js';
 import uploadsRouter from './routes/uploads.routes.js';
 
 
@@ -130,6 +131,10 @@ app.use('/v1/tenants', tenantsRouter);
 // the ONLY router here that writes: checkout, pay, status, delivery note.
 app.use('/v1/storefront/:slug', resolveShopBySlug, withTenant, storefrontRouter, checkoutRouter);
 
+
+// Platform admin sign-in door (Week 30). Separate from shop owners: its own cookie,
+// its own guard (requirePlatformAdmin inside the router), and NO withTenant.
+app.use('/v1/admin/auth', adminAuthRouter);
 
 // USSD: PUBLIC on purpose. No requireAuth, because a phone has no login cookie.
 // Instead the guard resolveUssdTenant finds the shop from the service code,
