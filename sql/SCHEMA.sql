@@ -36,6 +36,9 @@
 --  25. payment_attempts (migration 025)
 --  26. ussd_events (migration 026)
 --  27. products.image_url column (migration 027)
+--  28. platform_admins table + tenants.suspended_* + audit_logs.actor_admin_id
+--      (migration 028, Week 30 platform admin; created at the END of this file
+--       because tenants and audit_logs point at platform_admins)
 -- =============================================================
 
 
@@ -63,6 +66,9 @@ CREATE TABLE IF NOT EXISTS tenants (
 CREATE UNIQUE INDEX tenants_slug_unique ON tenants (slug);
 CREATE INDEX        tenants_slug_idx    ON tenants (slug);
 -- No RLS on tenants — it IS the source of identity
+-- (Migration 028 also adds suspended_at, suspended_reason and suspended_by to
+--  this table. They are added at the END of this file, after platform_admins
+--  exists, because suspended_by points at it.)
 
 
 -- =============================================================
@@ -774,8 +780,65 @@ $$ LANGUAGE plpgsql;
 
 
 -- =============================================================
+-- TABLE 28: platform_admins (migration 028, Week 30 platform admin)
+-- The people allowed into Rahisisha "head office": they can see every shop and
+-- suspend one that breaks the rules. A completely separate identity from shop
+-- owners (users). Locked with RLS: rows are visible ONLY while the server has
+-- set app.platform_admin = 'on', which only the admin code does.
+-- This block is at the end because tenants and audit_logs point at it.
+-- =============================================================
+CREATE TABLE IF NOT EXISTS platform_admins (
+  id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone          TEXT        NOT NULL,
+  name           TEXT        NOT NULL,
+  password_hash  TEXT        NOT NULL,    -- bcrypt, never plain text
+  status         TEXT        NOT NULL DEFAULT 'active'
+                             CHECK (status IN ('active', 'disabled')),
+  last_login_at  TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS platform_admins_phone_unique ON platform_admins (phone);
+
+ALTER TABLE platform_admins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_admins FORCE  ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS platform_admin_only ON platform_admins;
+CREATE POLICY platform_admin_only ON platform_admins
+  USING      (current_setting('app.platform_admin', TRUE) = 'on')
+  WITH CHECK (current_setting('app.platform_admin', TRUE) = 'on');
+
+-- The suspension notice on each shop: when, why (max 500 characters) and by whom.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS suspended_at     TIMESTAMPTZ;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS suspended_reason TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS suspended_by     UUID
+  REFERENCES platform_admins(id) ON DELETE SET NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'tenants_suspended_reason_len_chk'
+  ) THEN
+    ALTER TABLE tenants
+      ADD CONSTRAINT tenants_suspended_reason_len_chk
+      CHECK (suspended_reason IS NULL OR char_length(suspended_reason) <= 500);
+  END IF;
+END $$;
+
+-- Who did it, in the audit diary (admins are not shop-owner users).
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_admin_id UUID
+  REFERENCES platform_admins(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS audit_logs_actor_admin_idx
+  ON audit_logs (actor_admin_id, created_at DESC);
+
+
+-- =============================================================
 -- 26 tables total (ussd_events added in migration 026, Week 29 Day 4)
 -- 20 tables with RLS enabled (all tenant-owned tables)
+--  platform_admins (table 28, migration 028) has RLS of its own kind: visible
+--    only while app.platform_admin = 'on' (counted separately from the below)
 --  6 tables without RLS (tenants, users, webhook_events, audit_logs,
 --    ussd_configs and whatsapp_configs: both are looked up before any
 --    shop is known)
