@@ -1,3 +1,95 @@
+// =============================================================================
+// FILE: apps/api/src/controllers/products.controller.js
+// (Week 28 products CRUD; Week 30 product photo address added)
+// =============================================================================
+//
+// WHY THIS FILE EXISTS
+//   It holds the business logic of the five /v1/products endpoints: list,
+//   create, get one, update, delete. Routes only point here; the real work
+//   (check the input, talk to the database, answer) happens in this file.
+//   Real life: the shopkeeper behind the counter of the "products" stall.
+//
+// WHY IMPORTANT
+//   Products are what a shop sells. Every price, name and photo the customer
+//   sees on the shop page started in this file. A bug here means wrong prices
+//   or one shop seeing another shop's goods.
+//
+// DANGER
+//   1. Always use req.db, never pool.query. req.db is locked to ONE shop by
+//      withTenant + row level security (RLS). pool.query would skip the lock.
+//   2. Money is whole cents (KES 350 = 35000). Never floats.
+//   3. DELETE is a soft delete (deleted_at). Old orders still point at the row.
+//   4. The photo address is only saved after isShopImageUrl() says yes. Never
+//      remove that check: it stops a shop saving someone else's photo or a
+//      harmful link as its product picture.
+//   5. PATCH uses COALESCE ("keep the old value if nothing was sent"), so it
+//      cannot clear sku or description. The photo is the exception: it has its
+//      own on/off switch (setImage) so it CAN be removed.
+//
+// WHAT IT SOLVES
+//   A safe, validated, tenant-isolated way for the owner to manage products,
+//   now including one photo per product.
+//
+// SYSTEM DESIGN PRINCIPLE
+//   Validate at the door (Zod), isolate in the database (RLS), keep the answer
+//   shape the same everywhere ({ data, nextCursor, error }).
+//
+// RULES
+//   1. Validate first, then touch the database, then answer.
+//   2. 400 validation / 404 not found / 409 duplicate SKU / 201 created /
+//      204 deleted.
+//   3. List uses cursor paging (WHERE id > cursor), not OFFSET.
+//   4. imageUrl: missing = keep, string = set (must be this shop's Cloudinary
+//      photo), null = remove.
+//
+// PRACTICAL EXAMPLE
+//   Mama Njeri uploads a photo, then saves the product:
+//     POST /v1/products
+//     { "name": "Kitenge dress", "priceCents": 250000,
+//       "imageUrl": "https://res.cloudinary.com/<cloud>/image/upload/v1/rahisisha/<her shop id>/dress.jpg" }
+//     -> 201 { data: { id, name, price_cents, image_url, ... }, error: null }
+//   Same request with another shop's photo address -> 400 (imageUrl refused).
+//
+// WHERE USED
+//   Routes:   apps/api/src/routes/products.routes.js
+//   Photo check: apps/api/src/services/cloudinary.service.js
+//   Web app:  ProductForm (create/edit), products list page
+//
+// TRADEOFFS
+//   + One small file, easy to read, same pattern for every handler.
+//   - One photo per product. A gallery would use the product_media table.
+//   - We only check the photo ADDRESS, not that the file still exists at
+//     Cloudinary.
+//   - Deleting a product does not delete its photo at Cloudinary yet.
+//
+// HOW TO USE
+//   Do not import this file anywhere except the routes file. Call the API:
+//     GET    /v1/products?limit=10&cursor=<id>
+//     POST   /v1/products
+//     GET    /v1/products/:id
+//     PATCH  /v1/products/:id
+//     DELETE /v1/products/:id
+//
+// PIECE BY PIECE (the photo parts added this week)
+//   imageUrl in the Zod shape  = "the form now has a line for the photo
+//                                 address; it may be missing, text, or null".
+//   refusedImageUrl(...)       = "the guard at the gate: only this shop's own
+//                                 photo slips are accepted". If refused it
+//                                 already sent the 400 answer, so the handler
+//                                 just stops (`return`).
+//   image_url in the list      = "the products page can now show each photo".
+//   createProduct: imageUrl    = "write the photo address in the new product's
+//                                 row; null when no photo".
+//   updateProduct: setImage    = "did the caller mention the photo at all?"
+//                                 not mentioned -> keep; text -> set; null ->
+//                                 remove. Real life: leave the notebook line
+//                                 alone / write a new line / rub it out.
+//   CASE WHEN $7 THEN $8 ...   = the SQL version of that switch.
+//
+// -----------------------------------------------------------------------------
+// The original Week 28 notes of this file continue below, unchanged.
+// -----------------------------------------------------------------------------
+
 // =============================================================
 // products.controller.js
 // Handles all business logic for the /v1/products endpoints.
@@ -12,6 +104,7 @@
 // =============================================================
 
 import { z } from 'zod';
+import { isShopImageUrl } from '../services/cloudinary.service.js';
 
 // ─── VALIDATION SCHEMAS ───────────────────────────────────────
 //
@@ -39,6 +132,12 @@ const ProductCreate = z.object({
 
   // status must be one of these three exact strings — nothing else allowed
   status: z.enum(['draft', 'active', 'archived']).optional(),
+
+  // imageUrl = the web address of the product photo (kept at Cloudinary).
+  // - missing  : leave the photo as it is (PATCH) / no photo (create)
+  // - a string : set this photo (checked below: must be THIS shop's photo)
+  // - null     : remove the photo (PATCH only makes sense)
+  imageUrl: z.string().max(500).nullable().optional(),
 });
 
 // ─── VALIDATION ERROR HELPER ──────────────────────────────────
@@ -82,6 +181,28 @@ function validationError(res, zodError) {
   });
 }
 
+// ─── PHOTO ADDRESS CHECK HELPER ───────────────────────────────
+//
+// A photo address is only accepted if it is a Cloudinary address from OUR
+// cloud, inside THIS shop's own folder (see cloudinary.service.js).
+// Real life: mama mboga only accepts a delivery slip that has HER shop's
+// name on it, not a slip from another stall.
+// Returns true when the address was refused (and the answer was already sent).
+// ─────────────────────────────────────────────────────────────
+
+function refusedImageUrl(req, res, imageUrl) {
+  if (imageUrl == null) return false;                 // none / removing: fine
+  if (isShopImageUrl(imageUrl, req.tenantId)) return false;
+  res.status(400).json({
+    error: {
+      code:    'validation',
+      message: 'Request validation failed',
+      details: { imageUrl: 'Not a photo uploaded by this shop' },
+    },
+  });
+  return true;
+}
+
 // =============================================================
 // HANDLER: listProducts
 // Route:   GET /v1/products
@@ -118,7 +239,7 @@ export async function listProducts(req, res) {
   // req.db is set by withTenant middleware to this tenant's scoped connection
   // RLS on the database ensures only this tenant's rows come back
   const { rows } = await req.db.query(
-    `SELECT id, sku, name, description, price_cents, status, created_at
+    `SELECT id, sku, name, description, price_cents, status, image_url, created_at
      FROM products
      WHERE deleted_at IS NULL
        AND ($1::uuid IS NULL OR id > $1)
@@ -165,16 +286,20 @@ export async function createProduct(req, res) {
     sku         = null,
     description = null,
     status      = 'draft',
+    imageUrl    = null,
   } = result.data;
+
+  // Refuse a photo address that is not this shop's own photo
+  if (refusedImageUrl(req, res, imageUrl)) return;
 
   try {
     // RETURNING * tells Postgres to give us back the full created row
     // This saves us doing a second SELECT after the INSERT
     const { rows } = await req.db.query(
-      `INSERT INTO products (tenant_id, name, price_cents, sku, description, status)
-        VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO products (tenant_id, name, price_cents, sku, description, status, image_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [req.tenantId, name, priceCents, sku, description, status]
+      [req.tenantId, name, priceCents, sku, description, status, imageUrl]
     );
 
     // 201 Created — not 200. 201 means "a new thing was created"
@@ -240,7 +365,17 @@ export async function updateProduct(req, res) {
   const result = ProductCreate.partial().safeParse(req.body);
   if (!result.success) return validationError(res, result.error);
 
-  const { name, priceCents, sku, description, status } = result.data;
+  const { name, priceCents, sku, description, status, imageUrl } = result.data;
+
+  // Refuse a photo address that is not this shop's own photo
+  if (refusedImageUrl(req, res, imageUrl)) return;
+
+  // The photo is special: COALESCE cannot REMOVE it (null would mean "keep").
+  // So we say clearly whether the caller sent imageUrl at all:
+  //   not sent       -> keep the current photo
+  //   sent a string  -> set it
+  //   sent null      -> remove it
+  const setImage = imageUrl !== undefined;
 
   const { rows } = await req.db.query(
     `UPDATE products
@@ -249,13 +384,14 @@ export async function updateProduct(req, res) {
          sku         = COALESCE($3, sku),
          description = COALESCE($4, description),
          status      = COALESCE($5, status),
+         image_url   = CASE WHEN $7::boolean THEN $8::text ELSE image_url END,
          updated_at  = NOW()
      WHERE id = $6
        AND deleted_at IS NULL
      RETURNING *`,
     // ?? null converts undefined to null so COALESCE works correctly
     // undefined would break the query — null is what Postgres expects
-    [name ?? null, priceCents ?? null, sku ?? null, description ?? null, status ?? null, req.params.id]
+    [name ?? null, priceCents ?? null, sku ?? null, description ?? null, status ?? null, req.params.id, setImage, imageUrl ?? null]
   );
 
   if (!rows[0]) {
