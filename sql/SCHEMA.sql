@@ -35,6 +35,7 @@
 --  24. daraja_configs (migration 025)
 --  25. payment_attempts (migration 025)
 --  26. ussd_events (migration 026)
+--  27. products.image_url column (migration 027)
 -- =============================================================
 
 
@@ -158,6 +159,8 @@ CREATE TABLE IF NOT EXISTS products (
   sku         TEXT,
   name        TEXT        NOT NULL,
   description TEXT,
+  image_url   TEXT        CONSTRAINT products_image_url_https_chk
+                          CHECK (image_url IS NULL OR image_url LIKE 'https://%'),
   price_cents INTEGER     NOT NULL CHECK (price_cents >= 0),
   status      TEXT        NOT NULL DEFAULT 'draft'
                           CHECK (status IN ('draft', 'active', 'archived')),
