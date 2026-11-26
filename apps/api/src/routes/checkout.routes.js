@@ -11,6 +11,7 @@
 //     POST   /v1/storefront/:slug/checkout                -> make an order
 //     GET    /v1/storefront/:slug/orders/:orderId         -> payment status
 //     POST   /v1/storefront/:slug/orders/:orderId/pay     -> start the M-Pesa prompt
+//     POST   /v1/storefront/:slug/orders/:orderId/check-payment -> "I've paid, check it"
 //     PATCH  /v1/storefront/:slug/orders/:orderId/note    -> delivery note, after payment
 //
 // WHY IMPORTANT
@@ -36,7 +37,7 @@
 //   2. Wrap every async handler in asyncHandler.
 //   3. Mounted PUBLIC (no requireAuth) but AFTER resolveShopBySlug and withTenant,
 //      so every query is locked to the shop in the address. See app.js.
-//   4. Only these four routes. Anything that changes products, prices or order
+//   4. Only these five routes. Anything that changes products, prices or order
 //      status stays behind the owner's login.
 //   5. A made-up or unknown order id always gets the same plain 404.
 //
@@ -69,6 +70,9 @@
 //   router.post('/checkout')      = "I'd like to order these" -> creates the order.
 //   router.get('/orders/:orderId')= "has my payment come through?"
 //   router.post('.../pay')        = "send the M-Pesa request to my phone".
+//   router.post('.../check-payment') = "I paid but nothing happened, please check
+//                                   with Safaricom". Real life: the shopkeeper
+//                                   phones Safaricom before asking you to pay again.
 //   router.patch('.../note')      = "deliver here" (after paying).
 //   :orderId                      = the customer's ticket number in the address.
 //   asyncHandler(...)             = the safety net: if the function fails, the
@@ -79,6 +83,7 @@ import {
   createCheckout,
   payCheckoutOrder,
   getCheckoutOrder,
+  checkCheckoutPayment,
   saveDeliveryNote,
 } from '../controllers/checkout.controller.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -93,6 +98,10 @@ router.get('/orders/:orderId', asyncHandler(getCheckoutOrder));
 
 // POST /v1/storefront/:slug/orders/:orderId/pay  ->  send the M-Pesa prompt
 router.post('/orders/:orderId/pay', asyncHandler(payCheckoutOrder));
+
+// POST /v1/storefront/:slug/orders/:orderId/check-payment  ->  ask Safaricom what really
+// happened, record it, and answer with the fresh status (prevents a second payment)
+router.post('/orders/:orderId/check-payment', asyncHandler(checkCheckoutPayment));
 
 // PATCH /v1/storefront/:slug/orders/:orderId/note  ->  delivery note, after payment only
 router.patch('/orders/:orderId/note', asyncHandler(saveDeliveryNote));
