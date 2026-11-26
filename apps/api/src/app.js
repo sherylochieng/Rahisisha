@@ -43,6 +43,7 @@ import inboxRouter from './routes/inbox.routes.js';
 import walletRouter from './routes/wallet.routes.js';
 import storefrontRouter from './routes/storefront.routes.js';
 import { resolveShopBySlug } from './middleware/resolveShopBySlug.js';
+import uploadsRouter from './routes/uploads.routes.js';
 
 
 // Load .env variables (DATABASE_URL, JWT_SECRET, etc.) into process.env
@@ -92,6 +93,10 @@ app.use('/v1', authRouter);
 // This double guard means a request with no token or wrong tenant NEVER
 // reaches the controller — it is rejected before any business logic runs
 app.use('/v1/products', requireAuth, withTenant, productsRouter);
+
+// Photo permit: login required (requireAuth). No withTenant, because this route
+// never touches the database. It only signs a permit for the shop in the cookie.
+app.use('/v1/uploads', requireAuth, uploadsRouter);
 
 // Order routes — same double guard as products
 app.use('/v1/orders', requireAuth, withTenant, ordersRouter);
