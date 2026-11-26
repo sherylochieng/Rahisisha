@@ -3,11 +3,12 @@
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
-//   The four phone calls the checkout screens make to the shop's till (the API):
+//   The five phone calls the checkout screens make to the shop's till (the API):
 //     1. createOrder        POST  /storefront/:slug/checkout
 //     2. startPayment       POST  /storefront/:slug/orders/:id/pay
 //     3. fetchOrderStatus   GET   /storefront/:slug/orders/:id
 //     4. saveDeliveryNote   PATCH /storefront/:slug/orders/:id/note
+//     5. checkPayment       POST  /storefront/:slug/orders/:id/check-payment
 //   Each one returns the SAME simple shape, whatever happens:
 //     { ok: true,  data }                       it worked
 //     { ok: false, error: { code, message } }   it did not, with a kind message
@@ -53,6 +54,10 @@
 //   - A call that fails because the phone is OFFLINE gets the code 'network'.
 //     A call that is too slow gets 'timeout'. Both are safe to retry. The
 //     server-side checks (a phone limit, a refused product) keep their own codes.
+//   - checkPayment is the "I've paid, check my payment" button. The till asks
+//     Safaricom what really happened and answers in the SAME shape as the status
+//     call. It is a POST (it records what it learns), and 'too_soon' (429) means
+//     "you just asked, wait a few seconds".
 //   - Pay-start answers 202 ("accepted"): the money has NOT moved yet. The real
 //     result arrives later, so the screen then polls fetchOrderStatus.
 //
@@ -64,7 +69,8 @@
 //   - A small amount of extra code compared with calling fetch directly.
 //
 // HOW TO USE
-//   import { createOrder, startPayment, fetchOrderStatus, saveDeliveryNote }
+//   import { createOrder, startPayment, fetchOrderStatus, saveDeliveryNote,
+//            checkPayment }
 //     from '../lib/checkoutApi';
 //
 // ═══════════════════════════════════════════════════════════
@@ -81,6 +87,9 @@
 //   startPayment         = "Send the M-Pesa request to my phone."
 //   fetchOrderStatus     = "Has my payment come through yet?"
 //   saveDeliveryNote     = "Deliver to Kilimani, gate 3." (after paying).
+//   checkPayment         = "I paid but nothing happened. Please phone Safaricom and
+//                          check." The shopkeeper finds out, writes it in the
+//                          book, and tells you before asking you to pay again.
 
 // The till's address, e.g. https://api.rahisishabiashara.com/v1 (ends in /v1).
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -179,5 +188,16 @@ export function saveDeliveryNote(slug, orderId, note) {
   return call(`${shopPath(slug)}/orders/${encodeURIComponent(orderId)}/note`, {
     method: 'PATCH',
     body: { note },
+  });
+}
+
+// 5. "I've paid, check my payment." The till asks Safaricom what really happened
+//    and answers in the SAME shape as fetchOrderStatus, plus nothing else to learn:
+//    look at payment.status ('paid' / 'failed' / 'pending'). Error code 'too_soon'
+//    means "wait a few seconds and press again".
+export function checkPayment(slug, orderId) {
+  return call(`${shopPath(slug)}/orders/${encodeURIComponent(orderId)}/check-payment`, {
+    method: 'POST',
+    body: {},
   });
 }
