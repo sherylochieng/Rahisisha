@@ -14,6 +14,11 @@
 //        "Did my payment go through?" -> the status the waiting screen polls.
 //     4. saveDeliveryNote     PATCH /v1/storefront/:slug/orders/:orderId/note
 //        "Deliver to Kilimani, gate 3." -> allowed only AFTER payment.
+//     5. checkCheckoutPayment POST  /v1/storefront/:slug/orders/:orderId/check-payment
+//        "I have paid, check my payment." -> asks SAFARICOM what really
+//        happened to a payment that is stuck on 'pending' and records the
+//        answer. (Week 30 fix: a paid-but-unrecorded payment, and a second
+//        charge, were found in real testing.)
 //
 // WHY IMPORTANT
 //   This is where a stranger's tap becomes real money in the shop's till. Every
@@ -34,8 +39,13 @@
 //      in PROMPT_WINDOW_MINUTES).
 //   5. Never log the phone, the amount or Safaricom's reply. This file has no
 //      console calls on purpose.
-//   6. This file never marks anything paid. Only the verified M-Pesa callback
-//      may do that.
+//   6. This file never decides that something is paid. Only two things may
+//      mark an order paid: the verified M-Pesa callback, and the reconcile
+//      service, which asks SAFARICOM itself (never the customer's browser).
+//      The check-payment job here only CALLS the reconcile service.
+//   7. The check-payment route talks to Safaricom, so it is rate limited
+//      (one check per order every 5 seconds) to protect the shop's M-Pesa
+//      account from a customer who keeps pressing the button.
 //
 // WHAT IT SOLVES
 //   A Shopify-style guest checkout that is tailored to Kenya: no account, two
@@ -74,6 +84,15 @@
 //     (cancelled, wrong_pin, insufficient_funds, timeout, failed). Raw
 //     Safaricom text never reaches the customer.
 //   - No stock check yet (products have no stock number today).
+//   - (Week 30) The status answer shows the PAID attempt if there is one, even
+//     when a newer attempt exists. Otherwise a customer who paid, then tapped
+//     "send again", would see the newer 'pending' attempt instead of their
+//     receipt.
+//   - (Week 30) The check-payment answer is the SAME shape as the status
+//     answer, so the web page needs no new code to read it.
+//   - The 5-second spacing is kept in memory (one Map). It resets when the
+//     server restarts and is per server instance. That is enough to stop button
+//     mashing; a shared limiter (Redis) is future work.
 //
 // WHERE USED
 //   apps/api/src/routes/storefront.routes.js (mounted under /v1/storefront/:slug,
@@ -147,6 +166,22 @@
 // 8. fail()
 //    = one helper that sends { data: null, error: { code, message } } so every
 //    failure looks the same.
+//
+// 9. loadOrderStatus (Week 30)
+//    = the "read the order and its payment" question, now in ONE place, used by
+//    both the status route and the check-payment route. It prefers the PAID
+//    attempt over a newer one.
+//
+// 10. checkCheckoutPayment (Week 30)
+//    a. unknown / made-up ticket -> the same plain 404.
+//    b. too soon (under 5 seconds since the last check of this order) -> 429.
+//       Real life: the shopkeeper will phone Safaricom, but not every second.
+//    c. reconcileOrder: ask Safaricom about every pending attempt and record the
+//       answer (paid, failed, or "not sure yet = change nothing").
+//    d. answer with the fresh status (same shape as the status route).
+//    The customer is told one of three things: it was paid (green screen), it
+//    failed (kind reason, and only now may they try again), or Safaricom is
+//    still processing (wait and check again).
 
 // ── IMPORTS ──────────────────────────────────────────────────────────────────
 
@@ -164,12 +199,26 @@ import { normalizePhone } from '../services/daraja.service.js';
 // We REUSE it instead of copying it, so the money rules live in one place.
 import { payOrder } from './payments.controller.js';
 
+// (Week 30) reconcileOrder = asks Safaricom what really happened to payments
+// stuck on 'pending' and records the answer safely.
+import { reconcileOrder } from '../services/reconcile.service.js';
+
 // ── SETTINGS ─────────────────────────────────────────────────────────────────
 
 // The limit on prompts to ONE phone number: at most 3 in 10 minutes.
 // Real life: the shop agrees not to ring the same customer ten times in a row.
 const MAX_PROMPTS_PER_PHONE = 3;
 const PROMPT_WINDOW_MINUTES = 10;
+
+// (Week 30) The check-payment button talks to Safaricom, so one order may be
+// checked at most once every 5 seconds. Real life: the shopkeeper will phone
+// Safaricom for you, but not every second.
+const MIN_SECONDS_BETWEEN_CHECKS = 5;
+
+// Remembers when each order was last checked (shop id + order id -> time).
+// Kept in memory on purpose (see TRADEOFFS). Old entries are swept so it never
+// grows without limit.
+const lastCheckAt = new Map();
 
 // What a real order id looks like (8-4-4-4-12 letters and numbers).
 // Anything that does not look like this is "not found" straight away.
@@ -380,13 +429,22 @@ export async function payCheckoutOrder(req, res) {
   // Find the order and the customer's saved phone. Because req.db is locked to
   // this shop, another shop's order id simply finds nothing.
   const { rows } = await req.db.query(
-    `SELECT o.id, c.phone AS customer_phone
+    `SELECT o.id, o.status, c.phone AS customer_phone
        FROM orders o
        JOIN customers c ON c.id = o.customer_id
       WHERE o.id = $1`,
     [orderId]
   );
   if (!rows[0]) return notFound(res);
+
+  // (Week 30) An order that is not open cannot be paid. Say so in plain words
+  // for a paid order (the customer may have paid and not seen the receipt).
+  if (rows[0].status !== 'created') {
+    return fail(res, 409, 'order_not_payable',
+      rows[0].status === 'paid'
+        ? 'This order is already paid. No second payment is needed'
+        : 'This order can no longer be paid');
+  }
 
   // Which phone gets the prompt? The one typed just now, otherwise the one saved
   // on the order. Real life: Amina can pay from her sister's number if she wants.
@@ -423,42 +481,43 @@ export async function payCheckoutOrder(req, res) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// JOB 3: "DID MY PAYMENT GO THROUGH?"   (GET /v1/storefront/:slug/orders/:orderId)
-// The waiting screen asks this every couple of seconds.
-// Real life: the customer at the counter asks "has it come through yet?"
+// SHARED PIECE: READ THE ORDER AND ITS PAYMENT (used by jobs 3 and 5)
+// Returns the answer the waiting screen needs, or null if there is no such order.
 // ═════════════════════════════════════════════════════════════════════════════
-export async function getCheckoutOrder(req, res) {
-  const { orderId } = req.params;
-  if (!isUuid(orderId)) return notFound(res);
-
+async function loadOrderStatus(db, orderId) {
   // The order: its status, its total and any delivery note.
-  const { rows } = await req.db.query(
+  const { rows } = await db.query(
     `SELECT id, status, total_cents, note FROM orders WHERE id = $1`,
     [orderId]
   );
   const order = rows[0];
-  if (!order) return notFound(res);
+  if (!order) return null;
 
   // What was bought (the receipt lines), in the order they were added.
-  const { rows: items } = await req.db.query(
+  const { rows: items } = await db.query(
     `SELECT product_name, unit_price_cents, quantity
        FROM order_items WHERE order_id = $1 ORDER BY created_at, id`,
     [orderId]
   );
 
-  // The MOST RECENT payment try for this order (a customer may have tried twice).
-  const { rows: attempts } = await req.db.query(
+  // The payment try to show. (Week 30) A PAID attempt always wins, even if a
+  // newer attempt exists. Otherwise a customer who paid, then tapped "send
+  // again", would see the newer 'pending' try instead of their receipt.
+  // Among the rest, the most recent one is shown.
+  const { rows: attempts } = await db.query(
     `SELECT status, mpesa_reference, result_code, result_desc
        FROM payment_attempts
       WHERE order_id = $1
-      ORDER BY created_at DESC, id DESC
+      ORDER BY (status = 'paid') DESC, created_at DESC, id DESC
       LIMIT 1`,
     [orderId]
   );
   const a = attempts[0];
 
   // Shape the payment part: status is pending / paid / failed / none (not tried yet).
-  // receipt (the M-Pesa code) only when paid. reason (kind words) only when failed.
+  // receipt (the M-Pesa code) only when paid, and only if we have one (a payment
+  // settled by asking Safaricom has no receipt code). reason (kind words) only
+  // when failed.
   const payment = a
     ? {
         status: a.status,
@@ -467,24 +526,80 @@ export async function getCheckoutOrder(req, res) {
       }
     : { status: 'none', receipt: null, reason: null };
 
+  return {
+    orderId: order.id,
+    orderStatus: order.status,
+    totalCents: Number(order.total_cents),
+    items: items.map((i) => ({
+      name: i.product_name,
+      quantity: i.quantity,
+      unitPriceCents: i.unit_price_cents,
+    })),
+    payment,
+    deliveryNote: order.note,
+  };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// JOB 3: "DID MY PAYMENT GO THROUGH?"   (GET /v1/storefront/:slug/orders/:orderId)
+// The waiting screen asks this every couple of seconds.
+// Real life: the customer at the counter asks "has it come through yet?"
+// ═════════════════════════════════════════════════════════════════════════════
+export async function getCheckoutOrder(req, res) {
+  const { orderId } = req.params;
+  if (!isUuid(orderId)) return notFound(res);
+
+  const data = await loadOrderStatus(req.db, orderId);
+  if (!data) return notFound(res);
+
   // no-store = "do not keep an old copy of this answer", so the waiting screen
   // never shows yesterday's "pending". The phone number is deliberately NOT here.
   res.set('Cache-Control', 'no-store');
-  return res.json({
-    data: {
-      orderId: order.id,
-      orderStatus: order.status,
-      totalCents: Number(order.total_cents),
-      items: items.map((i) => ({
-        name: i.product_name,
-        quantity: i.quantity,
-        unitPriceCents: i.unit_price_cents,
-      })),
-      payment,
-      deliveryNote: order.note,
-    },
-    error: null,
-  });
+  return res.json({ data, error: null });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// JOB 5: "I HAVE PAID, CHECK MY PAYMENT"
+//        (POST /v1/storefront/:slug/orders/:orderId/check-payment)
+// Real life: you say "I entered my PIN but nothing happened". The shopkeeper
+// phones Safaricom, finds out what really happened, writes it in the book and
+// tells you. She does NOT ring your phone again until she knows.
+// ═════════════════════════════════════════════════════════════════════════════
+export async function checkCheckoutPayment(req, res) {
+  const { orderId } = req.params;
+  if (!isUuid(orderId)) return notFound(res);
+
+  // Make sure the order exists in THIS shop (another shop's id finds nothing)
+  // BEFORE we spend a Safaricom call or remember anything about the id.
+  const { rows } = await req.db.query('SELECT 1 FROM orders WHERE id = $1', [orderId]);
+  if (!rows[0]) return notFound(res);
+
+  // Not more than one check per order every few seconds.
+  const key = `${req.tenantId}:${orderId}`;
+  const now = Date.now();
+  const last = lastCheckAt.get(key);
+  if (last && now - last < MIN_SECONDS_BETWEEN_CHECKS * 1000) {
+    return fail(res, 429, 'too_soon',
+      'Please wait a few seconds before checking again');
+  }
+  lastCheckAt.set(key, now);
+  // Sweep old entries now and then so the Map never grows without limit.
+  if (lastCheckAt.size > 2000) {
+    for (const [k, at] of lastCheckAt) {
+      if (now - at > MIN_SECONDS_BETWEEN_CHECKS * 1000) lastCheckAt.delete(k);
+    }
+  }
+
+  // Ask Safaricom about every payment of this order that is stuck on pending,
+  // and record what it says. (Safe to repeat: see reconcile.service.js.)
+  await reconcileOrder(req.db, orderId);
+
+  // Answer with the fresh status (the same shape as the status route). If the
+  // payment is still 'pending' afterwards, Safaricom has not decided yet, and
+  // the screen says "still checking, wait a moment".
+  const data = await loadOrderStatus(req.db, orderId);
+  res.set('Cache-Control', 'no-store');
+  return res.json({ data, error: null });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
