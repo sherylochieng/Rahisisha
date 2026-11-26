@@ -42,9 +42,11 @@
 //
 // DECISIONS
 //   - (Week 30) A product with a photo shows it at the top of its card
-//     (a plain img, cropped to fit, lazy loaded). A product WITHOUT a photo
-//     keeps the coloured tile with the product's first letter, so the grid
-//     stays even.
+//     (a plain img, lazy loaded). The whole photo is always visible: it is
+//     FITTED inside a square (object-contain), never cropped, so a tall
+//     dress or a wide bag is not cut off. A product WITHOUT a photo keeps
+//     the coloured tile with the product's first letter, same square size,
+//     so the grid stays even.
 //   - No add-to-cart button yet: the cart is the next step.
 //   - The page title is the shop's name, via generateMetadata, so a
 //     WhatsApp link preview says "Brio Hardware".
@@ -93,8 +95,11 @@
 //    If the owner added a photo it is drawn at the top of the card. Real life:
 //    a customer walking past decides from the picture, not the label. No photo
 //    means the letter tile stays, like a plain price tag on the shelf.
-//    object-cover crops to fit the card without stretching. loading="lazy"
-//    loads photos only when they scroll near, saving the customer's bundles.
+//    aspect-square gives every picture the same square box, and object-contain
+//    FITS the whole photo inside it without cutting or stretching (object-cover
+//    would fill the box but crop the edges, which is what looked "zoomed in").
+//    Real life: putting a whole dress on a hanger vs. only showing its middle.
+//    loading="lazy" loads photos only when they scroll near, saving bundles.
 //
 // 6. The empty state  =  "NOTHING IN THE WINDOW YET"
 //    Friendly words, not a blank screen.
@@ -172,21 +177,23 @@ export default async function ShopPage({ params, searchParams }) {
                 className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white"
               >
                 {/* The photo when there is one. Plain <img>: it lives on Cloudinary.
-                    h-28/sm:h-32 keeps every card the same height; object-cover
-                    crops without stretching; lazy = loads only near the screen */}
+                    aspect-square makes every picture box the same square;
+                    object-contain FITS the whole photo inside it (nothing is
+                    cut off, any spare space shows the soft grey behind);
+                    lazy = loads only near the screen */}
                 {p.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={p.image_url}
                     alt={p.name}
                     loading="lazy"
-                    className="h-28 w-full object-cover sm:h-32"
+                    className="aspect-square w-full bg-gray-50 object-contain"
                   />
                 ) : (
                   /* No photo: a tile with the product's first letter */
                   <div
                     aria-hidden="true"
-                    className="flex h-28 items-center justify-center bg-brand-cream text-4xl font-display font-bold text-brand-orange sm:h-32"
+                    className="flex aspect-square items-center justify-center bg-brand-cream text-4xl font-display font-bold text-brand-orange"
                   >
                     {p.name.trim().charAt(0).toUpperCase()}
                   </div>
