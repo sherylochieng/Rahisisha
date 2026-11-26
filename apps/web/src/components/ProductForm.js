@@ -9,6 +9,8 @@
 // WHY THIS FILE EXISTS:
 // - The owner needs a way to add a product: a name, a price, an optional code
 //   (SKU), an optional description and a status
+// - Week 30: and now ONE optional PHOTO. The owner taps "Choose photo", the photo
+//   goes straight to Cloudinary, and only its web address is saved
 // - Week 30 Day 3: the SAME form now also EDITS a product (issues #6 and #7).
 //   Give it a `product` and it starts filled in and saves changes
 //
@@ -24,6 +26,8 @@
 // - A friendly form with the problems shown next to the right box
 // - Converts the typed price (shillings) into whole cents before sending
 // - In edit mode, converts the stored cents back into shillings for the box
+// - Photo: checks the file, uploads it, shows a preview, lets the owner remove
+//   or replace it, and blocks Save while an upload is still running
 //
 // SYSTEM DESIGN PRINCIPLE: Check twice, trust once
 // - The form checks first, only to give a fast, friendly answer. The API checks
@@ -39,7 +43,11 @@
 //   would clash with the "one SKU per shop" rule in the database
 // - The price must fit the database column (a 32-bit whole number of cents,
 //   so a little under KES 21,474,836). Bigger prices are refused here
-// - Never show a raw technical error. Messages come from lib/api.js
+// - Never show a raw technical error. Messages come from lib/api.js (and, for
+//   photos, from lib/uploadPhoto.js)
+// - The photo is uploaded the moment it is chosen; Save only sends its ADDRESS.
+//   imageUrl is sent only when it CHANGED: a new address to set it, null to
+//   remove it, nothing to leave it alone
 // - This form never decides WHICH shop the product belongs to. The API takes
 //   the shop from the login cookie
 //
@@ -67,7 +75,9 @@
 //
 // TRADEOFFS:
 // + No libraries, small, reuses FormError, SubmitButton and useFormState
-// - No image upload yet
+// - One photo per product (a gallery is future work)
+// - A photo chosen but then abandoned (form closed without saving) stays at
+//   Cloudinary; a clean-up job is future work
 // - Editing cannot CLEAR the SKU or the description. The API leaves a field
 //   alone when it is not sent, and this form leaves empty boxes out (known limit)
 //
@@ -83,6 +93,7 @@ import { useRouter } from 'next/navigation';
 
 import { api } from '../lib/api';
 import { kesToCents } from '../lib/kesToCents';
+import { uploadProductPhoto, checkPhotoFile } from '../lib/uploadPhoto';
 import { centsToKes } from '../lib/centsToKes';
 import { useFormState } from '../hooks/useFormState';
 import FormError from './FormError';
@@ -117,6 +128,36 @@ export default function ProductForm({ product = null }) {
   // Messages under each box, for example { price: 'Enter a price like 350' }
   const [fieldErrors, setFieldErrors] = useState({});
 
+  // Photo: the address now shown (null = no photo), whether an upload is
+  // running, and a message if the photo had a problem
+  const originalImageUrl = product?.image_url ?? null;
+  const [imageUrl, setImageUrl] = useState(originalImageUrl);
+  const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  // Runs when the owner picks a file. Checks it, uploads it, keeps its address.
+  async function handlePhotoChosen(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // lets the same file be chosen again later
+    if (!file) return;
+
+    setPhotoError('');
+    const problem = checkPhotoFile(file);
+    if (problem) {
+      setPhotoError(problem);
+      return;
+    }
+
+    setUploading(true);
+    try {
+      setImageUrl(await uploadProductPhoto(file));
+    } catch (err) {
+      setPhotoError(err.message || 'We could not upload the photo. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     startSubmit();
@@ -149,6 +190,8 @@ export default function ProductForm({ product = null }) {
     const body = { name, priceCents, status };
     if (sku) body.sku = sku;
     if (description) body.description = description;
+    // Photo: send only when it changed (a new address, or null to remove)
+    if (imageUrl !== originalImageUrl) body.imageUrl = imageUrl;
 
     try {
       // EDIT sends a PATCH to the existing product. ADD sends a new one.
@@ -177,6 +220,11 @@ export default function ProductForm({ product = null }) {
         if (err.details.name) found.name = 'Enter the product name.';
         if (err.details.priceCents) found.price = 'Enter a price like 350 or 350.50.';
         if (err.details.status) found.status = 'Choose a status from the list.';
+        if (err.details.imageUrl) {
+          setPhotoError('That photo could not be used. Please choose it again.');
+          failSubmit('Please fix the highlighted fields.');
+          return;
+        }
         if (Object.keys(found).length > 0) {
           setFieldErrors(found);
           failSubmit('Please fix the highlighted fields.');
@@ -295,10 +343,52 @@ export default function ProductForm({ product = null }) {
         <FieldError id="status-error" message={fieldErrors.status} />
       </div>
 
+      {/* Photo: optional. Uploaded at once; Save only keeps its address */}
+      <div>
+        <p className="block text-sm font-medium text-gray-700 mb-1">Photo (optional)</p>
+        {imageUrl && (
+          // Plain <img>: the picture lives on Cloudinary, not in our app
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt="Product photo preview"
+            className="mb-2 h-40 w-40 rounded-lg border border-gray-200 object-cover"
+          />
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <label
+            htmlFor="photo"
+            className={`inline-block cursor-pointer rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 ${uploading || loading ? 'pointer-events-none opacity-60' : ''}`}
+          >
+            {uploading ? 'Uploading...' : imageUrl ? 'Change photo' : 'Choose photo'}
+          </label>
+          <input
+            id="photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handlePhotoChosen}
+            disabled={uploading || loading}
+            className="sr-only"
+          />
+          {imageUrl && !uploading && (
+            <button
+              type="button"
+              onClick={() => { setImageUrl(null); setPhotoError(''); }}
+              disabled={loading}
+              className="text-sm font-medium text-red-600 hover:underline"
+            >
+              Remove photo
+            </button>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-gray-400">JPG, PNG or WebP, up to 5 MB.</p>
+        <FieldError id="photo-error" message={photoError} />
+      </div>
+
       {/* Buttons */}
       <div className="flex items-center gap-4 pt-2">
         <div className="w-44">
-          <SubmitButton loading={loading} loadingText="Saving...">
+          <SubmitButton loading={loading || uploading} loadingText={uploading ? 'Uploading photo...' : 'Saving...'}>
             {isEdit ? 'Save changes' : 'Add product'}
           </SubmitButton>
         </div>
@@ -332,6 +422,33 @@ export default function ProductForm({ product = null }) {
 //                       appears. Real life: after adding stock, walk back to
 //                       the shelf and see it there
 // noValidate          : our messages replace the browser's pop-up bubbles
+//
+// Week 30 photo additions
+// originalImageUrl    : the photo the product had when the form opened (null if
+//                       none). We compare against it to know if the photo changed
+// imageUrl (state)    : the photo address the form is holding right now. Real
+//                       life: the photo pinned on the notice board, which the
+//                       owner can swap or take down before pressing Save
+// uploading           : true while a photo is travelling to Cloudinary. Save is
+//                       blocked, so a half-sent photo cannot be saved
+// photoError          : the red note under the photo area
+// handlePhotoChosen   : runs the moment a file is picked. e.target.files[0] is
+//                       the chosen file; e.target.value = '' lets the SAME file
+//                       be picked again after a mistake. It checks the file,
+//                       uploads it (uploadProductPhoto), keeps the address,
+//                       and always switches `uploading` off (finally)
+// <img src={imageUrl}>: the preview. A plain img, because the picture is hosted
+//                       at Cloudinary. Real life: the shop window picture
+// label htmlFor=photo : the pretty "Choose photo" button. The real file box is
+//                       hidden (sr-only = hidden to eyes, still there for screen
+//                       readers) because browsers' own file buttons look rough
+// accept=...          : the phone's gallery only offers JPG, PNG, WebP
+// Remove photo        : sets imageUrl to null. On Save that sends imageUrl: null
+//                       and the API removes the photo
+// body.imageUrl       : added only when imageUrl !== originalImageUrl, so a
+//                       plain price edit never touches the photo
+// 400 imageUrl branch : the API refused the address (not this shop's photo);
+//                       we ask the owner to choose the photo again
 //
 // Week 30 additions
 // product = null      : a form that can be handed an existing product, like a
