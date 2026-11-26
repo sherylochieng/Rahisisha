@@ -43,6 +43,13 @@
  *   4. One prompt at a time per order: a pending attempt younger than
  *      2 minutes blocks a second tap (409), so a double tap does not
  *      send the customer two prompts.
+ *   4b. (Week 30) NEVER send a second prompt while an older one is
+ *      unresolved. A pending attempt OLDER than 2 minutes is first checked
+ *      with Safaricom (reconcile.service.js). Paid -> the order is marked
+ *      paid and no new prompt goes out. Failed -> a new prompt is allowed.
+ *      Still processing, or Safaricom cannot say -> refused (409). A
+ *      pending attempt with no checkout id (Safaricom never confirmed it
+ *      was sent) cannot be checked and does not block.
  *   5. Reply 202 Accepted: the payment is only STARTED, not finished.
  *   6. All database work uses req.db (the shop lock), never pool.
  *
@@ -66,6 +73,13 @@
  *     the prompt went out, the attempt stays 'pending' without a
  *     checkout id. The callback then cannot match it. That is exactly
  *     what the reconciliation job in reconciliation.md exists to find.
+ *   - (Week 30) Why the 2-minute rule alone was not enough: in real testing
+ *     the first prompt was paid but its confirmation was never recorded, so
+ *     the attempt stayed 'pending'. After 2 minutes the old rule let a
+ *     second prompt out and the customer paid twice. Now an old pending
+ *     attempt must be settled (paid or failed) before a new prompt is sent.
+ *   - The young-attempt check (under 2 minutes) stays a cheap local check
+ *     with NO call to Safaricom: it only stops a double tap.
  *
  * WHERE USED / FUTURE USES
  *   - routes/orders.routes.js: router.post('/:id/pay', ...)
@@ -76,7 +90,10 @@
  *   - The write-ahead insert and the final update are separate
  *     statements, not one transaction, on purpose: the pending row must
  *     exist even if Safaricom is slow.
- *   - No retry endpoint: tap Pay again after 2 minutes.
+ *   - (Week 30) A new prompt after 2 minutes now costs one extra Safaricom
+ *     call (login + status query) when an old attempt is still pending.
+ *   - If Safaricom cannot answer the status query, a new prompt is refused
+ *     until it can. Safer than risking a second charge.
  *
  * HOW TO USE
  *   curl.exe -X POST http://localhost:3000/v1/orders/<order id>/pay `
@@ -90,6 +107,8 @@
  * ============================================================
  */
 import { stkPush, normalizePhone } from '../services/daraja.service.js';
+// (Week 30) Settles an old pending attempt by asking Safaricom what happened.
+import { reconcileOrder } from '../services/reconcile.service.js';
 
 // A pending attempt younger than this blocks a second tap (Rule 4).
 const IN_PROGRESS_MINUTES = 2;
@@ -153,6 +172,50 @@ export async function payOrder(req, res) {
   if (recent.length > 0) {
     return sendError(res, 409, 'payment_in_progress',
       'A payment prompt was just sent for this order. Wait a moment, then try again');
+  }
+
+  // STEP 4b: (Week 30) An OLDER pending attempt may really have been paid
+  // (its confirmation can be late or lost). Never send a second prompt until
+  // we KNOW. Only attempts Safaricom confirmed as sent (they have a checkout
+  // id) can be checked.
+  // Real life: before the shopkeeper rings your phone again she checks her
+  // own book: "did the first one go through?"
+  const { rows: unresolved } = await req.db.query(
+    `SELECT id FROM payment_attempts
+      WHERE order_id = $1 AND status = 'pending' AND checkout_request_id IS NOT NULL
+      LIMIT 1`,
+    [order.id]
+  );
+  if (unresolved.length > 0) {
+    // Ask Safaricom about every old pending attempt and record the answers.
+    await reconcileOrder(req.db, order.id);
+
+    // Did that show the customer already paid? Then there is nothing to pay.
+    const { rows: after } = await req.db.query(
+      'SELECT status FROM orders WHERE id = $1',
+      [order.id]
+    );
+    if (after[0] && after[0].status === 'paid') {
+      return sendError(res, 409, 'order_not_payable',
+        'This order is already paid. No second payment is needed');
+    }
+    if (!after[0] || after[0].status !== 'created') {
+      return sendError(res, 409, 'order_not_payable',
+        `Order is '${after[0] ? after[0].status : 'missing'}', only a 'created' order can be paid`);
+    }
+
+    // Still unresolved (Safaricom says it is still processing, or could not
+    // say)? Refuse. A second prompt now could charge the customer twice.
+    const { rows: still } = await req.db.query(
+      `SELECT id FROM payment_attempts
+        WHERE order_id = $1 AND status = 'pending' AND checkout_request_id IS NOT NULL
+        LIMIT 1`,
+      [order.id]
+    );
+    if (still.length > 0) {
+      return sendError(res, 409, 'payment_in_progress',
+        'We are still checking your earlier payment with M-Pesa. Please wait a moment before trying again');
+    }
   }
 
   // STEP 5: Write-ahead record. The attempt exists BEFORE the prompt goes
