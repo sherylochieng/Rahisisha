@@ -127,6 +127,9 @@ let sodaId; let dressId; let draftId; let bProductId;
 let realKey; let realFetch; let realBase;
 // The pretend Safaricom, so tests can ask "was it called?".
 let fetchMock;
+// What the pretend Safaricom says when asked "what happened to this payment?".
+// Each test that uses the check-payment door sets it; the default is "still processing".
+let queryAnswer;
 // Console listeners, so tests can check nothing sensitive was printed.
 const spies = [];
 
@@ -158,6 +161,10 @@ async function withLock(tenantId, fn) {
 // Real life: the friend playing M-Pesa says "yes, I sent the prompt".
 const reply = (status, body) => ({ status, json: async () => body });
 function happyFetch(url) {
+  // The "what happened to this payment?" question (Daraja's stkpushquery) gets
+  // whatever answer the test chose. Real life: the friend playing Safaricom is
+  // told beforehand "say she paid" or "say nothing was paid".
+  if (String(url).includes('stkpushquery')) return Promise.resolve(queryAnswer());
   // Step 1 of Daraja: the "give me a token" call. We hand back a fake token.
   if (String(url).includes('/oauth/')) return Promise.resolve(reply(200, { access_token: `tok-${rand}` }));
   // Step 2: the "send the prompt" call. ResponseCode '0' means accepted.
@@ -178,6 +185,7 @@ const consoleText = () => JSON.stringify(spies.flatMap((s) => s.mock.calls));
 const checkout = (slug, body) => request(app).post(`/v1/storefront/${slug}/checkout`).send(body);
 const status = (slug, id) => request(app).get(`/v1/storefront/${slug}/orders/${id}`);
 const pay = (slug, id, body = {}) => request(app).post(`/v1/storefront/${slug}/orders/${id}/pay`).send(body);
+const check = (slug, id) => request(app).post(`/v1/storefront/${slug}/orders/${id}/check-payment`);
 const note = (slug, id, body) => request(app).patch(`/v1/storefront/${slug}/orders/${id}/note`).send(body);
 
 // Do a real checkout for shop A and return the order id (the customer's ticket).
@@ -250,6 +258,8 @@ beforeAll(async () => {
 beforeEach(() => {
   // jest.fn remembers every call, so tests can ask "was Safaricom contacted?".
   fetchMock = jest.fn(happyFetch);
+  // By default Safaricom says "still processing" (no decision yet).
+  queryAnswer = () => reply(200, { ResponseCode: '0', ResultCode: undefined });
   // Replace the real internet-calling function with our pretend one.
   global.fetch = fetchMock;
   // Listen to every console method but print nothing; test 13 reads what was said.
@@ -629,5 +639,93 @@ describe('customer checkout door (Week 30)', () => {
       name: 'A', phone: newPhone(), items: [{ productId: sodaId, quantity: 1 }],
     });
     expect(ghost.status).toBe(404);
+  });
+
+  // CHECK 15. "I've paid, check my payment": if Safaricom says it was paid, the
+  // order becomes paid, the receipt screen can show, and NO new prompt is sent.
+  // Real life: the shopkeeper phones Safaricom, hears "yes, she paid", writes
+  // it in the book and says "all good, nothing more to pay".
+  test('15. check-payment: Safaricom says paid -> order paid, no new prompt', async () => {
+    const orderId = await makeCustomerOrder();
+    await pay(slugA, orderId);
+    // Safaricom will say "paid" when asked.
+    queryAnswer = () => reply(200, { ResponseCode: '0', ResultCode: '0' });
+    // Count Safaricom calls so we can prove no new prompt goes out.
+    const before = fetchMock.mock.calls.length;
+    const res = await check(slugA, orderId);
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body.data.orderStatus).toBe('paid');
+    expect(res.body.data.payment.status).toBe('paid');
+    // The only calls were the token + the question, never a new prompt (stkpush).
+    const urls = fetchMock.mock.calls.slice(before).map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes('/stkpush/'))).toBe(false);
+    // A paid order cannot be paid again: friendly 409.
+    const again = await pay(slugA, orderId);
+    expect(again.status).toBe(409);
+    expect(again.body.error.code).toBe('order_not_payable');
+    expect(again.body.error.message).toContain('already paid');
+  });
+
+  // CHECK 16. If Safaricom says nothing was paid, the attempt is closed as
+  // failed and the customer may try again (the "send again" button is safe now).
+  // Real life: "Safaricom says no money came. Ask her to try again."
+  test('16. check-payment: Safaricom says not paid -> attempt failed, a new prompt is allowed', async () => {
+    const orderId = await makeCustomerOrder();
+    await pay(slugA, orderId);
+    queryAnswer = () => reply(200, { ResponseCode: '0', ResultCode: '1032' });
+    const res = await check(slugA, orderId);
+    expect(res.status).toBe(200);
+    expect(res.body.data.orderStatus).toBe('created');
+    expect(res.body.data.payment.status).toBe('failed');
+    // Now a new prompt is allowed.
+    const retry = await pay(slugA, orderId);
+    expect(retry.status).toBe(202);
+  });
+
+  // CHECK 17. If Safaricom has not decided yet, the attempt stays pending, and a
+  // second prompt is refused (this is what prevents a double charge).
+  // Real life: "Safaricom is still looking. Please wait, do not pay again."
+  test('17. check-payment: still processing -> stays pending and cannot be paid twice', async () => {
+    const orderId = await makeCustomerOrder();
+    await pay(slugA, orderId);
+    const res = await check(slugA, orderId);
+    expect(res.status).toBe(200);
+    expect(res.body.data.payment.status).toBe('pending');
+    expect(res.body.data.orderStatus).toBe('created');
+    // A second prompt is refused while Safaricom is still deciding.
+    const again = await pay(slugA, orderId);
+    expect(again.status).toBe(409);
+  });
+
+  // CHECK 18. Another shop's order, a made-up id and a badly shaped id all get
+  // the same plain 404, and Safaricom is never asked.
+  test("18. check-payment: other shop's order, unknown id, bad id -> same 404, Safaricom not asked", async () => {
+    const orderId = await makeCustomerOrder();
+    const calls = fetchMock.mock.calls.length;
+    const other = await check(slugB, orderId);
+    const unknown = await check(slugA, crypto.randomUUID());
+    const bad = await check(slugA, 'not-an-id');
+    for (const r of [other, unknown, bad]) {
+      expect(r.status).toBe(404);
+      expect(r.body.error.code).toBe('not_found');
+    }
+    expect(other.body).toEqual(unknown.body);
+    expect(fetchMock.mock.calls.length).toBe(calls);
+  });
+
+  // CHECK 19. The button cannot be hammered: a second check within a few
+  // seconds gets 429 too_soon and does not bother Safaricom again.
+  // Real life: the shopkeeper says "I just phoned them, give me a few seconds."
+  test('19. check-payment: a second check within seconds is refused with 429 too_soon', async () => {
+    const orderId = await makeCustomerOrder();
+    await pay(slugA, orderId);
+    const first = await check(slugA, orderId);
+    expect(first.status).toBe(200);
+    const calls = fetchMock.mock.calls.length;
+    const second = await check(slugA, orderId);
+    expect(second.status).toBe(429);
+    expect(second.body.error.code).toBe('too_soon');
+    expect(fetchMock.mock.calls.length).toBe(calls);
   });
 });
