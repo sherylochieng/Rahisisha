@@ -18,6 +18,7 @@
 // - A paged list of this shop's products, drawn on the server, with Edit and
 //   Delete on every row
 // - A friendly empty box for a brand-new shop
+// - Week 30: a small photo beside each product (a grey box when it has none)
 //
 // SYSTEM DESIGN PRINCIPLE: The page never touches the database
 // - It calls GET /v1/products through serverGetPage. The API answers through
@@ -43,6 +44,8 @@
 // 3. A product with no SKU shows a dash, not the word "null"
 // 4. (Week 30) Edit and Delete sit on their own line under each product, so
 //    they fit on a phone screen
+// 5. (Week 30) A 48 px square photo on the left of each row. No photo = a plain
+//    grey box, so rows line up and a missing photo never looks broken
 //
 // PRACTICAL EXAMPLE:
 // - Brio Hardware opens /products and sees "Cement 50kg  KES 750.00  active"
@@ -53,7 +56,7 @@
 //
 // TRADEOFFS:
 // + Simple and fast. The only client-side piece is the Delete button
-// - No search or filter yet, and no product images yet
+// - No search or filter yet, and one small photo per product only (no gallery)
 //
 // HOW TO USE:
 // - Open /products while logged in. The (authed) layout runs the login check
@@ -117,14 +120,28 @@ export default async function ProductsPage({ searchParams }) {
           <ul className="divide-y divide-gray-100">
             {products.map((product) => (
               <li key={product.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
-                {/* Left: name, code and price. min-w-0 lets a long name shrink */}
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-brand-navy break-words">{product.name}</p>
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    {formatKes(product.price_cents)}
-                    <span className="mx-1.5 text-gray-300">|</span>
-                    SKU: {product.sku || '—'}
-                  </p>
+                {/* Left: photo, then name, code and price. min-w-0 lets a long name shrink */}
+                <div className="flex min-w-0 items-center gap-3">
+                  {product.image_url ? (
+                    // Plain <img>: the picture lives on Cloudinary
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      loading="lazy"
+                      className="h-12 w-12 shrink-0 rounded-lg border border-gray-200 object-cover"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 shrink-0 rounded-lg bg-gray-100" aria-hidden="true" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-brand-navy break-words">{product.name}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {formatKes(product.price_cents)}
+                      <span className="mx-1.5 text-gray-300">|</span>
+                      SKU: {product.sku || '—'}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Right: status tag */}
@@ -204,6 +221,17 @@ export default async function ProductsPage({ searchParams }) {
 //                        CLIENT piece placed inside it. Real life: the shop
 //                        window is the server, and the button is one little
 //                        lever a customer can pull
+// product.image_url   : the photo address the API now returns for each product
+// <img src=...>        : draws the photo. A plain img because the picture is
+//                        hosted at Cloudinary. Real life: the small photo
+//                        stuck next to each line in a catalogue
+// h-12 w-12 object-cover: a 48 px square; object-cover crops to fit without
+//                        stretching. Real life: a passport-style crop
+// loading="lazy"       : the phone fetches a photo only when it scrolls near.
+//                        Saves data bundles on long lists
+// grey box (no photo)  : keeps every row the same height and alignment
+// alt={product.name}   : words for screen readers and for when the photo
+//                        fails to load
 // flex-wrap + w-full   : on a narrow phone the row would be too crowded with
 //                        name, price, status, Edit and Delete. These drop the
 //                        actions onto their own line under the product
