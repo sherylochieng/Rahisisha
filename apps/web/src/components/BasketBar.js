@@ -34,15 +34,23 @@
 // RULES
 //   1. The total shown is for SHOWING only. The server recalculates at checkout.
 //   2. The link goes to /shop/<slug>/checkout (the slug comes from the page).
-//   3. Fixed to the bottom, white card with navy text and an orange button, so
-//      it matches the shop and stands out without shouting.
+//   3. Fixed to the bottom. SOLID NAVY with white text and a big ORANGE
+//      Checkout button. (Week 30, v2) It was white at first and customers could
+//      not find it: every Add button is orange too, so the one button that
+//      matters did not stand out. Navy makes the bar impossible to miss and
+//      makes the orange button pop.
 //   4. "env(safe-area-inset-bottom)" keeps it above the iPhone home bar.
 //
 // PRACTICAL EXAMPLE
 //   <BasketBar slug="mama-mboga" />   // once, near the end of the shop page
 //
 // DECISIONS
-//   - Solid colours, a thin top border and a soft shadow (no gradients).
+//   - Solid colours, no gradients. Navy bar, orange button, a hover effect.
+//   - On a phone the bar is full width and the Checkout button stretches to
+//     fill the space (easy for a thumb). On a laptop the count, the total and
+//     the button sit together in the middle, so the eye links them (before,
+//     the button was far away at the right edge).
+//   - The button carries an arrow so it reads as "go forward".
 //   - "1 item" / "2 items": the word changes with the number, because
 //     "1 items" looks careless.
 //   - The count is shown in a navy badge so it is readable at a glance.
@@ -70,6 +78,10 @@
 //                      hundred and eighty shillings".
 //   Checkout link    = "pay here".
 //   formatKes        = writing the amount the Kenyan way: KES 1,580.00.
+//   navy bar         = a dark sign across the front of the kiosk. Dark against
+//                      the white shelves, so nobody walks past it.
+//   sm:justify-center= on a wide screen, the vendor stands in the middle of the
+//                      counter with the total and the "pay" button together.
 
 'use client';
 
@@ -92,32 +104,38 @@ export default function BasketBar({ slug }) {
           product or the footer. aria-hidden: it is only empty space. */}
       <div aria-hidden="true" className="h-24" />
 
-      {/* The bar itself, bolted to the bottom of the screen. */}
+      {/* The bar itself, bolted to the bottom of the screen.
+          Solid navy so it stands out from the white page (no gradient). */}
       <div
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.06)]"
+        className="fixed inset-x-0 bottom-0 z-40 bg-brand-navy shadow-[0_-4px_12px_rgba(0,0,0,0.15)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          {/* Left: the number of items (in a navy badge) and the total. */}
+        {/* justify-between on a phone (info left, button right, button fills
+            the rest); sm:justify-center on a laptop (everything together). */}
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:justify-center sm:gap-8">
+          {/* Left: the number of items (in a white badge) and the total in white. */}
           <div className="flex items-center gap-3">
             <span
-              className="flex h-8 min-w-8 items-center justify-center rounded-full bg-brand-navy px-2 text-sm font-bold text-white"
+              className="flex h-9 min-w-9 items-center justify-center rounded-full bg-white px-2 text-sm font-bold text-brand-navy"
               aria-hidden="true"
             >
               {count}
             </span>
             <div className="leading-tight">
-              <p className="text-xs text-gray-500">{count === 1 ? '1 item' : `${count} items`}</p>
-              <p className="text-base font-bold text-brand-navy">{formatKes(totalCents)}</p>
+              <p className="text-xs text-gray-300">{count === 1 ? '1 item' : `${count} items`}</p>
+              <p className="text-lg font-bold text-white">{formatKes(totalCents)}</p>
             </div>
           </div>
 
-          {/* Right: the big orange button to the checkout page. */}
+          {/* Right: the big orange Checkout button. flex-1 on a phone so it
+              fills the space (easy thumb target); normal width on a laptop. */}
           <Link
             href={`/shop/${slug}/checkout`}
-            className="rounded-lg bg-brand-orange px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-orange-dark active:scale-95"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-orange px-8 py-3.5 text-base font-bold text-white transition hover:bg-brand-orange-dark active:scale-95 sm:flex-none"
           >
             Checkout
+            {/* The arrow says "go forward". aria-hidden: decoration only. */}
+            <span aria-hidden="true">→</span>
           </Link>
         </div>
       </div>
