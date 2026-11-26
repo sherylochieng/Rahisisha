@@ -47,7 +47,11 @@
 //     dress or a wide bag is not cut off. A product WITHOUT a photo keeps
 //     the coloured tile with the product's first letter, same square size,
 //     so the grid stays even.
-//   - No add-to-cart button yet: the cart is the next step.
+//   - (Week 30) Each card has an "Add" button (AddToBasket). Tapping it puts
+//     the product in the customer's basket, which lives on THEIR phone
+//     (lib/cart.js + CartProvider). A bar at the bottom (BasketBar) shows the
+//     count and total and links to the checkout page. The page itself stays a
+//     Server Component: only the small basket parts run in the browser.
 //   - The page title is the shop's name, via generateMetadata, so a
 //     WhatsApp link preview says "Brio Hardware".
 //   - "Powered by Rahisisha Biashara" sits in a small footer.
@@ -57,9 +61,10 @@
 //   property list.
 //
 // TRADEOFFS
-//   + Simple, fast, no client JavaScript.
+//   + Simple and fast: the page itself is built on the server. Only the
+//     basket parts (Add button, basket bar) are client JavaScript.
 //   - No search, categories or photo gallery yet (one photo per product).
-//     No cart yet.
+//     No stock counting yet (nothing says "sold out").
 //
 // HOW TO USE
 //   Nothing to call. Open /shop/<slug>, or a shop's own address.
@@ -106,6 +111,20 @@
 //
 // 7. "More products" link  =  "TURN THE PAGE"
 //    Only shown when the API gave us a nextCursor.
+//
+// 8. (Week 30) <CartProvider slug={slug}>  =  "THE SHARED BASKET ON THE COUNTER"
+//    Wraps the whole page so every Add button and the basket bar look at the
+//    SAME basket. The slug decides which shop's basket is loaded, so a customer
+//    shopping at two shops never mixes them.
+//
+// 9. (Week 30) <AddToBasket product={p} />  =  "THE ADD BUTTON ON EACH SHELF"
+//    Sits under the price on every card. One tap adds; after that it turns into
+//    "- 2 +" so the amount can be changed in place. Real life: pointing at the
+//    soda and saying "this one", then "make it two".
+//
+// 10. (Week 30) <BasketBar slug={slug} />  =  "THE PAY COUNTER AT THE FRONT"
+//    Appears only when something is in the basket. Shows the count and the
+//    total, and the orange Checkout button takes the customer to the payment page.
 // ═══════════════════════════════════════════════════════════
 
 import Link from 'next/link';
@@ -114,6 +133,10 @@ import { notFound } from 'next/navigation';
 import { fetchStorefront } from '../../../lib/publicApi';
 import { formatKes } from '../../../lib/format';
 import EmptyState from '../../../components/EmptyState';
+// (Week 30) The basket: shared memory, the Add button and the bottom bar
+import { CartProvider } from '../../../components/CartProvider';
+import AddToBasket from '../../../components/AddToBasket';
+import BasketBar from '../../../components/BasketBar';
 
 // Same shape rule as the Orders page: only characters our bookmarks use
 const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,300}$/;
@@ -148,6 +171,9 @@ export default async function ShopPage({ params, searchParams }) {
   const { shop, products, nextCursor } = page;
 
   return (
+    // (Week 30) CartProvider shares ONE basket with every Add button and the
+    // basket bar below. It is a client part inside this server page.
+    <CartProvider slug={slug}>
     <div className="min-h-screen bg-gray-50 flex flex-col">
 
       {/* THE SHOP'S NAME BOARD */}
@@ -207,6 +233,17 @@ export default async function ShopPage({ params, searchParams }) {
                   <p className="mt-auto pt-3 text-sm font-bold text-brand-navy">
                     {formatKes(p.price_cents)}
                   </p>
+
+                  {/* (Week 30) The Add button: one tap to put it in the basket.
+                      Only the public product fields are handed to it. */}
+                  <AddToBasket
+                    product={{
+                      id: p.id,
+                      name: p.name,
+                      price_cents: p.price_cents,
+                      image_url: p.image_url || null,
+                    }}
+                  />
                 </div>
               </li>
             ))}
@@ -236,6 +273,11 @@ export default async function ShopPage({ params, searchParams }) {
       <footer className="py-6 text-center text-xs text-gray-400">
         Powered by Rahisisha Biashara
       </footer>
+
+      {/* (Week 30) The bar at the bottom: count, total and Checkout.
+          It shows nothing while the basket is empty. */}
+      <BasketBar slug={slug} />
     </div>
+    </CartProvider>
   );
 }
