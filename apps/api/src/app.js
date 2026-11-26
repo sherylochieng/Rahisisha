@@ -42,6 +42,7 @@ import mpesaRouter from './routes/mpesa.routes.js';
 import inboxRouter from './routes/inbox.routes.js';
 import walletRouter from './routes/wallet.routes.js';
 import storefrontRouter from './routes/storefront.routes.js';
+import checkoutRouter from './routes/checkout.routes.js';
 import { resolveShopBySlug } from './middleware/resolveShopBySlug.js';
 import uploadsRouter from './routes/uploads.routes.js';
 
@@ -125,8 +126,9 @@ app.use('/v1/tenants', tenantsRouter);
 // PUBLIC on purpose: a customer has no login cookie. Same "stamp, then lock"
 // pattern as USSD: resolveShopBySlug finds the shop from the address word and
 // stamps req.tenantId, then withTenant locks the database to that shop.
-// Read-only. Never add a write route behind this mount.
-app.use('/v1/storefront/:slug', resolveShopBySlug, withTenant, storefrontRouter);
+// storefrontRouter (the shop window) is read-only. checkoutRouter (the till) is
+// the ONLY router here that writes: checkout, pay, status, delivery note.
+app.use('/v1/storefront/:slug', resolveShopBySlug, withTenant, storefrontRouter, checkoutRouter);
 
 
 // USSD: PUBLIC on purpose. No requireAuth, because a phone has no login cookie.
