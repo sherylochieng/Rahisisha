@@ -33,7 +33,9 @@
 // RULES (never break these)
 //   1. ALWAYS use req.db (locked to one shop). NEVER import pool here.
 //   2. ONLY status = 'active' AND deleted_at IS NULL.
-//   3. Product fields shown: id, name, description, price_cents. Nothing
+//   3. Product fields shown: id, name, description, price_cents, image_url
+//      (the product photo address, public on purpose: a shop window needs
+//      pictures; it is a Cloudinary link, no secret in it). Nothing
 //      else. Add a field only after asking "is it fine for any stranger
 //      to see this?".
 //   4. Never read or return anything about wallet, orders, customers,
@@ -133,7 +135,7 @@ export async function getStorefront(req, res) {
   //    withTenant, so rows of other shops are invisible even if this WHERE
   //    were wrong. Newest first, id breaks ties.
   const { rows } = await req.db.query(
-    `SELECT id, name, description, price_cents,
+    `SELECT id, name, description, price_cents, image_url,
             ${CURSOR_TS_SQL('created_at')} AS cursor_ts
        FROM products
       WHERE status = 'active'
@@ -150,12 +152,15 @@ export async function getStorefront(req, res) {
   const last = page[page.length - 1];
   const nextCursor = hasMore ? encodeCursor(last.cursor_ts, last.id) : null;
 
-  // 5. Only the four fields a stranger may see
+  // 5. Only the five fields a stranger may see.
+  //    image_url is the product photo address (null when the owner added no
+  //    photo). Real life: the picture in the shop window, safe for any passer-by.
   const products = page.map((p) => ({
     id: p.id,
     name: p.name,
     description: p.description,
     price_cents: p.price_cents,
+    image_url: p.image_url,
   }));
 
   res.json({
