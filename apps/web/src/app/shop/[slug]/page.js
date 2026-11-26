@@ -30,7 +30,7 @@
 // RULES (never break these)
 //   1. Use fetchStorefront only (public, no cookie). Never serverGet.
 //   2. Validate the cursor shape before sending it on.
-//   3. Show only what the API sends: name, description, price.
+//   3. Show only what the API sends: name, description, price, photo address.
 //   4. Prices go through formatKes. Never do money maths here.
 //   5. A missing shop is notFound(), never a blank page.
 //
@@ -41,8 +41,10 @@
 //   localhost:3001/shop/nobody        -> the not-found screen
 //
 // DECISIONS
-//   - There are no product photos yet (the database has none), so each
-//     card shows a coloured tile with the product's first letter.
+//   - (Week 30) A product with a photo shows it at the top of its card
+//     (a plain img, cropped to fit, lazy loaded). A product WITHOUT a photo
+//     keeps the coloured tile with the product's first letter, so the grid
+//     stays even.
 //   - No add-to-cart button yet: the cart is the next step.
 //   - The page title is the shop's name, via generateMetadata, so a
 //     WhatsApp link preview says "Brio Hardware".
@@ -54,7 +56,8 @@
 //
 // TRADEOFFS
 //   + Simple, fast, no client JavaScript.
-//   - No search, categories or photos yet. No cart yet.
+//   - No search, categories or photo gallery yet (one photo per product).
+//     No cart yet.
 //
 // HOW TO USE
 //   Nothing to call. Open /shop/<slug>, or a shop's own address.
@@ -82,9 +85,16 @@
 //    A dark navy band with the name in the display font.
 //
 // 5. The grid  =  "THE SHELVES"
-//    One card per product: a letter tile, the name, up to two lines of
-//    description, and the price in KES. 2 columns on a phone, 3 and 4
+//    One card per product: the photo (or a letter tile when there is none),
+//    the name, up to two lines of description, and the price in KES. 2 columns on a phone, 3 and 4
 //    on larger screens.
+//
+//    (Week 30) p.image_url  =  "THE PICTURE IN THE SHOP WINDOW"
+//    If the owner added a photo it is drawn at the top of the card. Real life:
+//    a customer walking past decides from the picture, not the label. No photo
+//    means the letter tile stays, like a plain price tag on the shelf.
+//    object-cover crops to fit the card without stretching. loading="lazy"
+//    loads photos only when they scroll near, saving the customer's bundles.
 //
 // 6. The empty state  =  "NOTHING IN THE WINDOW YET"
 //    Friendly words, not a blank screen.
@@ -161,13 +171,26 @@ export default async function ShopPage({ params, searchParams }) {
                 key={p.id}
                 className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white"
               >
-                {/* No photos yet: a tile with the product's first letter */}
-                <div
-                  aria-hidden="true"
-                  className="flex h-28 items-center justify-center bg-brand-cream text-4xl font-display font-bold text-brand-orange sm:h-32"
-                >
-                  {p.name.trim().charAt(0).toUpperCase()}
-                </div>
+                {/* The photo when there is one. Plain <img>: it lives on Cloudinary.
+                    h-28/sm:h-32 keeps every card the same height; object-cover
+                    crops without stretching; lazy = loads only near the screen */}
+                {p.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.image_url}
+                    alt={p.name}
+                    loading="lazy"
+                    className="h-28 w-full object-cover sm:h-32"
+                  />
+                ) : (
+                  /* No photo: a tile with the product's first letter */
+                  <div
+                    aria-hidden="true"
+                    className="flex h-28 items-center justify-center bg-brand-cream text-4xl font-display font-bold text-brand-orange sm:h-32"
+                  >
+                    {p.name.trim().charAt(0).toUpperCase()}
+                  </div>
+                )}
 
                 <div className="flex flex-1 flex-col p-3">
                   <h2 className="text-sm font-semibold text-brand-navy break-words">{p.name}</h2>
