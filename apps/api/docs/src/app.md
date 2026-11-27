@@ -171,3 +171,22 @@ app.use('/v1/storefront/:slug', resolveShopBySlug, withTenant, storefrontRouter)
 - **Guides:** `docs/src/middleware/resolveShopBySlug.md`, `docs/src/controllers/storefront.controller.md`, `docs/src/routes/storefront.routes.md`, `docs/tests/isolation/storefront.cross-tenant.test.md`.
 
 *Written by AI at Sheryl's request (declared in `AI_AUDIT_week_29_day4.md`, follow-up section). Added 18 November 2026.*
+
+---
+
+## FOLLOW-UP (Week 30 Day 3, Batch 1): the admin shops mount
+
+One import and one mount were added after the `/v1/admin/auth` mount:
+
+```js
+import adminShopsRouter from './routes/adminShops.routes.js';
+app.use('/v1/admin/shops', adminShopsRouter);
+```
+
+- **What it is:** the platform admin's shop powers: list shops, open one, suspend, reinstate, verify, un-verify.
+- **Why it is safe:** the admin guard (`requirePlatformAdmin`) is applied **inside** the router with `router.use`, above every route, so no route can forget it. There is **no** `withTenant`. The admin works across shops under the admin lock that the service opens.
+- **Order matters:** it must stay above the 404 catch-all at the bottom of `app.js`.
+- **Guides:** `docs/src/routes/adminShops.routes.md`, `docs/src/controllers/adminShops.controller.md`, `docs/src/services/adminShops.service.md`, `docs/src/services/adminAudit.service.md`, `docs/tests/adminShops.routes.test.md`.
+- **Known gap (tracked):** `app.js` does not set `trust proxy`, so behind Render `req.ip` may be Render's own address. That affects the admin login brake and the network address in audit receipts. It gets its own careful step.
+
+*Written by AI at Sheryl's request. Added 27 November 2026.*
