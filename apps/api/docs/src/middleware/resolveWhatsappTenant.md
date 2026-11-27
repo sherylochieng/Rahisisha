@@ -148,3 +148,24 @@ manual-only). Declared in `apps/api/docs/AI_AUDIT_week_29_day2.md`.
 | `node --check` | no output | passed |
 | `whatsapp.cross-tenant.test.js` (checks 3, 6, 8) | passing | 11 passed |
 | Manual: POST for `demo-pid-amina` | `received: 1` | passed |
+
+---
+
+## CHANGE (Week 30 Day 3, Batch 1): a suspended shop is gone
+
+The lookup now joins the shop's own row and accepts only `status = 'active'`:
+
+```sql
+SELECT c.tenant_id
+  FROM whatsapp_configs c
+  JOIN tenants t ON t.id = c.tenant_id
+ WHERE c.phone_number_id = $1
+   AND t.status = 'active'
+```
+
+- **Why:** before this, a suspended shop kept receiving WhatsApp messages. The padlock must hold on every door.
+- **What happens:** a message to a suspended shop is treated like an unknown number: answered `200 { data: { ignored: true } }` (so Meta does not retry) and **nothing is saved**.
+- **What did not change:** the rest of the file, the order (`resolveWhatsappTenant` then `withTenant`), and the rule that only `tenant_id` is selected (never the token column).
+- **Test:** `tests/suspendedShop.doors.test.js` (check 2, and check 4 for reinstate).
+
+*Added 27 November 2026.*
