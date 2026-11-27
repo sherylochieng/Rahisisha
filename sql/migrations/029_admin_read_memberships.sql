@@ -1,0 +1,85 @@
+-- =============================================================================
+-- FILE: sql/migrations/029_admin_read_memberships.sql   (Week 30, platform admin: step 5)
+-- =============================================================================
+--
+-- WHY THIS FILE EXISTS
+--   The platform admin screen will list every shop with its OWNER ("Amina's
+--   Boutique, owner Amina"). The link between a shop and its owner lives in the
+--   `memberships` table, and that table is locked per shop (forced row level
+--   security). Today it only opens for one shop at a time, so the admin cannot
+--   see which owner belongs to which shop.
+--   This file adds ONE extra rule to `memberships`: a read-only (SELECT) door
+--   that opens only while the admin lock (app.platform_admin = 'on') is on.
+--
+-- WHY IMPORTANT
+--   The admin must be able to find a shop's owner to support them or to suspend
+--   a shop. But the door must stay narrow: read only, admin lock only, one table.
+--
+-- DANGER
+--   1. SELECT only. This does NOT let the admin add, change or delete any
+--      membership. Those stay locked to the shop's own owner.
+--   2. The lock app.platform_admin is switched on ONLY by the admin code
+--      (withAdminLock), only inside a transaction, and only after the admin
+--      guard has passed. A shop owner's request never switches it on.
+--   3. Do NOT copy this rule to orders, payments, wallet or customer tables.
+--      The admin must never read customer data or money rows. (Counts per shop
+--      will be added later in a separate, reviewed step if you want them.)
+--   4. Run as the owner of `memberships` (postgres, like migrations 023-028).
+--
+-- WHAT IT SOLVES
+--   "Who owns this shop?" for the admin shop list and shop details.
+--
+-- SYSTEM DESIGN PRINCIPLE
+--   Least privilege: give the smallest key that does the job. Postgres combines
+--   the rules on a table with OR, so adding this rule opens ONE extra door and
+--   leaves the existing shop-isolation rule exactly as it was.
+--
+-- RULES
+--   1. Safe to run twice (DROP POLICY IF EXISTS, then CREATE).
+--   2. FOR SELECT only.
+--   3. Nothing is renamed or removed. Additive change.
+--   4. sql/SCHEMA.sql gets the same rule, so a fresh database matches.
+--
+-- PRACTICAL EXAMPLE
+--   Admin list asks: "for each shop, who is the owner?"
+--   With the admin lock on, the database now answers. With the lock off (every
+--   normal request), memberships behaves exactly as before.
+--
+-- DECISIONS
+--   - Policy name: admin_read_memberships.
+--   - Condition is the same switch as platform_admins uses, so there is one
+--     single "head office" switch to reason about.
+--
+-- WHERE USED
+--   The admin shop list and shop details (next files of this step).
+--
+-- TRADEOFFS
+--   + Narrow, easy to audit, easy to undo (DROP POLICY admin_read_memberships).
+--   - If the admin code ever forgets the lock, the owner cannot be seen. That is
+--     the safe direction to fail.
+--
+-- HOW TO USE
+--   psql -U postgres -d rahisisha -f sql/migrations/029_admin_read_memberships.sql
+--   (LOCAL first. On Neon only after a pg_dump backup. Not yet on Neon.)
+-- =============================================================================
+
+-- PIECE BY PIECE
+--   DROP POLICY IF EXISTS = "if this rule already exists, take it down first",
+--                           so running the file twice never fails.
+--   CREATE POLICY         = "put up one new rule on the memberships register".
+--   FOR SELECT            = the rule only covers LOOKING, never changing.
+--   USING (...)           = the condition: the admin lock must be 'on'.
+--                           Real life: the staff list in the shop's drawer can be
+--                           opened by the shop owner for his own shop, and now
+--                           also by head office, but only while head office's
+--                           own key is turned, and only to read.
+
+-- Take the rule down if it is already there, so this file can run twice.
+DROP POLICY IF EXISTS admin_read_memberships ON memberships;
+
+-- The new read-only door for the platform admin.
+-- current_setting(..., TRUE) returns NULL (not an error) when the lock was never
+-- set, and NULL = 'on' is not true, so the door stays shut by default.
+CREATE POLICY admin_read_memberships ON memberships
+  FOR SELECT
+  USING (current_setting('app.platform_admin', TRUE) = 'on');
