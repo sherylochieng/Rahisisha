@@ -21,8 +21,11 @@ router.get('/me', requireAuth, withTenant, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Week 30 Day 3: also return the shop's status and, if it is suspended, the
+    // time and the reason, so the dashboard can show "Your shop is suspended: ...".
     const tenantResult = await req.db.query(
-      `SELECT id, name, slug FROM tenants WHERE id = $1`,
+      `SELECT id, name, slug, status, suspended_at, suspended_reason
+         FROM tenants WHERE id = $1`,
       [req.tenantId],
     );
 
