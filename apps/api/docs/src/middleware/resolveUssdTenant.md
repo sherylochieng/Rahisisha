@@ -214,3 +214,24 @@ Declared in `AI_AUDIT.md` (Week 29 Day 1).
 | Dial `*384*102#` | `CON Welcome to Brio Hardware ...` | (fill in) |
 | Dial unknown code | `END Service unavailable` | (fill in) |
 | Cross-tenant test | Tenant B data returns nothing | (fill in) |
+
+---
+
+## CHANGE (Week 30 Day 3, Batch 1): a suspended shop is gone
+
+The lookup now joins the shop's own row and accepts only `status = 'active'`:
+
+```sql
+SELECT c.tenant_id
+  FROM ussd_configs c
+  JOIN tenants t ON t.id = c.tenant_id
+ WHERE c.service_code = $1
+   AND t.status = 'active'
+```
+
+- **Why:** before this, a suspended shop kept answering on its USSD code. The padlock must hold on every door.
+- **What the caller sees:** exactly the same words as an unknown code, `END Service unavailable`. The caller cannot tell the difference and never learns the reason.
+- **What did not change:** the rest of the file, the order (`resolveUssdTenant` then `withTenant`), and the "stamp, then lock" pattern.
+- **Test:** `tests/suspendedShop.doors.test.js` (check 2, and check 4 for reinstate).
+
+*Added 27 November 2026.*
