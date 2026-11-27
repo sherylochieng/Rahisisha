@@ -849,6 +849,22 @@ CREATE POLICY admin_read_memberships ON memberships
 
 
 -- =============================================================
+-- Migration 030 (Week 30 Day 3, Batch 1): shops can be VERIFIED
+-- =============================================================
+-- Why: the platform admin marks a shop as verified after checking it is a
+-- real business. The marketplace badge needs to know WHEN and BY WHOM.
+-- verified_at is empty until verified. verified_by points at platform_admins
+-- and becomes empty (not the shop deleted) if that admin row is ever removed.
+-- The index keeps the admin shop list fast: filter by status, newest first.
+-- Additive only. Only the admin service writes these columns.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS verified_by UUID
+  REFERENCES platform_admins(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS tenants_status_created_idx
+  ON tenants (status, created_at DESC);
+
+
+-- =============================================================
 -- 26 tables total (ussd_events added in migration 026, Week 29 Day 4)
 -- 20 tables with RLS enabled (all tenant-owned tables)
 --  platform_admins (table 28, migration 028) has RLS of its own kind: visible
