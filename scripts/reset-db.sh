@@ -30,6 +30,25 @@
 # │   3. Piece-by-piece item 6  4. Safety 4 (the code)      │
 # └─────────────────────────────────────────────────────────┘
 #
+# ┌─────────────────────────────────────────────────────────┐
+# │ WEEK 30 DAY 3 CHANGES (added; nothing above was removed)│
+# │ Search for "CHANGED (Week 30 Day 3)".                   │
+# ├─────────────────────────────────────────────────────────┤
+# │ 1. DEMO PASSWORD. scripts/demo-data.sql no longer holds │
+# │    a public password (the repo is public, so anyone     │
+# │    could log in as the demo owners). It now needs a     │
+# │    password passed in. This script supplies it:         │
+# │      - DEMO_PASSWORD in the environment, or             │
+# │      - asks you (hidden), like the other two passwords, │
+# │      - or, with nobody at the keyboard (CI), makes a    │
+# │        random one that nobody knows.                    │
+# │    It is checked BEFORE anything is deleted.            │
+# │ 2. LOCK COUNT 21 -> 23. SCHEMA.sql gained two rules:    │
+# │    platform_admin_only (migration 028) and              │
+# │    admin_read_memberships (migration 029). Without this │
+# │    change, step 4 would stop with "Expected 21".        │
+# └─────────────────────────────────────────────────────────┘
+#
 # WHY THIS FILE EXISTS
 #   Tests, signups and experiments leave junk in the dev
 #   database (test shops, test products). This script gives you
@@ -75,9 +94,11 @@
 # PRACTICAL EXAMPLE
 #   Before a demo:
 #     bash scripts/reset-db.sh
-#   (type the database name, type two passwords)
-#   Two minutes later: a clean database, 21 locks verified, and
-#   the 3 demo shops loaded.
+#   (type the database name, type two passwords, then a demo
+#   password of your own: CHANGED (Week 30 Day 3))
+#   Two minutes later: a clean database, 23 locks verified, and
+#   the 3 demo shops loaded (their owners log in with YOUR demo
+#   password).
 #
 # DECISIONS
 #   - Settings can be overridden by environment variables, so you
@@ -96,6 +117,11 @@
 #     RESET_DB_CONFIRM environment variable, so a CI robot can run
 #     this same script. One script for laptop AND robot means the
 #     robot proves the real thing, not a copy of it.
+#   - CHANGED (Week 30 Day 3): the demo password is asked for (or read
+#     from DEMO_PASSWORD) and handed to demo-data.sql with
+#     -v demo_password. With no keyboard and no DEMO_PASSWORD (CI) we
+#     make a random throwaway one, so the pipeline still builds the 3
+#     demo shops and nobody can log in as them. We do NOT store it.
 #
 # WHERE YOU WILL USE THIS
 #   - Before demos and reviews
@@ -109,6 +135,10 @@
 #   - CHANGED (Task 7): a pipeline can now skip the typing. That is
 #     safe only because the name must still match exactly and the
 #     host check still allows localhost only.
+#   - CHANGED (Week 30 Day 3): one more thing to type (the demo
+#     password). While psql runs, that password is visible in this
+#     computer's process list for a moment. That is fine for a local
+#     demo database, and exactly why this script refuses non-local hosts.
 #
 # HOW TO USE
 #   1. Stop the API (npm run dev in apps/api) and any tests.
@@ -121,6 +151,11 @@
 #   CHANGED (Task 7), added:
 #   4. In CI there is nobody to type: set RESET_DB_CONFIRM, ADMIN_PASSWORD
 #      and APP_PASSWORD in the environment (see .github/workflows/ci.yml).
+#   CHANGED (Week 30 Day 3), added:
+#   5. You will also be asked for a DEMO password (12 or more characters,
+#      your own, not the old public one). To skip the question set it
+#      first:  $env:DEMO_PASSWORD="your-own-12+-char-phrase"
+#      In CI, leave it unset and the script makes a random one.
 #
 # ═══════════════════════════════════════════════════════════
 # EXPLAINED PIECE BY PIECE (real life + where / when / how)
@@ -162,8 +197,16 @@
 #    By default psql keeps going and hides problems.
 #
 # 9. The verify step  =  CHECKING THE LOCKS BEFORE OPENING THE SHOP
-#    Counts the row-level-security rules (21) and the login_lookup
+#    Counts the row-level-security rules (23, since Week 30 Day 3) and the login_lookup
 #    rule. A missing rule means logins would silently break.
+#
+# 10. The demo password  =  SETTING THE TILL PIN ON OPENING DAY
+#    CHANGED (Week 30 Day 3). Real life: the shop hands you an empty till
+#    and YOU choose the PIN, instead of everyone sharing one printed PIN.
+#    WHERE: the "Demo password" block, before anything is deleted.
+#    WHEN: every run. HOW: DEMO_PASSWORD, or typed (hidden), or random in CI.
+#    It is checked first (12 or more characters, not the old public one),
+#    so a bad password cancels BEFORE the database is deleted.
 # ═══════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -174,7 +217,7 @@ DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 ADMIN_USER="${ADMIN_USER:-postgres}"      # may drop/create databases
 APP_USER="${APP_USER:-rahisisha_user}"    # the user the app logs in as
-EXPECTED_POLICIES=21                      # 20 tenant_isolation + login_lookup (whatsapp_dedupe in migration 024; daraja_configs and payment_attempts in 025; ussd_events in 026), from isolation-proof.md
+EXPECTED_POLICIES=23                      # 20 tenant_isolation + login_lookup (whatsapp_dedupe in migration 024; daraja_configs and payment_attempts in 025; ussd_events in 026), from isolation-proof.md. CHANGED (Week 30 Day 3): + platform_admin_only (028) + admin_read_memberships (029) = 23
 
 # Always work from the repo root, wherever the script was started
 cd "$(dirname "$0")/.."
@@ -231,6 +274,29 @@ if [ -z "${APP_PASSWORD:-}" ]; then
   echo
 fi
 
+# ── Demo password (CHANGED, Week 30 Day 3) ───────────────────
+# scripts/demo-data.sql needs a password for the 3 demo shop owners. It is no
+# longer written in the repo (the repo is public). Get it from the environment,
+# or ask (hidden), or, with nobody at the keyboard (CI), make a random one.
+# This runs BEFORE any deletion, so a bad password cancels everything safely.
+if [ -z "${DEMO_PASSWORD:-}" ]; then
+  if [ -t 0 ]; then
+    # A person is at the keyboard: ask, and hide what they type.
+    read -r -s -p "Demo password for the 3 demo owners (12+ characters, your own): " DEMO_PASSWORD
+    echo
+  else
+    # A robot: make 32 random letters and digits. Nobody will ever know them.
+    DEMO_PASSWORD="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    echo "No DEMO_PASSWORD and no keyboard: the demo owners get a random password nobody knows."
+  fi
+fi
+# Long enough?
+[ "${#DEMO_PASSWORD}" -ge 12 ] || die "DEMO_PASSWORD must be 12 or more characters. Nothing was deleted."
+# Not the old public password? (compared in small letters, any capitals count)
+case "$(printf '%s' "$DEMO_PASSWORD" | tr 'A-Z' 'a-z')" in
+  demo1234*) die "That is the old public demo password. Choose a new one. Nothing was deleted." ;;
+esac
+
 # Small helpers that run psql as the admin or as the app user
 admin_psql() {
   PGPASSWORD="$ADMIN_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$ADMIN_USER" \
@@ -271,7 +337,8 @@ echo "    OK: $POLICIES policies, login_lookup present."
 # ── Step 5: demo shops (optional until Task 6 exists) ────────
 if [ -f scripts/demo-data.sql ]; then
   echo "5/5 Loading demo data..."
-  app_psql -f scripts/demo-data.sql >/dev/null
+  # CHANGED (Week 30 Day 3): hand the demo password to the SQL file
+  app_psql -v demo_password="$DEMO_PASSWORD" -f scripts/demo-data.sql >/dev/null
 else
   echo "5/5 scripts/demo-data.sql not found yet. Skipping demo data."
 fi
