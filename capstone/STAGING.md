@@ -48,6 +48,9 @@ same code runs on a laptop and online with different settings.
 4. **NEVER change `NEXT_PUBLIC_*` settings without redeploying the website.**
    They are baked in at build time.
 5. **NEVER treat the demo accounts as safe.** Their password is public.
+   (Update 27 Nov 2026: the three demo accounts on this database were locked
+   and the old password is retired. Demo data now needs a password you choose
+   at run time. See the change log at the end of this file.)
 
 ## PRACTICAL EXAMPLE
 
@@ -93,7 +96,7 @@ Expected answer: `{"data": null,"error": {"message": "Shop not found"}}`.
                           v
  +-------------------------------------------------------------+
  |  NEON  Postgres, Frankfurt, database "rahisisha"            |
- |  row-level security: 17 policies, FORCE on                  |
+ |  row-level security: 23 policies, FORCE on                  |
  +-------------------------------------------------------------+
 
  DNS: domain bought at Host Pinnacle, nameservers point to Vercel.
@@ -193,9 +196,11 @@ psql -d "$env:NEON_ADMIN_URL" -c "CREATE DATABASE rahisisha OWNER rahisisha_user
 
 # 2. As the app user: load the tables and locks, then the demo shops
 psql -d "$env:NEON_APP_URL" -v ON_ERROR_STOP=1 -q -f sql/SCHEMA.sql | Out-Null
-psql -d "$env:NEON_APP_URL" -v ON_ERROR_STOP=1 -q -f scripts/demo-data.sql | Out-Null
+# (since 27 Nov 2026 demo-data.sql needs a demo password of your own, 12 or more
+#  characters, not the old public one: set $env:DEMO_PASSWORD first)
+psql -d "$env:NEON_APP_URL" -v ON_ERROR_STOP=1 -v demo_password="$env:DEMO_PASSWORD" -q -f scripts/demo-data.sql | Out-Null
 
-# 3. Check: we want 17
+# 3. Check: we want 23 (it was 17 before 27 Nov 2026)
 psql -d "$env:NEON_APP_URL" -tAc "SELECT count(*) FROM pg_policies WHERE schemaname='public';"
 ```
 
@@ -208,6 +213,28 @@ Remove-Item Env:DATABASE_URL                   # always clean up afterwards
 ```
 `--testTimeout=60000` is needed because Neon is far away and one test's
 setup makes many round trips.
+
+### Apply new migrations to the live database by hand (added 27 Nov 2026)
+
+Do this whenever a new file appears in `sql/migrations/`. On 27 Nov 2026 the live
+database turned out to be seven migrations behind (023 to 029), so check first.
+
+1. **Connect to the right database.** The Neon project has a default database
+   called `neondb`, which is EMPTY. The app's data is in the database called
+   `rahisisha`. Check the database name in your connection string.
+2. **Look before you change.** Count the tables and policies and check for the
+   newest column or table. If it is not there, the migration is missing.
+3. **Backup first.** Run `pg_dump` and save the file OUTSIDE the repo (it holds
+   users' phone numbers). Check the file size and that it lists every table.
+4. **Apply the migrations in number order,** one at a time, with
+   `-v ON_ERROR_STOP=1`, and stop at the first error. Most migrations are inside
+   `BEGIN ... COMMIT`, so a failed one leaves nothing half-built.
+5. **Check ownership.** Every table must belong to `rahisisha_user`. Migration 023
+   created `ussd_configs` for the boss user, which had to be fixed with
+   `ALTER TABLE ussd_configs OWNER TO rahisisha_user;`.
+6. **Check the result.** Table count (27 on 27 Nov 2026), policy count (23), the
+   new columns, and a quick look at the live site.
+7. Update `sql/SCHEMA.sql` in the same piece of work so a fresh database matches.
 
 ---
 
@@ -241,9 +268,15 @@ setup makes many round trips.
 
 1. **Demo accounts are public.** `scripts/demo-data.sql` shops use a known
    password. Fine for a rehearsal, never for real data.
+   (Update 27 Nov 2026: the three demo accounts on staging are locked, so the
+   public password no longer works, and the files no longer hold it. The
+   accounts and their shops still exist until they are deleted. Tracked as P1
+   in `docs/PENDING_TASKS.md`.)
 2. **Reserved shop words.** `api` and `www` are not shops, but signup does not
    refuse them yet. A shop called `api` could not log in at its own address.
 3. **Test leftovers.** Test runs against staging left a few extra shops.
+   (Update 27 Nov 2026: staging holds 9 users in total, 3 of them the locked
+   demo owners. Tracked as P2.)
 4. **SSL warning.** The `pg` library prints a note about `sslmode=require`
    changing meaning in a future version. Not an error. Later: use
    `sslmode=verify-full` explicitly.
@@ -332,3 +365,14 @@ remember, for the day you are tired and it is 2 a.m.
 
 **10. Known gaps (section 8) = THE HONEST NOTE ON THE DOOR.**
 Saying what is not finished protects your reputation more than hiding it.
+
+
+---
+
+## CHANGE LOG (added 27 Nov 2026)
+
+- **Database brought up to date.** The live database was missing migrations 023 to 029. After a backup (kept outside the repo) they were applied by hand. It now has 27 tables, 23 row-level-security policies, the product image column, the admin tables (`platform_admins`) and the admin read rule on `memberships`.
+- **Table owner fixed.** `ussd_configs` was owned by the boss user and was handed to `rahisisha_user`. All 27 tables now belong to `rahisisha_user`.
+- **Demo accounts locked.** The three demo owners had their password replaced by a long random one nobody knows. Their shops were kept. The old public password is retired and removed from the repo files.
+- **Demo data and reset.** `scripts/demo-data.sql`, `scripts/seed-capstone.js` and `scripts/reset-db.sh` now take a demo password at run time. `reset-db.sh` expects 23 policies.
+- **What is not done yet.** The demo accounts and the leftover test shops still exist (P1, P2). The live admin account has not been created (P32). `CLOUDINARY_*` settings on Render are still to be checked (P30).
