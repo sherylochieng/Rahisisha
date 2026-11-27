@@ -52,6 +52,13 @@ Nothing on this page is built. Everything here is a plan.
 The ideas are grouped by what they protect: money first, then customers, then
 the stability of the system, then the quality of the project.
 
+> **Update 27 Nov 2026:** the live to-do list is now **`docs/PENDING_TASKS.md`**
+> (one merged list, with codes P1 and up, the hybrid build batches and the
+> decisions). Several ideas below are already done or changed: customer cart,
+> checkout and pay, product edit and delete, and reconciliation of payments now
+> exist, and the product is becoming a hybrid marketplace plus shops. Read that
+> file for the true status. This page stays as the original parking lot of ideas.
+
 ---
 
 ## 1. Money safety
