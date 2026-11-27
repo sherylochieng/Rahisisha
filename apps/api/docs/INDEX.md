@@ -17,12 +17,14 @@ Rahisisha is a multi-tenant SaaS backend for small Kenyan businesses.
 but each business can only see its own data, never another business's data.
 
 **Example:**
+
 - Amina runs a dress shop (Tenant A)
 - Brian runs an electronics shop (Tenant B)
 - They share the same API and database
 - Amina can never see Brian's products or orders, ever
 
 This isolation is enforced at two levels:
+
 1. **Row Level Security (RLS):** Postgres itself blocks cross-tenant queries
 2. **withTenant middleware:** sets the tenant context before every query
 
@@ -250,79 +252,79 @@ catch-all and answered with a JSON 404 (not Express's HTML page).
 
 ### Auth (public, no JWT required)
 
-| Method | URL          | What it does                                                        |
-|--------|--------------|---------------------------------------------------------------------|
-| POST   | /v1/signup   | Create a new tenant and owner account                               |
-| POST   | /v1/login    | Find the shop from the address, log in, receive a JWT cookie        |
-| GET    | /v1/me       | Get the logged-in user's profile                                    |
+| Method | URL        | What it does                                                 |
+| ------ | ---------- | ------------------------------------------------------------ |
+| POST   | /v1/signup | Create a new tenant and owner account                        |
+| POST   | /v1/login  | Find the shop from the address, log in, receive a JWT cookie |
+| GET    | /v1/me     | Get the logged-in user's profile                             |
 
 ### Tenants (public, no JWT required)
 
-| Method | URL                          | What it does                                                    |
-|--------|------------------------------|-----------------------------------------------------------------|
-| GET    | /v1/tenants/by-slug/:slug    | Find an active shop by its slug (404 if unknown). Used by the web proxy. |
-| GET    | /v1/storefront/:slug         | PUBLIC (no login). A shop's name and its active, not-deleted products (id, name, description, price_cents), newest first. Query: `limit` (1 to 48, default 24), `cursor` (keyset; a bad one gives 400 `Invalid cursor`). Unknown, badly shaped and suspended shops all give the same 404 `Shop not found`. Read only. |
+| Method | URL                       | What it does                                                                                                                                                                                                                                                                                                          |
+| ------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | /v1/tenants/by-slug/:slug | Find an active shop by its slug (404 if unknown). Used by the web proxy.                                                                                                                                                                                                                                              |
+| GET    | /v1/storefront/:slug      | PUBLIC (no login). A shop's name and its active, not-deleted products (id, name, description, price_cents), newest first. Query: `limit` (1 to 48, default 24), `cursor` (keyset; a bad one gives 400 `Invalid cursor`). Unknown, badly shaped and suspended shops all give the same 404 `Shop not found`. Read only. |
 
 ### USSD (public on purpose: a phone has no login cookie)
 
-| Method | URL    | What it does                                                                 |
-|--------|--------|------------------------------------------------------------------------------|
-| POST   | /ussd  | Africa's Talking posts form data (`serviceCode`, `sessionId`, `phoneNumber`, `text`). The shop is found from `serviceCode`. Replies are plain text starting with `CON ` or `END `, at most 182 characters |
+| Method | URL   | What it does                                                                                                                                                                                              |
+| ------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | /ussd | Africa's Talking posts form data (`serviceCode`, `sessionId`, `phoneNumber`, `text`). The shop is found from `serviceCode`. Replies are plain text starting with `CON ` or `END `, at most 182 characters |
 
 ### WhatsApp (public on purpose: Meta's servers have no login cookie) (Week 29 Day 2)
 
-| Method | URL                  | What it does                                                                 |
-|--------|----------------------|------------------------------------------------------------------------------|
-| GET    | /webhooks/whatsapp   | Meta's verify handshake. Query: `hub.mode=subscribe`, `hub.verify_token`, `hub.challenge`. Answers 200 with the challenge only if the token belongs to a shop and the challenge is plain (letters, digits, `_`, `-`, up to 200); otherwise 403 |
-| POST   | /webhooks/whatsapp   | Inbound messages. The shop is found from `entry[0].changes[0].value.metadata.phone_number_id`. An unknown or missing number answers 200 `{ data: { ignored: true }, error: null }` (so Meta does not retry). A known one saves the customer, conversation and message once, and answers with a count of saved and duplicate messages |
+| Method | URL                | What it does                                                                                                                                                                                                                                                                                                                         |
+| ------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | /webhooks/whatsapp | Meta's verify handshake. Query: `hub.mode=subscribe`, `hub.verify_token`, `hub.challenge`. Answers 200 with the challenge only if the token belongs to a shop and the challenge is plain (letters, digits, `_`, `-`, up to 200); otherwise 403                                                                                       |
+| POST   | /webhooks/whatsapp | Inbound messages. The shop is found from `entry[0].changes[0].value.metadata.phone_number_id`. An unknown or missing number answers 200 `{ data: { ignored: true }, error: null }` (so Meta does not retry). A known one saves the customer, conversation and message once, and answers with a count of saved and duplicate messages |
 
 ### Payments (Week 29 Day 3)
 
-| Method | URL | What it does |
-|--------|-----|--------------|
-| POST   | /v1/orders/:id/pay | **Protected.** Starts an M-Pesa prompt for the order. The amount comes only from the order (`total_cents`, whole shillings). Optional body `{ "phone": "0711111111" }`. Answers 202 `{ data: { paymentAttemptId, status: 'pending', message }, error: null }`. Errors: 404 not found, 409 `order_not_payable`, `payment_in_progress` or `payments_not_set_up`, 400 validation, 502 `payment_provider_error`. It never marks the order paid |
-| POST   | /callbacks/mpesa/:tenantId | **Public on purpose** (Safaricom has no login cookie). Daraja's result message. The shop is the one in the URL. Always answers 200 `{ ResultCode: 0, ResultDesc: 'Accepted' }` except on a server fault. Credits the wallet only after our own pending attempt matches and Safaricom confirms |
+| Method | URL                        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| POST   | /v1/orders/:id/pay         | **Protected.** Starts an M-Pesa prompt for the order. The amount comes only from the order (`total_cents`, whole shillings). Optional body `{ "phone": "0711111111" }`. Answers 202 `{ data: { paymentAttemptId, status: 'pending', message }, error: null }`. Errors: 404 not found, 409 `order_not_payable`, `payment_in_progress` or `payments_not_set_up`, 400 validation, 502 `payment_provider_error`. It never marks the order paid |
+| POST   | /callbacks/mpesa/:tenantId | **Public on purpose** (Safaricom has no login cookie). Daraja's result message. The shop is the one in the URL. Always answers 200 `{ ResultCode: 0, ResultDesc: 'Accepted' }` except on a server fault. Credits the wallet only after our own pending attempt matches and Safaricom confirms                                                                                                                                              |
 
 ### Dashboard (protected: JWT + tenant required)
 
-| Method | URL           | What it does                                                                 |
-|--------|---------------|------------------------------------------------------------------------------|
-| GET    | /v1/dashboard | Returns `{ data: { ordersToday, balanceCents, latestProducts } }` for the logged-in shop |
-| GET    | /v1/inbox     | Returns `{ data: [{ id, channel, from, body, createdAt }], nextCursor, error }`: WhatsApp and USSD merged, newest first. Query: `limit` (default 20, max 100), `cursor`. Week 29 Day 4 |
+| Method | URL                | What it does                                                                                                                                                                                 |
+| ------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | /v1/dashboard      | Returns `{ data: { ordersToday, balanceCents, latestProducts } }` for the logged-in shop                                                                                                     |
+| GET    | /v1/inbox          | Returns `{ data: [{ id, channel, from, body, createdAt }], nextCursor, error }`: WhatsApp and USSD merged, newest first. Query: `limit` (default 20, max 100), `cursor`. Week 29 Day 4       |
 | GET    | /v1/wallet/entries | Returns the shop's wallet entries newest first, each with `day` (Nairobi), `dayTotalCents` and `balanceAfterCents`. Query: `limit` (default 50, max 100), `cursor`. Read only. Week 29 Day 4 |
 
 ### Products (protected: JWT + tenant required)
 
-| Method | URL                  | What it does                     |
-|--------|----------------------|----------------------------------|
-| GET    | /v1/products         | List products (cursor paginated) |
-| POST   | /v1/products         | Create a new product             |
-| GET    | /v1/products/:id     | Fetch one product                |
-| PATCH  | /v1/products/:id     | Partially update a product       |
-| DELETE | /v1/products/:id     | Soft delete a product            |
+| Method | URL              | What it does                     |
+| ------ | ---------------- | -------------------------------- |
+| GET    | /v1/products     | List products (cursor paginated) |
+| POST   | /v1/products     | Create a new product             |
+| GET    | /v1/products/:id | Fetch one product                |
+| PATCH  | /v1/products/:id | Partially update a product       |
+| DELETE | /v1/products/:id | Soft delete a product            |
 
 ### Orders (protected: JWT + tenant required)
 
-| Method | URL                       | What it does                             |
-|--------|---------------------------|------------------------------------------|
-| POST   | /v1/orders                | Create a new order (with transaction)    |
-| GET    | /v1/orders                | List orders, newest first, each with `customer_name` and `customer_phone`. Query: `limit` (1 to 100, default 10), `cursor` (keyset; a bad cursor gives 400 `Invalid cursor`) |
-| GET    | /v1/orders/:id            | Fetch one order                          |
-| PATCH  | /v1/orders/:id            | Update order status (state machine only) |
+| Method | URL            | What it does                                                                                                                                                                 |
+| ------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | /v1/orders     | Create a new order (with transaction)                                                                                                                                        |
+| GET    | /v1/orders     | List orders, newest first, each with `customer_name` and `customer_phone`. Query: `limit` (1 to 100, default 10), `cursor` (keyset; a bad cursor gives 400 `Invalid cursor`) |
+| GET    | /v1/orders/:id | Fetch one order                                                                                                                                                              |
+| PATCH  | /v1/orders/:id | Update order status (state machine only)                                                                                                                                     |
 
 ### Status codes you will see
 
-| Code | Meaning                                                                |
-|------|------------------------------------------------------------------------|
-| 200  | OK                                                                     |
-| 201  | Created (new product or order)                                        |
-| 204  | Deleted (soft delete, nothing to return)                               |
-| 400  | Validation failed, unknown order status, or malformed ID               |
-| 401  | Not logged in, or the session expired                                  |
+| Code | Meaning                                                                                                                                                                                                                   |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200  | OK                                                                                                                                                                                                                        |
+| 201  | Created (new product or order)                                                                                                                                                                                            |
+| 204  | Deleted (soft delete, nothing to return)                                                                                                                                                                                  |
+| 400  | Validation failed, unknown order status, or malformed ID                                                                                                                                                                  |
+| 401  | Not logged in, or the session expired                                                                                                                                                                                     |
 | 404  | Not found. Also what another tenant's record looks like (RLS hides it). At login, an unknown shop word gives `Tenant not found`. An unknown URL gives JSON `{ data: null, error: { code: 'not_found' } }` (Week 29 Day 1) |
-| 409  | Conflict: duplicate SKU, or an illegal order status change             |
-| 500  | Unexpected server error (details are logged, never sent to the caller) |
-| 503  | The database cannot be reached: a friendly "try again" answer          |
+| 409  | Conflict: duplicate SKU, or an illegal order status change                                                                                                                                                                |
+| 500  | Unexpected server error (details are logged, never sent to the caller)                                                                                                                                                    |
+| 503  | The database cannot be reached: a friendly "try again" answer                                                                                                                                                             |
 
 ---
 
@@ -332,10 +334,10 @@ catch-all and answered with a JSON 404 (not Express's HTML page).
 
 ```js
 // Correct: uses tenant-scoped connection
-const { rows } = await req.db.query('SELECT * FROM products')
+const { rows } = await req.db.query('SELECT * FROM products');
 
 // Wrong: bypasses tenant isolation, data leaks between tenants
-const { rows } = await pool.query('SELECT * FROM products')
+const { rows } = await pool.query('SELECT * FROM products');
 ```
 
 `req.db` is set by `withTenant` middleware. It holds a connection
@@ -411,6 +413,7 @@ The query fetches `limit + 1` rows; the extra row tells us a next page exists.
 ### 6. Transactions on orders
 
 Creating an order touches multiple tables:
+
 1. Upsert customer
 2. Fetch products
 3. Create order row
@@ -445,9 +448,11 @@ for every tenant.
 The fix has two parts:
 
 1. **`asyncHandler`** wraps every controller in the route files:
+
    ```js
    router.get('/:id', asyncHandler(getOrder));
    ```
+
    If the controller throws, the error is passed on with `next(err)`.
 
 2. **The central error handler** at the bottom of `app.js` (after all routes)
@@ -620,21 +625,21 @@ Tested by `tests/mpesa.callback.test.js`, `tests/payments.pay.test.js` and
 
 ## Settings (environment variables)
 
-| Name | What it does |
-|------|--------------|
-| `DATABASE_URL` | The app's database login. Must be a user that is **not** a superuser and does **not** have BYPASSRLS, or the shop locks do nothing |
-| `JWT_SECRET` | Signs login tokens. Keep it long and secret |
-| `NODE_ENV` | `production` turns on `Secure` cookies and https-only CORS |
-| `WEB_ORIGIN` | The main site address (on a laptop, `http://localhost:3001`) |
-| `ROOT_DOMAIN` | The main domain, for example `rahisishabiashara.com`. Turns on the "every shop" CORS rule and the Origin-based shop lookup |
-| `COOKIE_DOMAIN` | Lets the login cookie work across shop addresses (online only) |
-| `PORT` | Port the server listens on |
-| `KMS_KEY` | Encrypts stored secrets (WhatsApp tokens). 32 bytes, base64 (44 characters). Never commit it; `.env.example` has a placeholder. If it is lost, every stored token is unreadable (Week 29 Day 2) |
-| `WHATSAPP_API_BASE` | Optional. Where WhatsApp messages are sent. Defaults to `https://graph.facebook.com`; tests point it at a fake |
-| `WHATSAPP_API_VERSION` | Optional. Meta's API version. Defaults to `v21.0` |
-| `DARAJA_API_BASE` | Optional. Where M-Pesa calls go. Defaults to Safaricom's sandbox or production address by the shop's `env`; tests point it at a fake (Week 29 Day 3) |
-| `DARAJA_SANDBOX_CONSUMER_KEY`, `DARAJA_SANDBOX_CONSUMER_SECRET`, `DARAJA_SANDBOX_PASSKEY`, `DARAJA_SANDBOX_SHORTCODE` | Used only by `scripts/seed-daraja-demo.js`. Your sandbox values from Safaricom's developer portal. Never commit them; `.env.example` has placeholders |
-| `DARAJA_CALLBACK_BASE` | Used only by the seed script. The public https address Safaricom can reach (for example an ngrok tunnel); the seed adds `/callbacks/mpesa/<shop id>` |
+| Name                                                                                                                  | What it does                                                                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                                                                        | The app's database login. Must be a user that is **not** a superuser and does **not** have BYPASSRLS, or the shop locks do nothing                                                              |
+| `JWT_SECRET`                                                                                                          | Signs login tokens. Keep it long and secret                                                                                                                                                     |
+| `NODE_ENV`                                                                                                            | `production` turns on `Secure` cookies and https-only CORS                                                                                                                                      |
+| `WEB_ORIGIN`                                                                                                          | The main site address (on a laptop, `http://localhost:3001`)                                                                                                                                    |
+| `ROOT_DOMAIN`                                                                                                         | The main domain, for example `rahisishabiashara.com`. Turns on the "every shop" CORS rule and the Origin-based shop lookup                                                                      |
+| `COOKIE_DOMAIN`                                                                                                       | Lets the login cookie work across shop addresses (online only)                                                                                                                                  |
+| `PORT`                                                                                                                | Port the server listens on                                                                                                                                                                      |
+| `KMS_KEY`                                                                                                             | Encrypts stored secrets (WhatsApp tokens). 32 bytes, base64 (44 characters). Never commit it; `.env.example` has a placeholder. If it is lost, every stored token is unreadable (Week 29 Day 2) |
+| `WHATSAPP_API_BASE`                                                                                                   | Optional. Where WhatsApp messages are sent. Defaults to `https://graph.facebook.com`; tests point it at a fake                                                                                  |
+| `WHATSAPP_API_VERSION`                                                                                                | Optional. Meta's API version. Defaults to `v21.0`                                                                                                                                               |
+| `DARAJA_API_BASE`                                                                                                     | Optional. Where M-Pesa calls go. Defaults to Safaricom's sandbox or production address by the shop's `env`; tests point it at a fake (Week 29 Day 3)                                            |
+| `DARAJA_SANDBOX_CONSUMER_KEY`, `DARAJA_SANDBOX_CONSUMER_SECRET`, `DARAJA_SANDBOX_PASSKEY`, `DARAJA_SANDBOX_SHORTCODE` | Used only by `scripts/seed-daraja-demo.js`. Your sandbox values from Safaricom's developer portal. Never commit them; `.env.example` has placeholders                                           |
+| `DARAJA_CALLBACK_BASE`                                                                                                | Used only by the seed script. The public https address Safaricom can reach (for example an ngrok tunnel); the seed adds `/callbacks/mpesa/<shop id>`                                            |
 
 ---
 
@@ -669,30 +674,30 @@ A Husky `pre-push` hook runs `npm run test:isolation` before every push.
 The same tests run on every push in CI (`.github/workflows/ci.yml`), against a
 fresh Postgres built by `scripts/reset-db.sh`.
 
-| File | What it proves |
-|------|----------------|
-| `tests/isolation.test.js` | A second shop cannot read, update or delete another shop's row in any of the 17 tenant tables, and RLS is enabled and forced on all of them. `whatsapp_dedupe` has no `id` column, so it is covered by the coverage guards and by its own checks in `whatsapp.cross-tenant.test.js` (Week 29 Day 2) |
-| `tests/isolation/login-lookup.isolation.test.js` | The `login_lookup` rule shows only the named person's row, and UPDATE, DELETE and INSERT all fail |
-| `tests/wallet.service.test.js` | Credit and debit work, bad amounts are refused and write nothing, balance is a number, unknown reasons are refused by the database |
-| `tests/pagination/products.pagination.test.js` | Cursor pagination returns every product exactly once and the cursor ends |
-| `tests/isolation/orders.isolation.test.js` | Brio cannot read Acme's orders (404) |
-| `tests/isolation/products.cross-tenant.test.js` | Brio cannot read, list, edit or delete Acme's products (404) |
-| `tests/errors/error-handling.test.js` | Malformed IDs return 400, unknown statuses return 400, and 25 failing requests do not exhaust the pool |
-| `tests/allowedOrigin.test.js` | Shops and the main site get in; look-alike domains, `http://` in production and garbage are refused |
-| `tests/getShopSlug.test.js` | The shop word is found from Origin or Host; `www`, `api`, strangers and garbage give no shop |
-| `tests/isolation/ussd.cross-tenant.test.js` | Dialling shop A never shows shop B's welcome, products or balance; the phone number is never the tenant; replies are 182 characters or less; with shop A's lock, shop B's rows are invisible even by id (8 checks) |
-| `tests/kms.test.js` | Encrypt then decrypt returns the original; a fresh IV every time; a changed byte, a different shop id or a different key fails with the one generic error; the key is read at call time (9 checks) |
-| `tests/whatsapp.service.test.js` | The sender uses the current shop's token, never another shop's; never logs it; never puts it in an error; 401 and 403 set `whatsapp_token_rejected`; the stored token is encrypted (10 checks) |
-| `tests/isolation/whatsapp.cross-tenant.test.js` | Verify handshake accepts a real token and refuses wrong ones; a message for shop A is saved for A and invisible to B; repeats are skipped per shop; unknown or missing number answers 200 ignored; with shop A's lock, shop B's `whatsapp_dedupe` rows are invisible and cannot be written (11 checks) |
-| `tests/daraja.service.test.js` | The M-Pesa service uses only the locked shop's keys and till, never logs a secret, stores keys encrypted, refuses fractions of a shilling and bad phones, and the STK query returns paid or failed only on a clean Safaricom answer (21 checks) |
-| `tests/payments.pay.test.js` | The pay route charges the order's amount (never the body's), only for the logged-in shop, refuses unpayable orders and a double tap, keeps failed attempts, and leaks nothing (13 checks) |
-| `tests/mpesa.callback.test.js` | The callback credits once and only after Safaricom confirms; repeats, races, wrong amounts, cancelled orders, another shop, malformed bodies and a repeated receipt never double or wrongly credit (18 checks) |
-| `tests/inbox.test.js` | The inbox merges WhatsApp and USSD newest first, pages by 1, 2 and 3 without skipping or repeating (ties and microseconds), never shows another shop's rows, and a USSD dial is logged (16 checks, Day 4) |
-| `tests/wallet.entries.test.js` | The payments list groups by Nairobi day, day totals and the running balance are right on every page and match the dashboard, isolation, read only (11 checks, Day 4) |
-| `tests/orders.list.test.js` | The Orders list is newest first, pages by 1, 2 and 3 without skipping or repeating, carries the customer's name and phone, refuses a bad cursor with 400, caps the limit, and never shows another shop's orders (8 checks, follow-up to Day 4) |
+| File                                              | What it proves                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/isolation.test.js`                         | A second shop cannot read, update or delete another shop's row in any of the 17 tenant tables, and RLS is enabled and forced on all of them. `whatsapp_dedupe` has no `id` column, so it is covered by the coverage guards and by its own checks in `whatsapp.cross-tenant.test.js` (Week 29 Day 2)                                                                                                                                                                                                         |
+| `tests/isolation/login-lookup.isolation.test.js`  | The `login_lookup` rule shows only the named person's row, and UPDATE, DELETE and INSERT all fail                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `tests/wallet.service.test.js`                    | Credit and debit work, bad amounts are refused and write nothing, balance is a number, unknown reasons are refused by the database                                                                                                                                                                                                                                                                                                                                                                          |
+| `tests/pagination/products.pagination.test.js`    | Cursor pagination returns every product exactly once and the cursor ends                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `tests/isolation/orders.isolation.test.js`        | Brio cannot read Acme's orders (404)                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `tests/isolation/products.cross-tenant.test.js`   | Brio cannot read, list, edit or delete Acme's products (404)                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `tests/errors/error-handling.test.js`             | Malformed IDs return 400, unknown statuses return 400, and 25 failing requests do not exhaust the pool                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `tests/allowedOrigin.test.js`                     | Shops and the main site get in; look-alike domains, `http://` in production and garbage are refused                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `tests/getShopSlug.test.js`                       | The shop word is found from Origin or Host; `www`, `api`, strangers and garbage give no shop                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `tests/isolation/ussd.cross-tenant.test.js`       | Dialling shop A never shows shop B's welcome, products or balance; the phone number is never the tenant; replies are 182 characters or less; with shop A's lock, shop B's rows are invisible even by id (8 checks)                                                                                                                                                                                                                                                                                          |
+| `tests/kms.test.js`                               | Encrypt then decrypt returns the original; a fresh IV every time; a changed byte, a different shop id or a different key fails with the one generic error; the key is read at call time (9 checks)                                                                                                                                                                                                                                                                                                          |
+| `tests/whatsapp.service.test.js`                  | The sender uses the current shop's token, never another shop's; never logs it; never puts it in an error; 401 and 403 set `whatsapp_token_rejected`; the stored token is encrypted (10 checks)                                                                                                                                                                                                                                                                                                              |
+| `tests/isolation/whatsapp.cross-tenant.test.js`   | Verify handshake accepts a real token and refuses wrong ones; a message for shop A is saved for A and invisible to B; repeats are skipped per shop; unknown or missing number answers 200 ignored; with shop A's lock, shop B's `whatsapp_dedupe` rows are invisible and cannot be written (11 checks)                                                                                                                                                                                                      |
+| `tests/daraja.service.test.js`                    | The M-Pesa service uses only the locked shop's keys and till, never logs a secret, stores keys encrypted, refuses fractions of a shilling and bad phones, and the STK query returns paid or failed only on a clean Safaricom answer (21 checks)                                                                                                                                                                                                                                                             |
+| `tests/payments.pay.test.js`                      | The pay route charges the order's amount (never the body's), only for the logged-in shop, refuses unpayable orders and a double tap, keeps failed attempts, and leaks nothing (13 checks)                                                                                                                                                                                                                                                                                                                   |
+| `tests/mpesa.callback.test.js`                    | The callback credits once and only after Safaricom confirms; repeats, races, wrong amounts, cancelled orders, another shop, malformed bodies and a repeated receipt never double or wrongly credit (18 checks)                                                                                                                                                                                                                                                                                              |
+| `tests/inbox.test.js`                             | The inbox merges WhatsApp and USSD newest first, pages by 1, 2 and 3 without skipping or repeating (ties and microseconds), never shows another shop's rows, and a USSD dial is logged (16 checks, Day 4)                                                                                                                                                                                                                                                                                                   |
+| `tests/wallet.entries.test.js`                    | The payments list groups by Nairobi day, day totals and the running balance are right on every page and match the dashboard, isolation, read only (11 checks, Day 4)                                                                                                                                                                                                                                                                                                                                        |
+| `tests/orders.list.test.js`                       | The Orders list is newest first, pages by 1, 2 and 3 without skipping or repeating, carries the customer's name and phone, refuses a bad cursor with 400, caps the limit, and never shows another shop's orders (8 checks, follow-up to Day 4)                                                                                                                                                                                                                                                              |
 | `tests/isolation/storefront.cross-tenant.test.js` | The public shop door, called with NO login: only the shop's active products in newest-first order, drafts, archived and deleted items hidden, only four fields public, shop A never shows shop B's secret product on any page size, A's bookmark on B's address shows only B's goods, a cookie from another shop changes nothing, unknown, badly shaped and suspended shops give the same 404, an empty shop is a normal 200, bad cursor 400, limit 1 to 48, POST/PATCH/PUT/DELETE find nothing (11 checks) |
-| `tests/errors/not-found.test.js` | Unknown URLs get a JSON 404 for GET and POST, and `/health` still works (4 checks) |
-| `tests/signup-atomic.test.js` | When seeding fails, signup fails cleanly and leaves no user and no shop behind (1 check) |
+| `tests/errors/not-found.test.js`                  | Unknown URLs get a JSON 404 for GET and POST, and `/health` still works (4 checks)                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `tests/signup-atomic.test.js`                     | When seeding fails, signup fails cleanly and leaves no user and no shop behind (1 check)                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 The suite also contains happy-path, database-down and signup sample-data tests
 added in Week 28 Weekend. They do not have guides yet (see Known Follow-Ups).
@@ -706,40 +711,40 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 
 ## Known Follow-Ups
 
-| Item | Why |
-|------|-----|
-| Re-check `JWT_SECRET` and the database password when staging becomes production | Staging has its own values set in Render. Never reuse a development placeholder |
-| Fix two stale comments in `orders.controller.js` | A `FOR UPDATE` mention in `createOrder` and `?status`/`?channel` filters on `listOrders` that do not exist yet |
-| Consider re-writing the AI-assisted parts of `withTenant.js` by hand | Keeps the "hand-written isolation" rule honest (see the AI audit) |
-| Add a test for the real login endpoint | `login-lookup.isolation.test.js` covers the database rule and `getShopSlug.test.js` the shop word, but nothing runs `login.js` end to end |
-| Add a test for `GET /v1/dashboard` | The dashboard numbers have no automated test yet |
-| Match the shop in the address against the login token on later requests | Login now reads the shop from the address, but later requests trust the token only |
-| Decide RLS for `audit_logs`; keep the app on a non-owner database role | Staging runs as `rahisisha_user` (no BYPASSRLS). See the known limitations in `docs/tests/isolation-proof.md` |
-| Make the dashboard success envelope match the others (`error: null`) | Small inconsistency with `/v1/products` |
-| Write guides for the web layout, sidebar and dashboard page | `apps/web/docs/` has guides for `proxy.js`, `session.js` and `serverApi.js` only |
-| Fix slugify (cut, then trim dashes); refuse reserved slugs (admin, www, api) at **signup**; make session.js treat an API outage like serverApi.js | The lookup ignores `www` and `api`, but signup still lets someone register them |
-| Write guides for the friendly 503 handler, sample data on signup, and the happy-path, database-down and signup sample-data tests | Added in Week 28 Weekend, not documented yet |
-| Add AI audit entries for Week 28 Weekend Tasks 3 to 8 | The audit files stop at Day 5. **Update, 13 November 2026:** `AI_AUDIT_week_28_weekend.md` and `AI_AUDIT_week_29_day1.md` now exist and are linked from the root `AI_AUDIT.md` |
-| Set the database SSL mode to `verify-full`; give `pool.js` a connection timeout | Staging works, but the `pg` SSL warning shows and a stuck database would hang a request |
-| Remove the public demo accounts (password `Demo1234!`) and leftover test shops from staging | They are listed in `capstone/STAGING.md` under known gaps |
-| Keep `ussd_configs` free of private columns; cache `service_code -> tenant_id` if USSD traffic grows | It has no RLS on purpose (see `docs/tests/isolation-proof.md`). One extra query per USSD request is fine for now |
-| USSD stretch goals: language per tenant, a `ussd_events` table, 60 second idle timeout | Not done in Week 29 Day 1. **Update, 17 November 2026:** the `ussd_events` table is now built (migration 026, Week 29 Day 4); language per tenant and the idle timeout are still not done |
-| Verify the `X-Hub-Signature-256` header on `POST /webhooks/whatsapp` | Not done in Week 29 Day 2, so anyone who knows a shop's `phone_number_id` can post a fake message to that shop. Listed in `whatsapp-security.md` |
-| Tell the shop owner when Meta rejects the token (`whatsapp_token_rejected`) | The error code exists, but nothing notifies the owner yet |
-| Add a screen or endpoint where a shop saves its own WhatsApp settings; reply to customers through `sendWhatsApp` from the webhook; try it against Meta's sandbox | Today the settings come from the seed script only, and the webhook saves messages but does not answer |
-| WhatsApp stretch goals: key rotation (the `v1.` prefix is there for it), message templates, a Meta business verification walkthrough | Not done in Week 29 Day 2 |
-| Clean old rows out of `whatsapp_dedupe` | It grows forever. A scheduled delete of rows older than a few days is enough |
-| Build the nightly reconciliation job | Described in `reconciliation.md` but not built: find attempts still `pending` after about 15 minutes, ask Safaricom with `queryStkStatus`, and apply or fail them with the same steps as the callback (Week 29 Day 3) |
-| Refund endpoint, a Slack alert for failed or unapplied payments, and telling the shop owner about a `failed` attempt that holds a receipt | Not done in Week 29 Day 3. Such payments are marked `failed` with the receipt kept |
-| Add a screen or endpoint where a shop saves its own Daraja settings | Today the settings come from `seed-daraja-demo.js`. Tests use a fake Safaricom; one real sandbox run was done on 16 November 2026 |
+| Item                                                                                                                                                                                                               | Why                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Re-check `JWT_SECRET` and the database password when staging becomes production                                                                                                                                    | Staging has its own values set in Render. Never reuse a development placeholder                                                                                                                                                                    |
+| Fix two stale comments in `orders.controller.js`                                                                                                                                                                   | A `FOR UPDATE` mention in `createOrder` and `?status`/`?channel` filters on `listOrders` that do not exist yet                                                                                                                                     |
+| Consider re-writing the AI-assisted parts of `withTenant.js` by hand                                                                                                                                               | Keeps the "hand-written isolation" rule honest (see the AI audit)                                                                                                                                                                                  |
+| Add a test for the real login endpoint                                                                                                                                                                             | `login-lookup.isolation.test.js` covers the database rule and `getShopSlug.test.js` the shop word, but nothing runs `login.js` end to end                                                                                                          |
+| Add a test for `GET /v1/dashboard`                                                                                                                                                                                 | The dashboard numbers have no automated test yet                                                                                                                                                                                                   |
+| Match the shop in the address against the login token on later requests                                                                                                                                            | Login now reads the shop from the address, but later requests trust the token only                                                                                                                                                                 |
+| Decide RLS for `audit_logs`; keep the app on a non-owner database role                                                                                                                                             | Staging runs as `rahisisha_user` (no BYPASSRLS). See the known limitations in `docs/tests/isolation-proof.md`                                                                                                                                      |
+| Make the dashboard success envelope match the others (`error: null`)                                                                                                                                               | Small inconsistency with `/v1/products`                                                                                                                                                                                                            |
+| Write guides for the web layout, sidebar and dashboard page                                                                                                                                                        | `apps/web/docs/` has guides for `proxy.js`, `session.js` and `serverApi.js` only                                                                                                                                                                   |
+| Fix slugify (cut, then trim dashes); refuse reserved slugs (admin, www, api) at **signup**; make session.js treat an API outage like serverApi.js                                                                  | The lookup ignores `www` and `api`, but signup still lets someone register them                                                                                                                                                                    |
+| Write guides for the friendly 503 handler, sample data on signup, and the happy-path, database-down and signup sample-data tests                                                                                   | Added in Week 28 Weekend, not documented yet                                                                                                                                                                                                       |
+| Add AI audit entries for Week 28 Weekend Tasks 3 to 8                                                                                                                                                              | The audit files stop at Day 5. **Update, 13 November 2026:** `AI_AUDIT_week_28_weekend.md` and `AI_AUDIT_week_29_day1.md` now exist and are linked from the root `AI_AUDIT.md`                                                                     |
+| Set the database SSL mode to `verify-full`; give `pool.js` a connection timeout                                                                                                                                    | Staging works, but the `pg` SSL warning shows and a stuck database would hang a request                                                                                                                                                            |
+| Remove the public demo accounts (password `<your-demo-password>`) and leftover test shops from staging                                                                                                             | They are listed in `capstone/STAGING.md` under known gaps                                                                                                                                                                                          |
+| Keep `ussd_configs` free of private columns; cache `service_code -> tenant_id` if USSD traffic grows                                                                                                               | It has no RLS on purpose (see `docs/tests/isolation-proof.md`). One extra query per USSD request is fine for now                                                                                                                                   |
+| USSD stretch goals: language per tenant, a `ussd_events` table, 60 second idle timeout                                                                                                                             | Not done in Week 29 Day 1. **Update, 17 November 2026:** the `ussd_events` table is now built (migration 026, Week 29 Day 4); language per tenant and the idle timeout are still not done                                                          |
+| Verify the `X-Hub-Signature-256` header on `POST /webhooks/whatsapp`                                                                                                                                               | Not done in Week 29 Day 2, so anyone who knows a shop's `phone_number_id` can post a fake message to that shop. Listed in `whatsapp-security.md`                                                                                                   |
+| Tell the shop owner when Meta rejects the token (`whatsapp_token_rejected`)                                                                                                                                        | The error code exists, but nothing notifies the owner yet                                                                                                                                                                                          |
+| Add a screen or endpoint where a shop saves its own WhatsApp settings; reply to customers through `sendWhatsApp` from the webhook; try it against Meta's sandbox                                                   | Today the settings come from the seed script only, and the webhook saves messages but does not answer                                                                                                                                              |
+| WhatsApp stretch goals: key rotation (the `v1.` prefix is there for it), message templates, a Meta business verification walkthrough                                                                               | Not done in Week 29 Day 2                                                                                                                                                                                                                          |
+| Clean old rows out of `whatsapp_dedupe`                                                                                                                                                                            | It grows forever. A scheduled delete of rows older than a few days is enough                                                                                                                                                                       |
+| Build the nightly reconciliation job                                                                                                                                                                               | Described in `reconciliation.md` but not built: find attempts still `pending` after about 15 minutes, ask Safaricom with `queryStkStatus`, and apply or fail them with the same steps as the callback (Week 29 Day 3)                              |
+| Refund endpoint, a Slack alert for failed or unapplied payments, and telling the shop owner about a `failed` attempt that holds a receipt                                                                          | Not done in Week 29 Day 3. Such payments are marked `failed` with the receipt kept                                                                                                                                                                 |
+| Add a screen or endpoint where a shop saves its own Daraja settings                                                                                                                                                | Today the settings come from `seed-daraja-demo.js`. Tests use a fake Safaricom; one real sandbox run was done on 16 November 2026                                                                                                                  |
 | Make the Safaricom confirmation reliable: keep the callback's receipt and amount on the attempt when the confirmation fails, retry the confirmation later (the reconciliation job), and credit only when it passes | In the real sandbox run the confirmation query answered HTTP 500 (`500.001.1001`) once and a real payment stayed `pending`. Safaricom's query returns no receipt, so a retry needs the saved callback data. Needs a migration, tests and a re-read |
-| Handle reversals | Safaricom reversed the sandbox payments on 16 November 2026 but nothing tells us, so a credited payment stays credited |
-| Fix the old `orders.isolation.test.js` cleanup | It deletes orders directly; `payment_attempts.order_id` is `ON DELETE RESTRICT`, so leftover attempts could make that cleanup fail |
-| Answer `400` (not `500`) for a broken JSON body | Found on 14 November 2026: the central error handler turns a body parse error into `internal` |
-| Add `NULLIF(current_setting('app.current_tenant', TRUE), '')` to the older RLS rules | Only `memberships` and `whatsapp_dedupe` have it; the other 15 tables error on an empty setting instead of returning nothing (see `docs/tests/isolation-proof.md`) |
-| Fix the stale "81 isolation tests" comments in `ci.yml` | Left alone in Week 29 Day 2 |
-| Find why Jest says "did not exit" at the end of `npm test` | Some older test leaves a connection open. Harmless, but `--detectOpenHandles` would show which |
-| Web: add `onChange` clearing of a field's red message while typing | A wrong box stays red until the next submit (see `SignupForm.js`) |
+| Handle reversals                                                                                                                                                                                                   | Safaricom reversed the sandbox payments on 16 November 2026 but nothing tells us, so a credited payment stays credited                                                                                                                             |
+| Fix the old `orders.isolation.test.js` cleanup                                                                                                                                                                     | It deletes orders directly; `payment_attempts.order_id` is `ON DELETE RESTRICT`, so leftover attempts could make that cleanup fail                                                                                                                 |
+| Answer `400` (not `500`) for a broken JSON body                                                                                                                                                                    | Found on 14 November 2026: the central error handler turns a body parse error into `internal`                                                                                                                                                      |
+| Add `NULLIF(current_setting('app.current_tenant', TRUE), '')` to the older RLS rules                                                                                                                               | Only `memberships` and `whatsapp_dedupe` have it; the other 15 tables error on an empty setting instead of returning nothing (see `docs/tests/isolation-proof.md`)                                                                                 |
+| Fix the stale "81 isolation tests" comments in `ci.yml`                                                                                                                                                            | Left alone in Week 29 Day 2                                                                                                                                                                                                                        |
+| Find why Jest says "did not exit" at the end of `npm test`                                                                                                                                                         | Some older test leaves a connection open. Harmless, but `--detectOpenHandles` would show which                                                                                                                                                     |
+| Web: add `onChange` clearing of a field's red message while typing                                                                                                                                                 | A wrong box stays red until the next submit (see `SignupForm.js`)                                                                                                                                                                                  |
 
 ---
 
@@ -747,11 +752,11 @@ Each test file closes the app's pool in `afterAll`, so Jest exits cleanly.
 
 Details, settings and troubleshooting are in `capstone/STAGING.md`. In short:
 
-| Part | Where | Address |
-|------|-------|---------|
-| Web app | Vercel (project root `apps/web`) | `https://rahisishabiashara.com` and `https://<shop-word>.rahisishabiashara.com` |
-| API | Render (free plan: sleeps after 15 minutes, first request is slow) | `https://api.rahisishabiashara.com` |
-| Database | Neon (Frankfurt), app user `rahisisha_user` | not public |
+| Part     | Where                                                              | Address                                                                         |
+| -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Web app  | Vercel (project root `apps/web`)                                   | `https://rahisishabiashara.com` and `https://<shop-word>.rahisishabiashara.com` |
+| API      | Render (free plan: sleeps after 15 minutes, first request is slow) | `https://api.rahisishabiashara.com`                                             |
+| Database | Neon (Frankfurt), app user `rahisisha_user`                        | not public                                                                      |
 
 ---
 
@@ -760,28 +765,28 @@ Details, settings and troubleshooting are in `capstone/STAGING.md`. In short:
 The web app has no database. It calls this API (`NEXT_PUBLIC_API_URL`, which
 must end in `/v1` and is fixed when the site is built).
 
-| File | What it does |
-|------|--------------|
-| `src/proxy.js` | Next.js 16 proxy (the old "middleware"): works out which shop the visitor wants from the subdomain (uses `ROOT_DOMAIN`). `www` and the bare domain are not shops. A shop address's root `/` is rewritten to `/shop/<slug>` (the shop window); every other page is unchanged |
-| `src/lib/publicApi.js` | `fetchStorefront(slug, cursor)`: the public twin of `serverApi.js`. Calls `GET /v1/storefront/:slug` with NO cookie, never redirects to login, `no-store`; 404 gives `null`, a stale bookmark falls back to page one (follow-up to Week 29 Day 4) |
-| `src/app/shop/[slug]/page.js` | The public shop window: name board, product grid (letter tile, name, description, KES price), "More products" paging, empty state, not-found for unknown shops. No cart or photos yet (follow-up to Week 29 Day 4) |
-| `src/lib/session.js` | `requireSession`: reads the login cookie, redirects to login if missing |
-| `src/lib/serverApi.js` | `serverGet` (data only) and `serverGetPage` (data + `nextCursor`, Week 29 Day 4): call this API from server pages, forwarding the login cookie |
-| `src/lib/format.js` | Money (`KES 1,500.00`, signed) and Nairobi time/day formatting for the Inbox and Payments pages (Week 29 Day 4) |
-| `src/components/MobileNav.js` | Menu bar for phones (the Sidebar is hidden below `md`) (Week 29 Day 4) |
-| `src/app/(authed)/inbox/page.js` (+ `loading.js`) | Inbox: WhatsApp and USSD, WA/USSD badges, older-messages paging, empty state (Week 29 Day 4) |
-| `src/app/(authed)/payments/page.js` (+ `loading.js`) | Payments: wallet entries grouped by day with day totals and a running balance (Week 29 Day 4) |
-| `src/components/Sidebar.js` | Left menu. Dashboard, Inbox, Payments, Wallet, Products and Orders are links; only Settings is still marked "soon" |
-| `src/lib/shopUrl.js` | `buildShopUrl`: builds the shop's public address from its slug (`http://slug.localhost:3001` locally, `https://slug.rahisishabiashara.com` online); re-checks the slug |
-| `src/lib/kesToCents.js` | Turns what the owner types (`1,500` or `1500.50`) into whole cents, or `null` when it is not a valid price |
-| `src/components/ShopLinkCard.js` | Dashboard card showing the shop's link with Copy, WhatsApp share, phone Share and Open. The link leads to the public shop page |
-| `src/components/ProductForm.js` | Add product form: name, price in shillings, status, optional SKU and description; duplicate SKU shows a kind message |
-| `src/app/(authed)/products/page.js` (+ `loading.js`, `new/page.js`) | Products list with an Add product button, and the Add product page. Edit and delete are not built yet |
-| `src/app/(authed)/orders/page.js` (+ `loading.js`) | Orders: newest first with customer, status colour, channel and total, older-orders paging, empty state |
-| `src/app/(authed)/wallet/page.js` | Sends the Wallet link to the Payments page (`redirect('/payments')`) |
-| `src/app/(authed)/layout.js` | Login check, sidebar and header for every logged-in page |
-| `src/app/(authed)/dashboard/page.js` | Dashboard home: real numbers, the shop link card and latest products |
-| `src/app/signup/SignupForm.js` | Signup form. Since Week 29 Day 1, wrong fields turn red with a kind message under the box (checked in the browser first, then by the API's field errors) |
+| File                                                                | What it does                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/proxy.js`                                                      | Next.js 16 proxy (the old "middleware"): works out which shop the visitor wants from the subdomain (uses `ROOT_DOMAIN`). `www` and the bare domain are not shops. A shop address's root `/` is rewritten to `/shop/<slug>` (the shop window); every other page is unchanged |
+| `src/lib/publicApi.js`                                              | `fetchStorefront(slug, cursor)`: the public twin of `serverApi.js`. Calls `GET /v1/storefront/:slug` with NO cookie, never redirects to login, `no-store`; 404 gives `null`, a stale bookmark falls back to page one (follow-up to Week 29 Day 4)                           |
+| `src/app/shop/[slug]/page.js`                                       | The public shop window: name board, product grid (letter tile, name, description, KES price), "More products" paging, empty state, not-found for unknown shops. No cart or photos yet (follow-up to Week 29 Day 4)                                                          |
+| `src/lib/session.js`                                                | `requireSession`: reads the login cookie, redirects to login if missing                                                                                                                                                                                                     |
+| `src/lib/serverApi.js`                                              | `serverGet` (data only) and `serverGetPage` (data + `nextCursor`, Week 29 Day 4): call this API from server pages, forwarding the login cookie                                                                                                                              |
+| `src/lib/format.js`                                                 | Money (`KES 1,500.00`, signed) and Nairobi time/day formatting for the Inbox and Payments pages (Week 29 Day 4)                                                                                                                                                             |
+| `src/components/MobileNav.js`                                       | Menu bar for phones (the Sidebar is hidden below `md`) (Week 29 Day 4)                                                                                                                                                                                                      |
+| `src/app/(authed)/inbox/page.js` (+ `loading.js`)                   | Inbox: WhatsApp and USSD, WA/USSD badges, older-messages paging, empty state (Week 29 Day 4)                                                                                                                                                                                |
+| `src/app/(authed)/payments/page.js` (+ `loading.js`)                | Payments: wallet entries grouped by day with day totals and a running balance (Week 29 Day 4)                                                                                                                                                                               |
+| `src/components/Sidebar.js`                                         | Left menu. Dashboard, Inbox, Payments, Wallet, Products and Orders are links; only Settings is still marked "soon"                                                                                                                                                          |
+| `src/lib/shopUrl.js`                                                | `buildShopUrl`: builds the shop's public address from its slug (`http://slug.localhost:3001` locally, `https://slug.rahisishabiashara.com` online); re-checks the slug                                                                                                      |
+| `src/lib/kesToCents.js`                                             | Turns what the owner types (`1,500` or `1500.50`) into whole cents, or `null` when it is not a valid price                                                                                                                                                                  |
+| `src/components/ShopLinkCard.js`                                    | Dashboard card showing the shop's link with Copy, WhatsApp share, phone Share and Open. The link leads to the public shop page                                                                                                                                              |
+| `src/components/ProductForm.js`                                     | Add product form: name, price in shillings, status, optional SKU and description; duplicate SKU shows a kind message                                                                                                                                                        |
+| `src/app/(authed)/products/page.js` (+ `loading.js`, `new/page.js`) | Products list with an Add product button, and the Add product page. Edit and delete are not built yet                                                                                                                                                                       |
+| `src/app/(authed)/orders/page.js` (+ `loading.js`)                  | Orders: newest first with customer, status colour, channel and total, older-orders paging, empty state                                                                                                                                                                      |
+| `src/app/(authed)/wallet/page.js`                                   | Sends the Wallet link to the Payments page (`redirect('/payments')`)                                                                                                                                                                                                        |
+| `src/app/(authed)/layout.js`                                        | Login check, sidebar and header for every logged-in page                                                                                                                                                                                                                    |
+| `src/app/(authed)/dashboard/page.js`                                | Dashboard home: real numbers, the shop link card and latest products                                                                                                                                                                                                        |
+| `src/app/signup/SignupForm.js`                                      | Signup form. Since Week 29 Day 1, wrong fields turn red with a kind message under the box (checked in the browser first, then by the API's field errors)                                                                                                                    |
 
 The layout does not re-run on every client-side click, so the API's own cookie
 check is the second lock.
@@ -790,14 +795,14 @@ check is the second lock.
 
 ## What Is Coming Next
 
-| Feature                             | Week            |
-|-------------------------------------|-----------------|
+| Feature                                                                                                                                                                                                            | Week    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
 | Dashboard pages: products (list and add done; edit and delete to do), orders (list done), wallet (done, same as Payments), settings (to do), public shop page (done: products and prices; cart and checkout to do) | Week 29 |
-| M-Pesa STK push integration         | Week 29         |
-| WhatsApp Cloud API                  | Week 29         |
-| AI product enhancement (Claude API) | Week 29         |
-| BullMQ background jobs              | Week 29         |
-| Production hardening (strong secrets, paid hosting, no sleeping API) | Week 30 |
+| M-Pesa STK push integration                                                                                                                                                                                        | Week 29 |
+| WhatsApp Cloud API                                                                                                                                                                                                 | Week 29 |
+| AI product enhancement (Claude API)                                                                                                                                                                                | Week 29 |
+| BullMQ background jobs                                                                                                                                                                                             | Week 29 |
+| Production hardening (strong secrets, paid hosting, no sleeping API)                                                                                                                                               | Week 30 |
 
 Staging is already live (see above).
 
@@ -809,11 +814,11 @@ Staging is already live (see above).
 
 ---
 
-*Last updated: 19 November 2026, after Week 29 Day 4 and the public shop page (guard, public endpoint, cross-shop test, shop page at `/shop/<slug>`, shop address rewrite)*  
-*Earlier: 18 November 2026, shop link card on the dashboard, Products list and add, Orders list with customer details and keyset paging, Wallet link*  
-*Earlier: Week 29 Day 4 (unified inbox, payments page, `ussd_events` table, keyset paging, mobile menu, polish checklist), 17 November 2026*  
-*Earlier: Week 29 Day 3 (M-Pesa per tenant: Daraja settings, STK push, verified callback, wallet credit, money audit, reconciliation notes), 16 November 2026*  
-*Earlier: Week 29 Day 2 (WhatsApp per tenant: webhook, encrypted tokens, dedupe, shared sender, seed script, docs tidy-up), 14 November 2026*  
-*Earlier: Week 29 Day 1 (USSD per tenant, JSON 404, signup field errors, signup atomicity test), 13 November 2026*  
-*Earlier: Week 28 Weekend (Task 8, staging deploy), 10 November 2026*  
-*Update this file every time a new endpoint or pattern is added.*
+_Last updated: 19 November 2026, after Week 29 Day 4 and the public shop page (guard, public endpoint, cross-shop test, shop page at `/shop/<slug>`, shop address rewrite)_  
+_Earlier: 18 November 2026, shop link card on the dashboard, Products list and add, Orders list with customer details and keyset paging, Wallet link_  
+_Earlier: Week 29 Day 4 (unified inbox, payments page, `ussd_events` table, keyset paging, mobile menu, polish checklist), 17 November 2026_  
+_Earlier: Week 29 Day 3 (M-Pesa per tenant: Daraja settings, STK push, verified callback, wallet credit, money audit, reconciliation notes), 16 November 2026_  
+_Earlier: Week 29 Day 2 (WhatsApp per tenant: webhook, encrypted tokens, dedupe, shared sender, seed script, docs tidy-up), 14 November 2026_  
+_Earlier: Week 29 Day 1 (USSD per tenant, JSON 404, signup field errors, signup atomicity test), 13 November 2026_  
+_Earlier: Week 28 Weekend (Task 8, staging deploy), 10 November 2026_  
+_Update this file every time a new endpoint or pattern is added._

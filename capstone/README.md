@@ -73,20 +73,20 @@ Owner opens dashboard → sees the sale, revenue, stock update
 
 ## Features
 
-| Feature | Status | Built so far (12 Nov 2026) |
-| --- | --- | --- |
-| Branded storefront per business | P0 — Week 28 | Partly: every shop has its own address and a "shop not found" page. The public product page is not built yet |
-| AI-enhanced product photos (real photo, real text layers) | P0 — Week 29 | Planned |
-| Owner approval gate — nothing goes public without sign-off | P0 — Week 29 | Planned |
-| WhatsApp announcement on product publish | P0 — Week 29 | Planned. The base is built (Week 29 Day 2): the webhook receives customer messages per shop and an encrypted-token sender exists, but nothing announces or replies yet |
-| AI chat assistant grounded in tenant catalog data only | P0 — Week 29 | Planned |
-| In-chat M-Pesa payment link | P0 — Week 29 | Partly. The base is built (Week 29 Day 3): a shop can start an M-Pesa prompt for an order and the verified callback credits the wallet, but there is no payment link in a chat yet and it has run end to end once against Safaricom's real sandbox (16 November 2026), with one intermittent failure at the confirmation step |
-| Inventory reservation — prevents double-selling | P0 — Week 29 | Table is in the schema; the logic is planned |
-| M-Pesa STK push + server-side callback confirmation | P0 — Week 29 | Planned |
-| Owner dashboard — sales, revenue, stock, orders | P0 — Week 30 | Dashboard home is done (orders today, wallet balance, latest products). The list pages are planned |
-| Multi-tenant isolation — Business A cannot see Business B's data | P0 — all weeks | Done and tested on all 17 tenant tables |
-| Order tracking, ratings, AI advice, billing | P1 — Week 30 if time | Order status flow is done. Ratings, AI advice and billing are planned |
-| USSD, Telegram, Instagram/TikTok auto-posting | P2 — after demo | USSD was brought into Week 29. Day 1 is done: `POST /ussd`, a per-shop menu and a cross-tenant test. Telegram and Instagram/TikTok are still planned |
+| Feature                                                          | Status               | Built so far (12 Nov 2026)                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branded storefront per business                                  | P0 — Week 28         | Partly: every shop has its own address and a "shop not found" page. The public product page is not built yet                                                                                                                                                                                                                  |
+| AI-enhanced product photos (real photo, real text layers)        | P0 — Week 29         | Planned                                                                                                                                                                                                                                                                                                                       |
+| Owner approval gate — nothing goes public without sign-off       | P0 — Week 29         | Planned                                                                                                                                                                                                                                                                                                                       |
+| WhatsApp announcement on product publish                         | P0 — Week 29         | Planned. The base is built (Week 29 Day 2): the webhook receives customer messages per shop and an encrypted-token sender exists, but nothing announces or replies yet                                                                                                                                                        |
+| AI chat assistant grounded in tenant catalog data only           | P0 — Week 29         | Planned                                                                                                                                                                                                                                                                                                                       |
+| In-chat M-Pesa payment link                                      | P0 — Week 29         | Partly. The base is built (Week 29 Day 3): a shop can start an M-Pesa prompt for an order and the verified callback credits the wallet, but there is no payment link in a chat yet and it has run end to end once against Safaricom's real sandbox (16 November 2026), with one intermittent failure at the confirmation step |
+| Inventory reservation — prevents double-selling                  | P0 — Week 29         | Table is in the schema; the logic is planned                                                                                                                                                                                                                                                                                  |
+| M-Pesa STK push + server-side callback confirmation              | P0 — Week 29         | Planned                                                                                                                                                                                                                                                                                                                       |
+| Owner dashboard — sales, revenue, stock, orders                  | P0 — Week 30         | Dashboard home is done (orders today, wallet balance, latest products). The list pages are planned                                                                                                                                                                                                                            |
+| Multi-tenant isolation — Business A cannot see Business B's data | P0 — all weeks       | Done and tested on all 17 tenant tables                                                                                                                                                                                                                                                                                       |
+| Order tracking, ratings, AI advice, billing                      | P1 — Week 30 if time | Order status flow is done. Ratings, AI advice and billing are planned                                                                                                                                                                                                                                                         |
+| USSD, Telegram, Instagram/TikTok auto-posting                    | P2 — after demo      | USSD was brought into Week 29. Day 1 is done: `POST /ussd`, a per-shop menu and a cross-tenant test. Telegram and Instagram/TikTok are still planned                                                                                                                                                                          |
 
 ---
 
@@ -144,21 +144,21 @@ The full list, with reasons, is in [`capstone/PENDING_TASKS.md`](PENDING_TASKS.m
 
 ## Tech stack
 
-| Layer | Technology |
-| --- | --- |
-| Frontend / Dashboard | Next.js 16 (App Router, JavaScript) |
-| Backend API | Express + Node.js (JavaScript) |
-| Database | PostgreSQL with Row-Level Security |
-| Sessions & queues | Redis + BullMQ |
-| AI chat & advice | Anthropic Claude SDK |
-| Photo enhancement | Image API (TBD — testing 2–3 providers) |
-| Payments | M-Pesa Daraja STK Push |
-| Messaging | WhatsApp Cloud API (Meta) |
-| Local dev | Docker Compose |
-| CI/CD | GitHub Actions |
-| Shared types | mctaba-shared-types (git submodule) |
-| Tests | Jest (ESM) + supertest, against real PostgreSQL |
-| Staging hosting | Render (API), Vercel (web), Neon (database) |
+| Layer                | Technology                                      |
+| -------------------- | ----------------------------------------------- |
+| Frontend / Dashboard | Next.js 16 (App Router, JavaScript)             |
+| Backend API          | Express + Node.js (JavaScript)                  |
+| Database             | PostgreSQL with Row-Level Security              |
+| Sessions & queues    | Redis + BullMQ                                  |
+| AI chat & advice     | Anthropic Claude SDK                            |
+| Photo enhancement    | Image API (TBD — testing 2–3 providers)         |
+| Payments             | M-Pesa Daraja STK Push                          |
+| Messaging            | WhatsApp Cloud API (Meta)                       |
+| Local dev            | Docker Compose                                  |
+| CI/CD                | GitHub Actions                                  |
+| Shared types         | mctaba-shared-types (git submodule)             |
+| Tests                | Jest (ESM) + supertest, against real PostgreSQL |
+| Staging hosting      | Render (API), Vercel (web), Neon (database)     |
 
 ---
 
@@ -197,7 +197,8 @@ cd apps/web && npm install && npm run dev
 ```
 
 Demo tenant created by the seed script:
-- **Login:** +254700000001 / Demo1234!
+
+- **Login:** +254700000001 / <your-demo-password>
 - **Business:** Amina's Boutique (5 products, 3 customers, 2 orders)
 
 ### Rebuild the local database from scratch
@@ -301,31 +302,37 @@ Base URL: `http://localhost:3000/v1` locally, `https://api.rahisishabiashara.com
 Success replies look like `{ "data": ..., "error": null }`. Validation failures look like:
 
 ```json
-{ "error": { "code": "validation", "message": "Request validation failed", "details": { "priceCents": "Expected number, received string" } } }
+{
+  "error": {
+    "code": "validation",
+    "message": "Request validation failed",
+    "details": { "priceCents": "Expected number, received string" }
+  }
+}
 ```
 
-| Method | URL | Auth | What it does |
-| --- | --- | --- | --- |
-| GET | `/health` | none | Returns `{"status":"ok"}` |
-| POST | `/v1/signup` | none | Create a shop and its owner account |
-| POST | `/v1/login` | none | Log in; sets an httpOnly cookie |
-| GET | `/v1/me` | cookie | The logged-in user's profile |
-| GET | `/v1/tenants/by-slug/:slug` | none | Find an active shop by its address word (404 if unknown) |
-| GET | `/v1/dashboard` | cookie | Orders today, wallet balance, latest products |
-| GET | `/v1/products` | cookie | List products (cursor pagination: `?cursor=`) |
-| POST | `/v1/products` | cookie | Create a product |
-| GET | `/v1/products/:id` | cookie | Read one product |
-| PATCH | `/v1/products/:id` | cookie | Update a product |
-| DELETE | `/v1/products/:id` | cookie | Soft delete a product |
-| POST | `/v1/orders` | cookie | Create an order (transaction) |
-| GET | `/v1/orders` | cookie | List orders (cursor pagination) |
-| GET | `/v1/orders/:id` | cookie | Read one order |
-| PATCH | `/v1/orders/:id` | cookie | Change order status (illegal moves return 409) |
-| POST | `/v1/orders/:id/pay` | cookie | Start an M-Pesa payment for an order (Week 29 Day 3). The amount comes only from the order. Answers 202 `pending`; it never marks the order paid |
-| GET | `/webhooks/whatsapp` | verify token | Meta's verify handshake (`hub.mode`, `hub.verify_token`, `hub.challenge`). **Not under `/v1`**: it is the callback URL you give Meta. Answers 200 with the challenge for a real shop's token, otherwise 403 |
-| POST | `/webhooks/whatsapp` | `phone_number_id` | Inbound WhatsApp messages for every shop. The shop is found from `entry[0].changes[0].value.metadata.phone_number_id`. Saves customer, conversation and message once; repeats are skipped; an unknown or missing number answers `200` with `{ "data": { "ignored": true }, "error": null }` so Meta does not retry |
-| POST | `/ussd` | service code | USSD for every shop. **Not under `/v1`**: it is the callback URL for Africa's Talking. Takes form data (`serviceCode`, `sessionId`, `phoneNumber`, `text`) and replies in plain text (`CON ...` or `END ...`, 182 characters at most) |
-| POST | `/callbacks/mpesa/:tenantId` | shop id in the URL | Safaricom's payment result (Week 29 Day 3). **Not under `/v1`**: it is the callback URL stored in `daraja_configs`. Always answers 200 `{ "ResultCode": 0, "ResultDesc": "Accepted" }` except on a server fault. Credits the wallet only after our own pending attempt matches and Safaricom confirms it |
+| Method | URL                          | Auth               | What it does                                                                                                                                                                                                                                                                                                       |
+| ------ | ---------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/health`                    | none               | Returns `{"status":"ok"}`                                                                                                                                                                                                                                                                                          |
+| POST   | `/v1/signup`                 | none               | Create a shop and its owner account                                                                                                                                                                                                                                                                                |
+| POST   | `/v1/login`                  | none               | Log in; sets an httpOnly cookie                                                                                                                                                                                                                                                                                    |
+| GET    | `/v1/me`                     | cookie             | The logged-in user's profile                                                                                                                                                                                                                                                                                       |
+| GET    | `/v1/tenants/by-slug/:slug`  | none               | Find an active shop by its address word (404 if unknown)                                                                                                                                                                                                                                                           |
+| GET    | `/v1/dashboard`              | cookie             | Orders today, wallet balance, latest products                                                                                                                                                                                                                                                                      |
+| GET    | `/v1/products`               | cookie             | List products (cursor pagination: `?cursor=`)                                                                                                                                                                                                                                                                      |
+| POST   | `/v1/products`               | cookie             | Create a product                                                                                                                                                                                                                                                                                                   |
+| GET    | `/v1/products/:id`           | cookie             | Read one product                                                                                                                                                                                                                                                                                                   |
+| PATCH  | `/v1/products/:id`           | cookie             | Update a product                                                                                                                                                                                                                                                                                                   |
+| DELETE | `/v1/products/:id`           | cookie             | Soft delete a product                                                                                                                                                                                                                                                                                              |
+| POST   | `/v1/orders`                 | cookie             | Create an order (transaction)                                                                                                                                                                                                                                                                                      |
+| GET    | `/v1/orders`                 | cookie             | List orders (cursor pagination)                                                                                                                                                                                                                                                                                    |
+| GET    | `/v1/orders/:id`             | cookie             | Read one order                                                                                                                                                                                                                                                                                                     |
+| PATCH  | `/v1/orders/:id`             | cookie             | Change order status (illegal moves return 409)                                                                                                                                                                                                                                                                     |
+| POST   | `/v1/orders/:id/pay`         | cookie             | Start an M-Pesa payment for an order (Week 29 Day 3). The amount comes only from the order. Answers 202 `pending`; it never marks the order paid                                                                                                                                                                   |
+| GET    | `/webhooks/whatsapp`         | verify token       | Meta's verify handshake (`hub.mode`, `hub.verify_token`, `hub.challenge`). **Not under `/v1`**: it is the callback URL you give Meta. Answers 200 with the challenge for a real shop's token, otherwise 403                                                                                                        |
+| POST   | `/webhooks/whatsapp`         | `phone_number_id`  | Inbound WhatsApp messages for every shop. The shop is found from `entry[0].changes[0].value.metadata.phone_number_id`. Saves customer, conversation and message once; repeats are skipped; an unknown or missing number answers `200` with `{ "data": { "ignored": true }, "error": null }` so Meta does not retry |
+| POST   | `/ussd`                      | service code       | USSD for every shop. **Not under `/v1`**: it is the callback URL for Africa's Talking. Takes form data (`serviceCode`, `sessionId`, `phoneNumber`, `text`) and replies in plain text (`CON ...` or `END ...`, 182 characters at most)                                                                              |
+| POST   | `/callbacks/mpesa/:tenantId` | shop id in the URL | Safaricom's payment result (Week 29 Day 3). **Not under `/v1`**: it is the callback URL stored in `daraja_configs`. Always answers 200 `{ "ResultCode": 0, "ResultDesc": "Accepted" }` except on a server fault. Credits the wallet only after our own pending attempt matches and Safaricom confirms it           |
 
 Status codes: 400 validation or malformed id, 401 not logged in, 404 not found (including another shop's record, and any URL that matches no route, which answers `{ "data": null, "error": { "code": "not_found", "message": "Route not found" } }`), 409 conflict, 500 unexpected, 503 database unreachable.
 
@@ -366,34 +373,34 @@ Folders such as `workers/`, `packages/` and `infra/` are scaffolds for later wee
 
 ## Project documents
 
-| Document | Purpose |
-| --- | --- |
-| [`capstone/SPEC.md`](SPEC.md) | One-page product spec — tenant, core actions, monetisation, anti-scope |
-| [`capstone/ROADMAP.md`](ROADMAP.md) | Four-week day-by-day build roadmap |
-| [`capstone/api.md`](api.md) | All 35 API endpoints with method, URL, and error codes |
-| [`capstone/api-versioning.md`](api-versioning.md) | API versioning decisions and rules |
-| [`capstone/WILL_NOT_BUILD.md`](WILL_NOT_BUILD.md) | 12 explicit MVP exclusions |
-| [`capstone/stories.md`](stories.md) | 18 user stories grouped by role |
-| [`capstone/tables.md`](tables.md) | All 20 database tables with one-line purposes |
-| [`capstone/indexes.md`](indexes.md) | Every index and the query it supports |
-| [`capstone/isolation-models.md`](isolation-models.md) | Three multi-tenancy models compared |
-| [`capstone/adr/ADR-0003-isolation.md`](adr/ADR-0003-isolation.md) | Multi-tenancy isolation decision record |
-| [`docs/API.md`](../docs/API.md) | Full API spec with request/response shapes |
-| [`docs/PLAN.md`](../docs/PLAN.md) | Day by day build plan for Weeks 28-30 |
-| [`AI_AUDIT.md`](../AI_AUDIT.md) | Weekly AI usage audit log |
-| [`capstone/STAGING.md`](STAGING.md) | How the live staging site is set up, settings, troubleshooting |
-| [`capstone/PENDING_TASKS.md`](PENDING_TASKS.md) | What is left to do, in priority order |
-| [`apps/api/docs/INDEX.md`](../apps/api/docs/INDEX.md) | Developer index of the API: structure, patterns, tests |
-| [`apps/api/docs/tests/isolation-proof.md`](../apps/api/docs/tests/isolation-proof.md) | Evidence that every tenant table is locked |
-| [`apps/api/docs/AI_AUDIT_week_28_weekend.md`](../apps/api/docs/AI_AUDIT_week_28_weekend.md) | AI audit for the Week 28 Weekend work |
-| [`apps/api/docs/AI_AUDIT_week_29_day1.md`](../apps/api/docs/AI_AUDIT_week_29_day1.md) | AI audit for Week 29 Day 1 (USSD). States openly that tenant resolution was AI-written |
-| [`apps/api/docs/AI_AUDIT_week_29_day2.md`](../apps/api/docs/AI_AUDIT_week_29_day2.md) | AI audit for Week 29 Day 2 (WhatsApp). States openly that token handling and tenant resolution were AI-written, at the student's choice |
-| [`whatsapp-security.md`](../whatsapp-security.md) | Short security notes for the WhatsApp webhook: what is protected and what is not yet |
-| [`apps/api/docs/AI_AUDIT_week_29_day3.md`](../apps/api/docs/AI_AUDIT_week_29_day3.md) | AI audit for Week 29 Day 3 (M-Pesa), with the Money Audit in section 3. States openly that the ledger update and callback verification were AI-written, at the student's choice |
-| [`reconciliation.md`](../reconciliation.md) | What happens when a callback never arrives or arrives twice, and what the nightly reconciliation job would do. First draft by the AI, then rewritten by Sheryl in her own words (declared in the audit) |
-| [`apps/api/docs/SEEDS_AND_SCRIPTS.md`](../apps/api/docs/SEEDS_AND_SCRIPTS.md) | Index of every seed and script, which folder each belongs in, and the fresh-setup order |
-| [`ussd-quirks.md`](../ussd-quirks.md) | Short notes on USSD rules: the 182 character limit, the back key, CON vs END |
-| [Trello Board](https://trello.com/b/CB8yGexS/rahisisha-capstone-sprint) | Sprint task board — Weeks 28–30 |
+| Document                                                                                    | Purpose                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`capstone/SPEC.md`](SPEC.md)                                                               | One-page product spec — tenant, core actions, monetisation, anti-scope                                                                                                                                  |
+| [`capstone/ROADMAP.md`](ROADMAP.md)                                                         | Four-week day-by-day build roadmap                                                                                                                                                                      |
+| [`capstone/api.md`](api.md)                                                                 | All 35 API endpoints with method, URL, and error codes                                                                                                                                                  |
+| [`capstone/api-versioning.md`](api-versioning.md)                                           | API versioning decisions and rules                                                                                                                                                                      |
+| [`capstone/WILL_NOT_BUILD.md`](WILL_NOT_BUILD.md)                                           | 12 explicit MVP exclusions                                                                                                                                                                              |
+| [`capstone/stories.md`](stories.md)                                                         | 18 user stories grouped by role                                                                                                                                                                         |
+| [`capstone/tables.md`](tables.md)                                                           | All 20 database tables with one-line purposes                                                                                                                                                           |
+| [`capstone/indexes.md`](indexes.md)                                                         | Every index and the query it supports                                                                                                                                                                   |
+| [`capstone/isolation-models.md`](isolation-models.md)                                       | Three multi-tenancy models compared                                                                                                                                                                     |
+| [`capstone/adr/ADR-0003-isolation.md`](adr/ADR-0003-isolation.md)                           | Multi-tenancy isolation decision record                                                                                                                                                                 |
+| [`docs/API.md`](../docs/API.md)                                                             | Full API spec with request/response shapes                                                                                                                                                              |
+| [`docs/PLAN.md`](../docs/PLAN.md)                                                           | Day by day build plan for Weeks 28-30                                                                                                                                                                   |
+| [`AI_AUDIT.md`](../AI_AUDIT.md)                                                             | Weekly AI usage audit log                                                                                                                                                                               |
+| [`capstone/STAGING.md`](STAGING.md)                                                         | How the live staging site is set up, settings, troubleshooting                                                                                                                                          |
+| [`capstone/PENDING_TASKS.md`](PENDING_TASKS.md)                                             | What is left to do, in priority order                                                                                                                                                                   |
+| [`apps/api/docs/INDEX.md`](../apps/api/docs/INDEX.md)                                       | Developer index of the API: structure, patterns, tests                                                                                                                                                  |
+| [`apps/api/docs/tests/isolation-proof.md`](../apps/api/docs/tests/isolation-proof.md)       | Evidence that every tenant table is locked                                                                                                                                                              |
+| [`apps/api/docs/AI_AUDIT_week_28_weekend.md`](../apps/api/docs/AI_AUDIT_week_28_weekend.md) | AI audit for the Week 28 Weekend work                                                                                                                                                                   |
+| [`apps/api/docs/AI_AUDIT_week_29_day1.md`](../apps/api/docs/AI_AUDIT_week_29_day1.md)       | AI audit for Week 29 Day 1 (USSD). States openly that tenant resolution was AI-written                                                                                                                  |
+| [`apps/api/docs/AI_AUDIT_week_29_day2.md`](../apps/api/docs/AI_AUDIT_week_29_day2.md)       | AI audit for Week 29 Day 2 (WhatsApp). States openly that token handling and tenant resolution were AI-written, at the student's choice                                                                 |
+| [`whatsapp-security.md`](../whatsapp-security.md)                                           | Short security notes for the WhatsApp webhook: what is protected and what is not yet                                                                                                                    |
+| [`apps/api/docs/AI_AUDIT_week_29_day3.md`](../apps/api/docs/AI_AUDIT_week_29_day3.md)       | AI audit for Week 29 Day 3 (M-Pesa), with the Money Audit in section 3. States openly that the ledger update and callback verification were AI-written, at the student's choice                         |
+| [`reconciliation.md`](../reconciliation.md)                                                 | What happens when a callback never arrives or arrives twice, and what the nightly reconciliation job would do. First draft by the AI, then rewritten by Sheryl in her own words (declared in the audit) |
+| [`apps/api/docs/SEEDS_AND_SCRIPTS.md`](../apps/api/docs/SEEDS_AND_SCRIPTS.md)               | Index of every seed and script, which folder each belongs in, and the fresh-setup order                                                                                                                 |
+| [`ussd-quirks.md`](../ussd-quirks.md)                                                       | Short notes on USSD rules: the 182 character limit, the back key, CON vs END                                                                                                                            |
+| [Trello Board](https://trello.com/b/CB8yGexS/rahisisha-capstone-sprint)                     | Sprint task board — Weeks 28–30                                                                                                                                                                         |
 
 ---
 
@@ -402,6 +409,7 @@ Folders such as `workers/`, `packages/` and `infra/` are scaffolds for later wee
 Every business's data is completely invisible to every other business — not just by application code, but enforced at the database level with PostgreSQL Row-Level Security. A bug in the application layer cannot cause a data leak because the database itself refuses to return another tenant's rows.
 
 The three tests that must always pass:
+
 - **Tenant isolation** — Business A cannot fetch, update or delete Business B's records
 - **Inventory concurrency** — two simultaneous buyers cannot both claim the last item
 - **Payment idempotency** — a repeated M-Pesa callback cannot create a duplicate order
@@ -409,16 +417,19 @@ The three tests that must always pass:
 These run in CI on every push. A failing test blocks the deploy.
 
 Also in place since Week 28:
+
 - **Login cookie:** httpOnly, `Secure` in production, `SameSite=Strict`, shared across shop addresses through a cookie domain.
 - **CORS:** the main site and every shop address are allowed by a rule; look-alike domains such as `evilrahisishabiashara.com` are refused.
 - **The app connects as an ordinary database user**, never a superuser.
 
 Also in place since Week 29 Day 1 (USSD):
+
 - **The shop comes from the service code**, never from the phone number (one phone can shop at many shops, and numbers can be faked). After that, USSD uses the same `withTenant` lock as every web route.
 - **`ussd_configs` has no RLS, on purpose**: the shop must be found before it is known. It holds only public data (service code, shop id, welcome line) and is listed as a documented exception in `apps/api/docs/tests/isolation-proof.md`.
 - **`tests/isolation/ussd.cross-tenant.test.js`** proves dialling shop A never shows shop B's welcome, products or balance, even by product id.
 
 Also in place since Week 29 Day 2 (WhatsApp):
+
 - **The shop comes from Meta's `phone_number_id`**, never from anything a caller types. After that, WhatsApp uses the same `withTenant` lock as every web route.
 - **Access tokens are encrypted at rest** (AES-256-GCM, key in `KMS_KEY`, token locked to its shop id so a copy in another shop's row will not decrypt). They are decrypted at the last moment, never logged and never put in an error message.
 - **`whatsapp_configs` has no RLS, on purpose** (the shop must be found before it is known), and it holds the encrypted token, so it is a documented exception with a higher risk note in `apps/api/docs/tests/isolation-proof.md`. **`whatsapp_dedupe` has RLS**, so a repeated message is skipped per shop.
@@ -426,6 +437,7 @@ Also in place since Week 29 Day 2 (WhatsApp):
 - **Not yet in place:** the `X-Hub-Signature-256` check, and one key protects all tokens (see "Known gaps").
 
 Also in place since Week 29 Day 3 (M-Pesa):
+
 - **The shop comes from the callback URL**, then the same `withTenant` lock as every other route. The URL id proves nothing by itself.
 - **The callback is never believed on its own** (Daraja does not sign it): it must match our own pending attempt for that shop, and Safaricom's STK Query must confirm it, before anything is credited.
 - **Credit once, in one transaction:** the wallet entry, the attempt and the order change together or not at all. A repeated callback, two at once, a repeated receipt or a second paid attempt for one order cannot credit twice (row locks plus unique indexes).
