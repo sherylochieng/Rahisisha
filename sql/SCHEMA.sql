@@ -835,6 +835,20 @@ CREATE INDEX IF NOT EXISTS audit_logs_actor_admin_idx
 
 
 -- =============================================================
+-- Migration 029 (Week 30 Day 3): the platform admin may READ memberships
+-- =============================================================
+-- Why: the admin shop list shows who owns each shop. memberships has forced
+-- row level security (tenant_isolation, login_lookup), so an admin session
+-- saw zero rows. This adds one SELECT-only policy that is true only while
+-- app.platform_admin = 'on', which withAdminLock switches on inside a
+-- transaction. Normal shop requests are unchanged. No write access.
+DROP POLICY IF EXISTS admin_read_memberships ON memberships;
+CREATE POLICY admin_read_memberships ON memberships
+  FOR SELECT
+  USING (current_setting('app.platform_admin', TRUE) = 'on');
+
+
+-- =============================================================
 -- 26 tables total (ussd_events added in migration 026, Week 29 Day 4)
 -- 20 tables with RLS enabled (all tenant-owned tables)
 --  platform_admins (table 28, migration 028) has RLS of its own kind: visible
