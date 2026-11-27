@@ -74,8 +74,30 @@ P2 features (USSD, Telegram, social auto-posting) are only attempted
 - Staff accounts UI
 - Multi-language interface
 - Multi-currency
-- Marketplace across businesses
+- Marketplace across businesses (changed on 27 Nov 2026: a read-only marketplace window is now planned, see the last section below)
 - Native mobile apps
 - Custom tenant domains
 - Ad management
 - Automated refunds
+
+
+---
+
+## Week 30 update (27 Nov 2026): the hybrid build
+
+The product becomes a hybrid: a read-only marketplace window plus individual shops. The marketplace only browses. Buying, payment and orders stay inside each shop. One shop is one order and one payment. Money model for now: commission only. The single working list is `docs/PENDING_TASKS.md`.
+
+Ten batches, in this order. A batch is finished only when its code, tests, guides and commits are done and the checks pass.
+
+- **Batch 0, Clean the house:** remove demo logins, bring the live database up to date, record the decisions
+- **Batch 1, Admin core (API):** shop list, suspend, reinstate, verify, audit log
+- **Batch 2, Look and feel:** choose the blue, colour tokens, shared components
+- **Batch 3, Admin screens:** admin sign-in page and the Merchants screen
+- **Batch 4, Catalogue basics:** categories, shop profile, product form with sizes and stock
+- **Batch 5, Shopper journey:** product page, basket by seller, pay and track page, Explore shops
+- **Batch 6, Marketplace read path:** safe cross-shop reads, search, category pages, home
+- **Batch 7, Front doors, sign-up and plans:** sell page, pricing, sign-up (re-cut for commission only)
+- **Batch 8, Moderation and billing:** hide listings, reports, categories admin
+- **Batch 9, Pilot hardening and launch:** password reset, rate limits, admin two-step sign-in, backups, privacy, launch evidence
+
+**Gate for the hybrid:** with the marketplace switch on, a shopper searches, opens a product and pays inside the shop. With the switch off, nothing changes for existing shops. A shop owner token is refused on every admin route, and every admin action writes an audit row.
