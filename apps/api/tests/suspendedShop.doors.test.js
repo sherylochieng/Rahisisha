@@ -86,6 +86,7 @@ let tenantId;
 let userId;
 let slug;
 let ownerCookie;
+let realKey;   // your own KMS_KEY (or nothing, in CI), saved so we can put it back at the end
 
 // A phone dialling the shop's code (Africa's Talking posts FORM data).
 const dial = (code, text = '') =>
@@ -132,6 +133,11 @@ const countProducts = () =>
   inShop(async (c) => (await c.query('SELECT count(*)::int AS n FROM products')).rows[0].n);
 
 beforeAll(async () => {
+  // CI has no .env, so there is no KMS_KEY there. Use a throw-away key just for this
+  // file, exactly like kms.test.js and whatsapp.service.test.js do.
+  realKey = process.env.KMS_KEY;
+  process.env.KMS_KEY = crypto.randomBytes(32).toString('base64');
+
   // The admin who will suspend and reinstate.
   const admin = await createPlatformAdmin(pool, {
     phone: randomPhone(), name: 'Doors Test Admin', password: `pw-${crypto.randomBytes(12).toString('hex')}`,
@@ -180,6 +186,10 @@ afterAll(async () => {
   await pool.query('DELETE FROM users WHERE id = $1', [userId]);
   await withAdminLock(pool, (c) => c.query('DELETE FROM platform_admins WHERE id = $1', [adminId]));
   await pool.end();
+
+  // Put the real key back (or remove it again if there was none).
+  if (realKey === undefined) delete process.env.KMS_KEY;
+  else process.env.KMS_KEY = realKey;
 });
 
 describe('suspended shop: every door (Week 30 Day 3, Batch 1)', () => {
