@@ -58,6 +58,12 @@
  *   router.post('/ussd', resolveUssdTenant, withTenant, handleUssd);
  *
  *
+ *
+ * WEEK 30 DAY 3 CHANGE: A SUSPENDED SHOP IS GONE
+ *   The lookup now also joins the shop's own row and accepts only status
+ *   'active'. A suspended or deleted shop is answered exactly like an unknown
+ *   code: "END Service unavailable". The caller never learns WHY (the reason is
+ *   private to the admin and the owner). Nothing else changed.
  * ============================================================
  */
 import { pool } from '../db/pool.js';
@@ -69,12 +75,19 @@ async function resolveUssdTenant(req, res, next) {
 
     // 2. Ask the phone book who owns it. $1 is a safe slot, so
     //    nobody can sneak bad text into the query.
+    //    Week 30 Day 3: JOIN tenants and accept only an ACTIVE shop, so a
+    //    suspended shop stops answering on the phone the moment it is suspended.
     const { rows } = await pool.query(
-      'SELECT tenant_id FROM ussd_configs WHERE service_code = $1',
+      `SELECT c.tenant_id
+         FROM ussd_configs c
+         JOIN tenants t ON t.id = c.tenant_id
+        WHERE c.service_code = $1
+          AND t.status = 'active'`,
       [serviceCode]
     );
 
-    // 3. Nobody owns it: close politely and stop here.
+    // 3. Nobody owns it, or the shop is suspended: close politely and stop here.
+    //    (Same words for both, so a caller cannot tell the difference.)
     if (!rows[0]) {
       return res.type('text/plain').send('END Service unavailable');
     }
