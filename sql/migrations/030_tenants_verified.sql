@@ -1,0 +1,91 @@
+-- =============================================================================
+-- FILE: sql/migrations/030_tenants_verified.sql   (Week 30 Day 3, Batch 1: admin core, step 1)
+-- =============================================================================
+--
+-- WHY THIS FILE EXISTS
+--   The platform admin needs to mark a shop as VERIFIED after checking that it
+--   is a real business (like the blue tick on a trusted seller). Migration 028
+--   already gave `tenants` the "suspended" columns. It did not give it anything
+--   to remember "verified". This file adds two columns for that, plus one index
+--   so the admin shop list stays fast when there are thousands of shops.
+--
+-- WHY IMPORTANT
+--   Buyers on the marketplace will trust a verified shop more. The marketplace
+--   can only show a "Verified" badge if the database remembers WHEN a shop was
+--   verified and BY WHICH admin. Without "by whom", a bad verification can never
+--   be traced back.
+--
+-- DANGER
+--   1. Additive only. No column is renamed, dropped or changed. Safe to run on a
+--      database that already has shops.
+--   2. verified_by points to platform_admins. If an admin row is ever deleted,
+--      the shop keeps its verified_at date and verified_by becomes empty
+--      (ON DELETE SET NULL). The shop is not un-verified by accident.
+--   3. Do NOT let a shop owner write these columns. Only the admin service sets
+--      them (inside withAdminLock, with an audit row). Never from a shop route.
+--   4. Run as the owner of `tenants` (postgres, like migrations 023-029). On
+--      Neon: after a pg_dump backup, with a connection that owns the tables.
+--
+-- WHAT IT SOLVES
+--   "Is this shop verified, when, and by which admin?" and a fast admin list
+--   sorted by newest shops first, filtered by status.
+--
+-- SYSTEM DESIGN PRINCIPLE
+--   Audit by design: every privileged flag carries "when" and "who" beside it.
+--   Additive migrations: add new columns with IF NOT EXISTS so the file can run
+--   twice and old code keeps working while new code rolls out.
+--
+-- RULES
+--   1. Safe to run twice (IF NOT EXISTS everywhere).
+--   2. Both new columns are nullable. NULL means "not verified".
+--   3. Nothing is removed. sql/SCHEMA.sql gets the same lines (next step).
+--
+-- PRACTICAL EXAMPLE
+--   Amina's Boutique in Nairobi sends her business permit photo. The admin
+--   checks it and presses Verify. The database then holds:
+--     verified_at = 2026-11-27 18:40, verified_by = <the admin's id>.
+--   A shop nobody has checked keeps both columns empty (NULL).
+--
+-- DECISIONS
+--   - TIMESTAMPTZ (not a true/false flag): the date is needed for the audit
+--     story and costs nothing extra.
+--   - No CHECK tying verified_at and verified_by together, because ON DELETE SET
+--     NULL can legitimately empty verified_by alone.
+--   - Index on (status, created_at DESC): the admin list will almost always be
+--     "active shops, newest first" or "suspended shops".
+--
+-- WHERE USED
+--   apps/api/src/services/adminShops.service.js (next files of this batch) and
+--   later the marketplace read function (Batch 4), which shows the badge.
+--
+-- TRADEOFFS
+--   + Cheap, reversible (drop the two columns and the index).
+--   - One more index slightly slows writes to tenants. Shops are created rarely
+--     compared with how often the admin list is read, so this is fine.
+--
+-- HOW TO USE
+--   psql -U postgres -d rahisisha -f sql/migrations/030_tenants_verified.sql
+--   (LOCAL first. On Neon only after a pg_dump backup. Not yet on Neon.)
+-- =============================================================================
+
+-- PIECE BY PIECE
+--   ADD COLUMN IF NOT EXISTS verified_at = "add a 'verified on' date field to
+--       the shop's file, unless it is already there". Real life: the stamp date
+--       the Nairobi County licence office writes on a trader's permit.
+--   verified_by ... REFERENCES platform_admins(id) = "the name of the officer
+--       who stamped it", and the database checks that officer really exists.
+--   ON DELETE SET NULL = "if that officer's record is ever removed, keep the
+--       stamp date but leave the officer's name blank", not "remove the shop".
+--   CREATE INDEX = a sorted contents page at the front of a book, so the admin
+--       can jump to "suspended shops, newest first" without reading every page.
+
+-- When was this shop verified? NULL = never verified.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+
+-- Which platform admin verified it? Points at platform_admins (migration 028).
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS verified_by UUID
+  REFERENCES platform_admins(id) ON DELETE SET NULL;
+
+-- Fast admin list: filter by status, newest shops first.
+CREATE INDEX IF NOT EXISTS tenants_status_created_idx
+  ON tenants (status, created_at DESC);
