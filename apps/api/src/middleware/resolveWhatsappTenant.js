@@ -72,6 +72,12 @@
  *   Tenant resolution below was written by AI at Sheryl's request
  *   (the assignment lists it as manual-only). Declared in
  *   apps/api/docs/AI_AUDIT_week_29_day2.md.
+ *
+ * WEEK 30 DAY 3 CHANGE: A SUSPENDED SHOP IS GONE
+ *   The lookup now also joins the shop's own row and accepts only status
+ *   'active'. A message to a suspended or deleted shop is treated like an
+ *   unknown number: answered 200 "ignored" (so Meta does not retry) and nothing
+ *   is saved. Nothing else changed.
  * ============================================================
  */
 import { pool } from '../db/pool.js';
@@ -90,12 +96,18 @@ async function resolveWhatsappTenant(req, res, next) {
 
     // 3. Ask the phone book who owns this number. $1 is a safe slot, and
     //    we select ONLY tenant_id (never the token column).
+    //    Week 30 Day 3: JOIN tenants and accept only an ACTIVE shop.
     const { rows } = await pool.query(
-      'SELECT tenant_id FROM whatsapp_configs WHERE phone_number_id = $1',
+      `SELECT c.tenant_id
+         FROM whatsapp_configs c
+         JOIN tenants t ON t.id = c.tenant_id
+        WHERE c.phone_number_id = $1
+          AND t.status = 'active'`,
       [phoneNumberId]
     );
 
-    // 4. Nobody owns it: say OK (so Meta does not retry) and stop here.
+    // 4. Nobody owns it, or the shop is suspended: say OK (so Meta does not
+    //    retry) and stop here.
     if (!rows[0]) {
       return res.status(200).json({ data: { ignored: true }, error: null });
     }
