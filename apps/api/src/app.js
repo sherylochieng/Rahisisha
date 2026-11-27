@@ -46,6 +46,7 @@ import checkoutRouter from './routes/checkout.routes.js';
 import { resolveShopBySlug } from './middleware/resolveShopBySlug.js';
 import adminAuthRouter from './routes/adminAuth.routes.js';
 import adminShopsRouter from './routes/adminShops.routes.js';
+import { blockWritesWhenSuspended } from './middleware/blockWritesWhenSuspended.js';
 import uploadsRouter from './routes/uploads.routes.js';
 
 
@@ -95,14 +96,14 @@ app.use('/v1', authRouter);
 // withTenant:  opens a scoped DB connection with RLS set to this tenant
 // This double guard means a request with no token or wrong tenant NEVER
 // reaches the controller — it is rejected before any business logic runs
-app.use('/v1/products', requireAuth, withTenant, productsRouter);
+app.use('/v1/products', requireAuth, withTenant, blockWritesWhenSuspended, productsRouter);
 
 // Photo permit: login required (requireAuth). No withTenant, because this route
 // never touches the database. It only signs a permit for the shop in the cookie.
-app.use('/v1/uploads', requireAuth, uploadsRouter);
+app.use('/v1/uploads', requireAuth, blockWritesWhenSuspended, uploadsRouter);
 
 // Order routes — same double guard as products
-app.use('/v1/orders', requireAuth, withTenant, ordersRouter);
+app.use('/v1/orders', requireAuth, withTenant, blockWritesWhenSuspended, ordersRouter);
 
 // Dashboard route: same double guard as products and orders.
 // requireAuth checks the login cookie, withTenant gives us the shop-scoped
@@ -111,7 +112,7 @@ app.use('/v1/orders', requireAuth, withTenant, ordersRouter);
 app.use('/v1/dashboard', requireAuth, withTenant, dashboardRouter);
 
 // Inbox route (Week 29 Day 4): WhatsApp + USSD in one list. Same double guard.
-app.use('/v1/inbox', requireAuth, withTenant, inboxRouter);
+app.use('/v1/inbox', requireAuth, withTenant, blockWritesWhenSuspended, inboxRouter);
 
 // Wallet entries (Week 29 Day 4): read-only list for the Payments page.
 app.use('/v1/wallet', requireAuth, withTenant, walletRouter);
@@ -133,6 +134,9 @@ app.use('/v1/tenants', tenantsRouter);
 app.use('/v1/storefront/:slug', resolveShopBySlug, withTenant, storefrontRouter, checkoutRouter);
 
 
+// Look, do not touch (Week 30 Day 3): while a shop is suspended its owner may sign in and
+// READ, but blockWritesWhenSuspended refuses every write (POST, PATCH, DELETE) on the
+// owner routes below. Reads and the public doors are not affected.
 // Platform admin sign-in door (Week 30). Separate from shop owners: its own cookie,
 // its own guard (requirePlatformAdmin inside the router), and NO withTenant.
 app.use('/v1/admin/auth', adminAuthRouter);
