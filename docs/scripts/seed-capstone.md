@@ -13,7 +13,7 @@ It builds one complete pretend shop (Amina's Boutique) with an owner, a staff me
 Every demo, test and screenshot starts from this data. If it is quick and safe to run, you can wipe your local database and rebuild a working shop in seconds.
 
 ## DANGER
-Before Week 30 Day 3 this file had the demo password written inside it (`Demo1234!`), and the same password was printed in the terminal. The repo is public, so anyone could read it and log in to any staging shop that was seeded with it. Three demo accounts on staging really were seeded that way. We locked them on 27 November 2026.
+Before Week 30 Day 3 this file had the demo password written inside it (the old public demo password), and the same password was printed in the terminal. The repo is public, so anyone could read it and log in to any staging shop that was seeded with it. Three demo accounts on staging really were seeded that way. We locked them on 27 November 2026.
 
 ## WHAT IT SOLVES
 - The password is no longer in the code. It comes from your own `.env`.
@@ -100,7 +100,7 @@ True only when the address after the `@` is `localhost` or `127.0.0.1`. Those na
 If the database is not on this computer and you did not say `ALLOW_SEED_ON_REMOTE=yes`, print the reason and stop. Real life: the fire-drill alarm is fine in the training room, not in the real bank.
 
 **`const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);`**
-Was `bcrypt.hash('Demo1234!', 12)`. It now scrambles your own `.env` password. The number 12 is the cost: higher is slower and harder to guess.
+Was `bcrypt.hash('<the old public password>', 12)`. It now scrambles your own `.env` password. The number 12 is the cost: higher is slower and harder to guess.
 
 **The two `console.log` login lines at the end.**
 They used to print the password. They now print `(your DEMO_PASSWORD)`, because terminals, screen recordings and pasted logs get shared.

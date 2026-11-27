@@ -139,7 +139,7 @@ if (!DEMO_PASSWORD || DEMO_PASSWORD.length < 12) {
   process.exit(1);
 }
 // The old public password must never be used again (it is in the repo history).
-// toLowerCase() makes "DEMO1234" and "Demo1234" count as the same word.
+// toLowerCase() makes capital and small letters count as the same word.
 if (DEMO_PASSWORD.toLowerCase().startsWith('demo1234')) {
   console.error('Seed stopped: that DEMO_PASSWORD is the old public one. Choose a new one.');
   console.error('Nothing was written to the database.');
