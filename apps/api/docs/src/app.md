@@ -190,3 +190,24 @@ app.use('/v1/admin/shops', adminShopsRouter);
 - **Known gap (tracked):** `app.js` does not set `trust proxy`, so behind Render `req.ip` may be Render's own address. That affects the admin login brake and the network address in audit receipts. It gets its own careful step.
 
 *Written by AI at Sheryl's request. Added 27 November 2026.*
+
+---
+
+## FOLLOW-UP (Week 30 Day 3, Batch 1, step 5): look, do not touch
+
+One import was added, and the guard `blockWritesWhenSuspended` was placed in four owner mounts, after `withTenant` where the route has it:
+
+```js
+app.use('/v1/products', requireAuth, withTenant, blockWritesWhenSuspended, productsRouter);
+app.use('/v1/uploads',  requireAuth, blockWritesWhenSuspended, uploadsRouter);
+app.use('/v1/orders',   requireAuth, withTenant, blockWritesWhenSuspended, ordersRouter);
+app.use('/v1/inbox',    requireAuth, withTenant, blockWritesWhenSuspended, inboxRouter);
+```
+
+- **What it does:** while a shop is suspended its owner may sign in and **read**, but every write (`POST`, `PATCH`, `DELETE`) on these routes gets `403 shop_suspended` with the admin's reason.
+- **Four existing lines were adjusted** (the four mounts above), by inserting the guard. No other line changed.
+- **Not changed on purpose:** dashboard and wallet (read-only), the public storefront (already hides non-active shops), and M-Pesa (money already paid must still be recorded).
+- **Rule for the future:** any new owner route that writes must get the same guard.
+- **Guides:** `docs/src/middleware/blockWritesWhenSuspended.md`, `docs/tests/suspendedShop.doors.test.md`.
+
+*Written by AI at Sheryl's request. Added 27 November 2026.*
