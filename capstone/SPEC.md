@@ -64,6 +64,16 @@ get legal advice before handling real customer funds under either model.
 *Final pricing and commission rate to be validated by interviewing at least 3 real business
 owners before launch.*
 
+**Update 27 Nov 2026 (money model):** commission only, for now. A shop accepts the rules at
+sign-up and Rahisisha takes a share of each completed sale. The subscription plans above are not
+the money model for the first version. The leading way to collect the commission is a licensed
+payment provider that splits each payment automatically, so Rahisisha never holds the money and
+does not chase shops. This leans away from Plan A (billing commission separately), because
+billing afterwards means chasing shops. Until the provider is chosen and its fees and licence are
+confirmed, the commission is only calculated and recorded per order, not collected. Phase 2 idea:
+a one-time fee of about KES 300 when a shop goes live on the marketplace, then commission per
+sale. This is not legal advice; get it checked before real money is split.
+
 ## What is NOT in the MVP
 See `WILL_NOT_BUILD.md` for the full list. The key exclusions: no cross-business
 marketplace, no native mobile apps, no custom AI training, no live Instagram/Facebook/
@@ -71,3 +81,21 @@ TikTok auto-posting, no multi-language UI, no multi-currency, no custom tenant d
 no ad management, no staff accounts UI, no automated refunds, no courier integrations.
 USSD, Telegram and SMS are P2 stretch goals...only after the full P0 flow works
 end-to-end.
+
+
+## Update 27 Nov 2026: the hybrid (marketplace plus shops)
+
+The product is now a hybrid. It keeps everything above and adds two ideas.
+
+1. **Marketplace (the window).** Shoppers browse products from many shops in one place. It only shows things. It has no cart and no checkout of its own. A product shows there only when the seller turns on "show on marketplace" AND the platform admin has not hidden it.
+2. **Shop (the room).** Every seller keeps their own shop page and link. Buying, M-Pesa payment and orders happen inside the shop with the checkout that already exists. One shop is one order and one payment.
+
+Rules that follow from it:
+
+- The marketplace reads through one narrow, separate path. The locks between shops are never loosened.
+- A suspended shop disappears everywhere (its link, checkout, Explore, search and category pages).
+- Anything not built yet is labelled "coming soon".
+
+**What the platform admin can do now:** verify a good shop, suspend a bad one with a written reason, reinstate it, and hide a listing. Every admin action needs a reason and writes a row in the audit log in the same transaction. The admin sees safe summaries only (shop name, link, plan, status, owner name), never customers' phone numbers or messages by default.
+
+**Note on "What is NOT in the MVP":** the line "no cross-business marketplace" changed on 27 Nov 2026 as described above. Buying across businesses, a shared cart and one payment across many shops are still out. The single working list is `docs/PENDING_TASKS.md`.
