@@ -6,23 +6,24 @@
 // =============================================================================
 //
 // WHY THIS FILE EXISTS
-//   The shop's page: the summary at the top and its receipts below. Part 3b adds the
-//   suspend, reinstate, verify and unverify buttons here.
+//   The shop's page: the summary at the top, the action buttons (suspend, reinstate, verify,
+//   remove verification), and its receipts below.
 //
 // WHY IMPORTANT
 //   This is where an admin decides what to do about one shop, so it must show the facts
 //   and the history clearly.
 //
 // DANGER
-//   - Read only for now. No button here changes anything yet.
+//   - The action buttons change real data. They live in ShopActions.js and always ask for
+//     a written reason first.
 //   - 404 shows a calm "Shop not found", not an error.
 //
 // WHAT IT SOLVES
 //   Seeing one shop's details and what has already been done to it.
 //
 // SYSTEM DESIGN PRINCIPLE
-//   Separation of concerns: useAdminLoad fetches, ShopSummary and ReceiptsList draw, this
-//   file chooses what to show for each state.
+//   Separation of concerns: useAdminLoad fetches, ShopSummary and ReceiptsList draw,
+//   ShopActions runs the actions, this file chooses what to show for each state.
 //
 // RULES
 //   1. States: loading, not found, error with Try again, ready.
@@ -55,6 +56,7 @@ import { useAdminLoad } from '../../../../../hooks/useAdminLoad';
 import AdminButton from '../../../../../components/admin/AdminButton';
 import ShopSummary from '../../../../../components/admin/ShopSummary';
 import ReceiptsList from '../../../../../components/admin/ReceiptsList';
+import ShopActions from '../../../../../components/admin/ShopActions';
 import FormError from '../../../../../components/FormError';
 import EmptyState from '../../../../../components/EmptyState';
 
@@ -68,7 +70,7 @@ function BackLink() {
 }
 
 export default function ShopDetail({ id }) {
-  const { data: shop, loading, error, notFound, retry } = useAdminLoad(() => adminApi.getShop(id), id);
+  const { data: shop, loading, error, notFound, retry, reload } = useAdminLoad(() => adminApi.getShop(id), id);
 
   return (
     <div className="space-y-5">
@@ -80,7 +82,11 @@ export default function ShopDetail({ id }) {
         <EmptyState title="Shop not found" message="It may have been removed, or the address is wrong." />
       ) : shop ? (
         <>
+          {/* If a refresh after an action fails, say so (the old details stay on screen). */}
+          <FormError message={error} />
           <ShopSummary shop={shop} />
+          {/* reload refreshes the shop and its receipts after an action, without blanking the page. */}
+          <ShopActions shop={shop} onDone={reload} />
           <section aria-labelledby="receipts-heading" className="space-y-3">
             <h2 id="receipts-heading" className="text-lg font-bold text-brand-navy">Receipts</h2>
             <ReceiptsList receipts={shop.receipts} />
