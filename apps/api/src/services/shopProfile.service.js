@@ -70,7 +70,8 @@
 // readPublicCard(db) = THE SHOP WINDOW VERSION: town and description only.
 // ═══════════════════════════════════════════════════════════
 
-// The boxes on the card: the name used by the API (left) and the database column (right).
+// The boxes on the card, as "API name : database column". They are the same today; keeping
+// the list in one place means adding a box later is a one-line change here.
 const FIELDS = {
   town: 'town',
   short_description: 'short_description',
@@ -79,7 +80,9 @@ const FIELDS = {
   list_in_marketplace: 'list_in_marketplace',
 };
 
-// A blank card: nothing filled in, and NOT listed in the marketplace.
+// emptyCard: a BLANK card for a shop that has never saved one (it has no row yet).
+// Real life: a new blank form. Note list_in_marketplace is false: not listed until
+// the owner says yes.
 function emptyCard() {
   return {
     town: null,
@@ -90,27 +93,39 @@ function emptyCard() {
   };
 }
 
-// Keep only the six card fields from a database row.
+// toCard: copy ONLY the five card fields out of a database row. Anything else the row
+// holds (ids, logo, colours...) stays behind, so it can never leak out by accident.
 function toCard(row) {
   const card = {};
   for (const key of Object.keys(FIELDS)) card[key] = row[FIELDS[key]];
   return card;
 }
 
-// readProfile: the owner's whole card. `db` must be the shop-locked connection.
+// readProfile: the owner's whole card.
+//   db = the shop-locked connection (req.db). Row level security in the database means
+//        the query below can only ever see THIS shop's row, even without a WHERE.
 export async function readProfile(db) {
   const { rows } = await db.query(
     `SELECT town, short_description, whatsapp_number, delivery_areas,
             list_in_marketplace
        FROM brand_profiles`
   );
+  // No row yet? Hand back a blank card instead of an error.
   return rows[0] ? toCard(rows[0]) : emptyCard();
 }
 
-// saveProfile: `changes` holds ONLY the boxes to change (snake_case names).
-// Missing boxes keep their value; a null clears a box.
+// saveProfile: create or update the card.
+//   changes = ONLY the boxes to change (API names). Boxes not mentioned keep their
+//             value; a box set to null is cleared.
 export async function saveProfile(db, tenantId, changes) {
+  // 1. Start from what is saved now (or a blank card) and lay the changes on top.
+  //    Real life: take the card out of the drawer, correct the boxes that changed.
   const merged = { ...(await readProfile(db)), ...changes };
+
+  // 2. Write the whole card back in ONE statement.
+  //    INSERT ... ON CONFLICT (tenant_id) DO UPDATE = "if this shop has no card yet,
+  //    create it; if it already has one, update it". tenant_id is UNIQUE, so there is
+  //    only ever one card per shop.
   const { rows } = await db.query(
     `INSERT INTO brand_profiles
        (tenant_id, town, short_description, whatsapp_number,
@@ -126,24 +141,29 @@ export async function saveProfile(db, tenantId, changes) {
      RETURNING town, short_description, whatsapp_number,
                delivery_areas, list_in_marketplace`,
     [
-      tenantId,
-      merged.town,
-      merged.short_description,
-      merged.whatsapp_number,
-      merged.delivery_areas,
+      tenantId,                               // $1: from the login, never from the form
+      merged.town,                            // $2
+      merged.short_description,               // $3
+      merged.whatsapp_number,                 // $4
+      merged.delivery_areas,                  // $5
+      // $6: only a real `true` lists the shop. Anything else (a string, undefined)
+      // means "not listed". Listing is the owner's clear yes, never a guess.
       merged.list_in_marketplace === true,
     ]
   );
+
+  // 3. Give back the card exactly as it is now saved.
   return toCard(rows[0]);
 }
 
-// readPublicCard: what a stranger may see on the shop page. NEVER the WhatsApp number.
+// readPublicCard: what a STRANGER may see on the shop page: town and description only.
+// It never selects the WhatsApp number, so the number cannot leak from here.
 export async function readPublicCard(db) {
   const { rows } = await db.query(
     'SELECT town, short_description FROM brand_profiles'
   );
   return {
-    town: rows[0]?.town ?? null,
-    description: rows[0]?.short_description ?? null,
+    town: rows[0]?.town ?? null,                       // ?. and ?? = "if there is no row, use null"
+    description: rows[0]?.short_description ?? null,   // the public name for short_description
   };
 }

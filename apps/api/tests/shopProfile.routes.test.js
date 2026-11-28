@@ -65,24 +65,34 @@ import { signupTestShop, readShopSlug } from './helpers/categoryKit.js';
 
 dotenv.config();
 
+// cookie = the login pass of our test shop; slug = its public web address name.
+// Both are filled once, in beforeAll, and shared by every test below.
 let cookie;
 let slug;
 
+// beforeAll = runs ONCE before the tests: it opens one throw-away shop and logs in.
+// Real life: setting up a stall before the market opens.
 beforeAll(async () => {
   const shop = await signupTestShop('Profile');
   cookie = shop.cookie;
   slug = await readShopSlug(shop.tenantId);
 });
 
+// Two tiny helpers so each test is one short line (DRY).
+// put(body) = "save these changes"; get() = "show me my card". Both carry the login pass.
 const put = (body) => request(app).put('/v1/shop/profile').set('Cookie', cookie).send(body);
 const get = () => request(app).get('/v1/shop/profile').set('Cookie', cookie);
 
+// describe = a folder that groups the checks below. The tests run in order and share one shop.
 describe('shop profile (Batch 4b)', () => {
+  // Door check: no login pass means 401 ("who are you?"). Nobody reads a card anonymously.
   test('1. no login gives 401', async () => {
     const res = await request(app).get('/v1/shop/profile');
     expect(res.status).toBe(401);
   });
 
+  // A brand-new shop has never saved a card, so we expect a BLANK one, with the marketplace OFF.
+  // toEqual = every box must match exactly, so a new box added by mistake is caught.
   test('2. a new shop has a blank card, and is NOT listed in the marketplace', async () => {
     const res = await get();
     expect(res.status).toBe(200);
@@ -95,6 +105,8 @@ describe('shop profile (Batch 4b)', () => {
     });
   });
 
+  // Save four boxes (the phone is typed with spaces on purpose), then read the card again.
+  // The saved number comes back as 254712345678 (the one clean format).
   test('3. saving creates the card, and reading it back shows the same', async () => {
     const res = await put({
       town: 'Kitengela',
@@ -110,6 +122,7 @@ describe('shop profile (Batch 4b)', () => {
     expect(back.body.data).toEqual(res.body.data);
   });
 
+  // Send ONLY deliveryAreas. Everything saved in test 3 must still be there (no box wiped).
   test('4. a partial save changes only what was sent', async () => {
     const res = await put({ deliveryAreas: 'Athi River' });
     expect(res.status).toBe(200);
@@ -120,6 +133,7 @@ describe('shop profile (Batch 4b)', () => {
     expect(res.body.data.whatsapp_number).toBe('254712345678');
   });
 
+  // The switch: on, then off again. Proves the owner is in control in both directions.
   test('5. the owner can switch the marketplace on, and off again', async () => {
     const on = await put({ listInMarketplace: true });
     expect(on.body.data.list_in_marketplace).toBe(true);
@@ -127,6 +141,7 @@ describe('shop profile (Batch 4b)', () => {
     expect(off.body.data.list_in_marketplace).toBe(false);
   });
 
+  // Four ways people write the same number. All four must end up stored identically.
   test('6. every normal way of writing a Kenyan number is stored the same way', async () => {
     for (const written of ['+254712345678', '254712345678', '712345678', '0712-345-678']) {
       const res = await put({ whatsappNumber: written });
@@ -135,6 +150,8 @@ describe('shop profile (Batch 4b)', () => {
     }
   });
 
+  // Four wrong forms. Each must be refused with 400, and the first two must name the wrong box
+  // (details.whatsappNumber / details.shortDescription) so the web form can mark it in red.
   test('7. a bad number, a too-long line and an unknown box are each refused with details', async () => {
     const badPhone = await put({ whatsappNumber: '12345' });
     expect(badPhone.status).toBe(400);
@@ -152,6 +169,7 @@ describe('shop profile (Batch 4b)', () => {
     expect(notBoolean.body.error.details.listInMarketplace).toBeDefined();
   });
 
+  // Blank spaces and an empty phone are "nothing written": the database stores null, not "".
   test('8. empty text clears a box (saved as nothing, not as an empty string)', async () => {
     const res = await put({ town: '   ', whatsappNumber: '' });
     expect(res.status).toBe(200);
@@ -159,6 +177,8 @@ describe('shop profile (Batch 4b)', () => {
     expect(res.body.data.whatsapp_number).toBeNull();
   });
 
+  // The shop window. A stranger (no login pass) opens the public page: town and line are shown,
+  // but neither the number nor the word "whatsapp" may appear anywhere in the answer.
   test('9. the public shop page shows town and description, and NEVER the WhatsApp number', async () => {
     await put({ town: 'Kitengela', whatsappNumber: '0712 345 678', shortDescription: 'Fresh veg.' });
     const res = await request(app).get(`/v1/storefront/${slug}`);
@@ -169,6 +189,7 @@ describe('shop profile (Batch 4b)', () => {
     expect(JSON.stringify(res.body)).not.toContain('whatsapp');
   });
 
+  // A shop that never saved a card must still open fine, showing null (not an error).
   test('10. a shop with no card shows null town and description on the public page', async () => {
     const other = await signupTestShop('NoCard');
     const otherSlug = await readShopSlug(other.tenantId);

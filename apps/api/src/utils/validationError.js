@@ -46,16 +46,29 @@
 // res.status(400)       = "THE REQUEST WAS WRONG, NOT THE SERVER".
 // ═══════════════════════════════════════════════════════════
 
+// validationError: answers a bad form with HTTP 400 and says WHICH boxes are wrong.
+//   res      = the reply we are about to send back (Express "response").
+//   zodError = what the form checker (Zod) found wrong.
 export function validationError(res, zodError) {
+  // details = a list: box name -> what is wrong with it.
+  // Real life: the clerk circling "phone number" in red on your paper form.
   const details = {};
+
+  // zodError.issues = one entry per problem found.
   for (const issue of zodError.issues) {
+    // issue.path = where the problem is, for example ['whatsappNumber'].
+    // join('.') turns it into the text "whatsappNumber". An empty path (the whole
+    // body is wrong, for example not an object) is labelled "body".
     details[issue.path.join('.') || 'body'] = issue.message;
   }
+
+  // 400 = "your request was wrong" (not "the server broke"). The web form reads
+  // error.details.<box> to show a red message beside the right box.
   return res.status(400).json({
     error: {
-      code: 'validation',
-      message: 'Request validation failed',
-      details,
+      code: 'validation',                       // a short word the web app can test for
+      message: 'Request validation failed',     // a plain sentence for people
+      details,                                  // the box-by-box breakdown
     },
   });
 }

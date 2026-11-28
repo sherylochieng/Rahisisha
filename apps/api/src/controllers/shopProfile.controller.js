@@ -63,12 +63,26 @@
 // updateProfile     = "SAVE MY CHANGES": check, translate names, save, show the saved card.
 // ═══════════════════════════════════════════════════════════
 
+// zod = the form checker. We describe what a valid form looks like and it checks the real
+// request against that description (like a clerk with a checklist).
 import { z } from 'zod';
+
+// normalizePhone turns 0712 345 678 or +254712345678 into 254712345678 (and throws if it
+// is not a real Kenyan mobile number).
 import { normalizePhone } from '../services/daraja.service.js';
+
+// The two database jobs (kept in the service so this file only handles the web request).
 import { readProfile, saveProfile } from '../services/shopProfile.service.js';
+
+// Shared helper that answers a bad form with 400 and a per-box list of problems.
 import { validationError } from '../utils/validationError.js';
 
-// text(max): trims spaces, turns empty into null, and refuses text longer than max.
+// text(max): a reusable rule for a free-text box (DRY: written once, used by 3 boxes).
+//   .trim()      cut spaces at both ends          "  Utawala " -> "Utawala"
+//   .max(max)    refuse text longer than allowed  (the database has the same limit)
+//   .nullable()  allow null (= "clear this box")
+//   .optional()  allow the box to be missing (= "leave it as it is")
+//   .transform   turn an empty string into null, so a blank box is stored as "nothing"
 const text = (max) =>
   z
     .string()
@@ -84,39 +98,51 @@ const phone = z
   .nullable()
   .optional()
   .transform((v, ctx) => {
+    // ctx = lets us report a problem ourselves.
     if (v === undefined) return undefined;          // not sent: leave the box alone
     if (v === null || v.trim() === '') return null; // empty: clear the box
     try {
+      // Store one clean format (254712345678) so the same number is never saved two ways.
       return normalizePhone(v);
     } catch {
+      // Not a real number: report it against THIS box, and stop (z.NEVER = "no value").
       ctx.addIssue({ code: 'custom', message: 'Not a valid Kenyan mobile number' });
       return z.NEVER;
     }
   });
 
+// The whole form: five boxes, all optional (send only what changed).
+// The names here are what the web app sends (camelCase).
 const Form = z
   .object({
     town: text(60),
     shortDescription: text(160),
     whatsappNumber: phone,
     deliveryAreas: text(300),
-    listInMarketplace: z.boolean().optional(),
+    listInMarketplace: z.boolean().optional(),   // must be a real true/false, not "yes"
   })
+  // .strict() = a box we do not know (for example "isAdmin") is REFUSED, not ignored.
+  // Real life: the form has five lines; writing a sixth line on it gets it returned.
   .strict();
 
-// GET /v1/shop/profile
+// GET /v1/shop/profile: show the owner their card.
+//   req.db = this shop's locked connection (set by withTenant), so only their row is visible.
 export async function getProfile(req, res) {
   const data = await readProfile(req.db);
+  // Every answer has the same shape: { data, error } so the web app handles them alike.
   res.json({ data, error: null });
 }
 
-// PUT /v1/shop/profile
+// PUT /v1/shop/profile: save the owner's changes.
 export async function updateProfile(req, res) {
+  // 1. Check the form. safeParse never throws; it tells us success or the problems.
+  //    "?? {}" = if no body came at all, check an empty form.
   const parsed = Form.safeParse(req.body ?? {});
-  if (!parsed.success) return validationError(res, parsed.error);
-  const f = parsed.data;
+  if (!parsed.success) return validationError(res, parsed.error);   // 400 + which boxes
+  const f = parsed.data;                                            // the cleaned values
 
-  // Translate to the API's snake_case names, keeping ONLY what was sent.
+  // 2. Translate to the database's snake_case names, keeping ONLY what was sent.
+  //    (!== undefined matters: null means "clear it", undefined means "not sent".)
   const names = {
     town: 'town',
     shortDescription: 'short_description',
@@ -129,6 +155,8 @@ export async function updateProfile(req, res) {
     if (f[key] !== undefined) changes[column] = f[key];
   }
 
+  // 3. Save. req.tenantId comes from the login token, never from the form, so an owner
+  //    cannot write to someone else's card.
   const data = await saveProfile(req.db, req.tenantId, changes);
   res.json({ data, error: null });
 }

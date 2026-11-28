@@ -27,7 +27,7 @@
 //   2. Keep the title and the helper line short and plain.
 //
 // PRACTICAL EXAMPLE
-//   Mama Njeri taps "Shop profile" in the menu and sees her saved town, line and hours.
+//   Mama Njeri taps "Shop profile" in the menu and sees her saved town, line and number.
 //
 // WHERE USED
 //   The sidebar link "Shop profile" (components/owner/Sidebar.js).
@@ -43,16 +43,22 @@
 // <ShopProfileForm profile={...} /> = THE FORM, already filled with the saved words.
 // ═══════════════════════════════════════════════════════════
 
+// serverGet = fetches from the API on the server, sending the owner's login cookie along.
 import { serverGet } from '../../../lib/serverApi';
+// The form (a client component) that does the typing and saving.
 import ShopProfileForm from '../../../components/owner/ShopProfileForm';
 
+// The text shown on the browser tab.
 export const metadata = {
   title: 'Shop profile',
 };
 
+// A server page: it can wait (async) for data before sending the page to the browser.
 export default async function ShopProfilePage() {
+  // Ask the API for this shop's saved card. The result is the card (town, description, ...).
   const profile = await serverGet('/shop/profile');
 
+  // What the browser draws: a title, one helper line, and the form.
   return (
     <div className="space-y-6">
       <div>

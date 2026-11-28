@@ -40,9 +40,12 @@
 //                 remembers the last question and answers it was given.
 // ═══════════════════════════════════════════════════════════
 
+// jest = the test tool; we use it to make a pretend (mock) function.
 import { jest } from '@jest/globals';
 import { readProfile, saveProfile, readPublicCard } from '../src/services/shopProfile.service.js';
 
+// fakeDb: a pretend database. Whatever question it gets, it answers with `rows`,
+// and it writes every question into `calls` so the test can look at what was asked.
 function fakeDb(rows) {
   const calls = [];
   return {
@@ -54,13 +57,17 @@ function fakeDb(rows) {
   };
 }
 
+// describe = a folder that groups the checks below.
 describe('shopProfile.service (Batch 4b)', () => {
+  // No row for this shop means a BLANK card, with the marketplace OFF (never listed by default).
   test('1. no row means a blank card, marketplace OFF', async () => {
     const card = await readProfile(fakeDb([]));
     expect(card.town).toBeNull();
     expect(card.list_in_marketplace).toBe(false);
   });
 
+  // The drawer already holds a full card. We change ONLY delivery_areas.
+  // The write must carry the OLD values for every other box (nothing wiped).
   test('2. saveProfile keeps the boxes that were not sent', async () => {
     const stored = {
       town: 'Kitengela', short_description: 'Hi', whatsapp_number: '254712345678',
@@ -73,6 +80,8 @@ describe('shopProfile.service (Batch 4b)', () => {
     expect(write.params).toEqual(['tenant-1', 'Kitengela', 'Hi', '254712345678', 'Athi River', true]);
   });
 
+  // The text 'true' is not the real true. Only a real true lists the shop, so we expect false.
+  // Listing needs the owner's clear yes, never a guess.
   test('3. saveProfile only ever lists a shop when true was sent', async () => {
     const db = fakeDb([{ town: null, short_description: null, whatsapp_number: null,
       delivery_areas: null, list_in_marketplace: false }]);
@@ -81,6 +90,7 @@ describe('shopProfile.service (Batch 4b)', () => {
     expect(write.params[5]).toBe(false);
   });
 
+  // What strangers see: exactly town + description, and no whatsapp_number key at all.
   test('4. readPublicCard returns town and description only', async () => {
     const card = await readPublicCard(fakeDb([{ town: 'Kitengela', short_description: 'Hi' }]));
     expect(card).toEqual({ town: 'Kitengela', description: 'Hi' });

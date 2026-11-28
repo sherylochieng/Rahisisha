@@ -73,21 +73,30 @@
 // 7. note / <Toast>     = THE "CHANGES SAVED" STICKY NOTE that floats in the corner and fades away.
 // ═══════════════════════════════════════════════════════════
 
+// useState = a notepad the screen remembers while the owner types. useCallback = keeps one function steady between redraws.
 import { useCallback, useState } from 'react';
+// useRouter = lets us refresh the page's server data after saving.
 import { useRouter } from 'next/navigation';
 
+// api = our ready-made calls to the server (api.saveShopProfile sends the card).
 import { api } from '../../lib/api';
+// useFormState = the shared helper for the red banner and the busy button (DRY).
 import { useFormState } from '../../hooks/useFormState';
+// Shared pieces reused across forms: red banner, Save button, pop-up note, input look and per-box message.
 import FormError from '../shared/FormError';
 import SubmitButton from '../shared/SubmitButton';
 import Toast from '../shared/Toast';
 import { inputClass, FieldError } from '../shared/formParts';
 
 // The limits (the server enforces the same ones)
+// The same length limits as the server (so the form can warn before sending).
 const LIMITS = { town: 60, description: 160, areas: 300 };
 
+// profile = the saved card from the page. ?. and ?? below mean "if it is missing, use an empty value".
 export default function ShopProfileForm({ profile }) {
+  // The page changer, used only to refresh.
   const router = useRouter();
+  // error = banner text, loading = true while saving; startSubmit/failSubmit/resetSubmit change those two.
   const { error, loading, startSubmit, failSubmit, resetSubmit } = useFormState();
 
   // Which boxes have a problem: { town: 'message', ... }
@@ -104,13 +113,17 @@ export default function ShopProfileForm({ profile }) {
   const [note, setNote] = useState('');
   const clearNote = useCallback(() => setNote(''), []);
 
+  // Runs when the owner presses Save.
   async function handleSubmit(e) {
+    // Stop the browser's own page reload; we send the data ourselves.
     e.preventDefault();
+    // Show the busy state and clear the old banner.
     startSubmit();
     setFieldErrors({});
     setNote('');
 
     // Read every box out of the form
+    // FormData reads every named box in the form (town, whatsapp, areas).
     const form = new FormData(e.target);
     const body = {
       town: String(form.get('town') || '').trim(),
@@ -121,6 +134,7 @@ export default function ShopProfileForm({ profile }) {
     };
 
     // Easy checks here (the server checks again; it is the real guard)
+    // Quick checks done here for a faster answer. The server checks again, it is the real guard.
     const problems = {};
     if (body.town.length > LIMITS.town) problems.town = `Keep the town under ${LIMITS.town} letters.`;
     if (body.shortDescription.length > LIMITS.description) problems.description = `Keep it under ${LIMITS.description} letters.`;
@@ -131,6 +145,7 @@ export default function ShopProfileForm({ profile }) {
       return;
     }
 
+    // Send the card. If the server refuses, this jumps to catch.
     try {
       await api.saveShopProfile(body);
       resetSubmit();
@@ -138,6 +153,7 @@ export default function ShopProfileForm({ profile }) {
       router.refresh();           // the server copy of the page is now fresh
     } catch (err) {
       // The server pointed at particular boxes: show a message beside each
+      // 400 = the server rejected a box. err.details says which, so we show the message beside it.
       if (err.status === 400 && err.details) {
         const found = {};
         if (err.details.town) found.town = `Keep the town under ${LIMITS.town} letters.`;
@@ -150,13 +166,17 @@ export default function ShopProfileForm({ profile }) {
           return;
         }
       }
+      // Anything else (network down, server error): show one general message in the banner.
       failSubmit(err.message || 'Could not save your profile. Please try again.');
     }
   }
 
+  // What is drawn: the form, then the floating note. <> </> groups them without an extra box.
   return (
     <>
+      {/* noValidate = we do our own checks and messages, not the browser's pop-ups. */}
       <form onSubmit={handleSubmit} noValidate className="space-y-4 max-w-xl">
+        {/* The red banner for general problems (nothing shows when error is empty). */}
         <FormError message={error} />
 
         {/* Town or area */}

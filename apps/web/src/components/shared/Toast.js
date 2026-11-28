@@ -60,31 +60,47 @@
 // the X button = THE PERSON TAKING THE NOTE DOWN THEMSELVES.
 // ═══════════════════════════════════════════════════════════
 
+// useEffect = React's "do something after the screen changes" tool. We use it as a kitchen timer.
 import { useEffect } from 'react';
 
+// Toast props (the things the parent gives us):
+//   message = the words to show (empty = show nothing)
+//   tone    = 'success' (green, default) or 'error' (red)
+//   onClose = what to call when the note should go away (the parent clears the message)
+//   seconds = optional: how long to stay before going away
 export default function Toast({ message, tone = 'success', onClose, seconds }) {
   // How long it stays: errors a little longer so they can be read
+  // lifetime = how many milliseconds the note stays. ?? means "use seconds if given, else 5 for errors, 4 for good news".
   const lifetime = (seconds ?? (tone === 'error' ? 5 : 4)) * 1000;
 
+  // The kitchen timer: starts when a message appears.
   useEffect(() => {
+    // No message, no timer needed.
     if (!message) return undefined;
+    // After `lifetime`, tell the parent to clear the message (onClose?.() = call it only if it exists).
     const timer = setTimeout(() => onClose?.(), lifetime);
+    // Cleanup: if the message changes or the screen closes first, cancel the old timer so it cannot fire late.
     return () => clearTimeout(timer);
   }, [message, lifetime, onClose]);
 
+  // Nothing to say, so draw nothing.
   if (!message) return null;
 
+  // Green for good news, red for errors.
   const colours =
     tone === 'error'
       ? 'border-red-200 bg-red-50 text-red-800'
       : 'border-green-200 bg-green-50 text-green-800';
 
+  // The note itself. fixed bottom-6 right-6 = stuck to the corner of the screen even when scrolling.
+  // role alert/status = screen readers announce it (urgent for errors, polite for good news).
   return (
     <div
       role={tone === 'error' ? 'alert' : 'status'}
       className={`fixed bottom-6 right-6 z-[60] flex max-w-sm items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium shadow-lg ${colours}`}
     >
       <span>{message}</span>
+      {/* The little x so the person can close the note early. */}
       <button
         type="button"
         onClick={() => onClose?.()}
