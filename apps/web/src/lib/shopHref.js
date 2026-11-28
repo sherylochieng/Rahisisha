@@ -31,7 +31,7 @@
 //   2. Changing the aisle means starting from the first page (no cursor).
 //
 // WHERE USED
-//   components/CategoryPills.js and app/shop/[slug]/page.js.
+//   components/shared/CategoryPills.js and app/shop/[slug]/page.js.
 //
 // TRADEOFFS
 //   + Tiny, easy to test. - Only knows category and cursor (add more

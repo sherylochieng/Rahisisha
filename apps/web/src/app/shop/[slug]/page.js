@@ -149,14 +149,14 @@ import { notFound } from 'next/navigation';
 
 import { fetchStorefront } from '../../../lib/publicApi';
 import { formatKes } from '../../../lib/format';
-import EmptyState from '../../../components/EmptyState';
+import EmptyState from '../../../components/shared/EmptyState';
 // (Week 30) The basket: shared memory, the Add button and the bottom bar
 import { CartProvider } from '../../../components/shop/CartProvider';
 import AddToBasket from '../../../components/shop/AddToBasket';
 import BasketBar from '../../../components/shop/BasketBar';
 import BasketLink from '../../../components/shop/BasketLink';
 // (Week 30 Day 3, Batch 4a-2) the aisle buttons and the shared address builder
-import CategoryPills from '../../../components/CategoryPills';
+import CategoryPills from '../../../components/shared/CategoryPills';
 import { shopHref } from '../../../lib/shopHref';
 import { parseCategory } from '../../../lib/shopParams';
 

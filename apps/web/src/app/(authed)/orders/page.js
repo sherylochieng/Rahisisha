@@ -67,7 +67,7 @@ import Link from 'next/link';
 import { serverGetPage } from '../../../lib/serverApi';
 // formatKes: 50000 -> "KES 500.00".  formatNairobiTime: ISO time -> "4 Jan, 15:00"
 import { formatKes, formatNairobiTime } from '../../../lib/format';
-import EmptyState from '../../../components/EmptyState';
+import EmptyState from '../../../components/shared/EmptyState';
 
 // How many orders per page
 const PAGE_SIZE = 20;

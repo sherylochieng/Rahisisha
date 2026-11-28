@@ -67,12 +67,12 @@ import Link from 'next/link';
 // serverGetPage: calls the API as the logged-in visitor, returns { data, nextCursor }
 import { serverGet, serverGetPage } from '../../../lib/serverApi';
 // (Week 30 Day 3, Batch 4a-3) category filter buttons and their addresses
-import CategoryPills from '../../../components/CategoryPills';
+import CategoryPills from '../../../components/shared/CategoryPills';
 import { productsHref } from '../../../lib/productsHref';
 import { NO_CATEGORY, parseCategory, shopQuery } from '../../../lib/shopParams';
 // formatKes: 75000 -> "KES 750.00"
 import { formatKes } from '../../../lib/format';
-import EmptyState from '../../../components/EmptyState';
+import EmptyState from '../../../components/shared/EmptyState';
 import DeleteProductButton from '../../../components/owner/DeleteProductButton';
 
 // How many products per page

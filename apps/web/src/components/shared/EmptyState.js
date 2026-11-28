@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/EmptyState.js
+// FILE: apps/web/src/components/shared/EmptyState.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -60,7 +60,7 @@
 //   - Text only. A future version could take an icon or a link.
 //
 // HOW TO USE
-//   import EmptyState from '../../../components/EmptyState';
+//   import EmptyState from '../../../components/shared/EmptyState';
 //   {products.length === 0 && (
 //     <EmptyState title="No products yet" message="..." />
 //   )}

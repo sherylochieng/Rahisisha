@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/SubmitButton.js
+// FILE: apps/web/src/components/shared/SubmitButton.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -59,7 +59,7 @@
 //     parent must pass loading={true/false}.
 //
 // HOW TO USE
-//   import SubmitButton from '../../components/SubmitButton';
+//   import SubmitButton from '../../components/shared/SubmitButton';
 //   <SubmitButton loading={loading}>Create account</SubmitButton>
 //
 // ═══════════════════════════════════════════════════════════

@@ -87,7 +87,7 @@ import Link from 'next/link';
 
 import { serverGetPage } from '../../../lib/serverApi';
 import { formatKes, formatKesSigned, formatNairobiDay, formatNairobiTime } from '../../../lib/format';
-import EmptyState from '../../../components/EmptyState';
+import EmptyState from '../../../components/shared/EmptyState';
 
 const PAGE_SIZE = 50;
 

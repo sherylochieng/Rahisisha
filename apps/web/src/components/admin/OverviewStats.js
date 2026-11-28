@@ -57,7 +57,7 @@ import { adminApi } from '../../lib/adminApi';
 import { useAdminLoad } from '../../hooks/useAdminLoad';
 import AdminButton from './AdminButton';
 import StatCard from './StatCard';
-import FormError from '../FormError';
+import FormError from '../shared/FormError';
 
 // One line per number. key is the name in the API's answer.
 const CARDS = [

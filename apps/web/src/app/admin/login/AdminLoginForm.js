@@ -61,7 +61,7 @@ import { adminApi } from '../../../lib/adminApi';
 import { useFormState } from '../../../hooks/useFormState';
 // Shared error + loading state for forms.
 
-import FormError from '../../../components/FormError';
+import FormError from '../../../components/shared/FormError';
 // The shared red error box. Shows nothing when the message is empty.
 
 import AdminLogo from '../../../components/admin/AdminLogo';

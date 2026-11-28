@@ -62,7 +62,7 @@
 import { useEffect, useRef, useState } from 'react';
 import AdminButton from './AdminButton';
 import AdminField from './AdminField';
-import FormError from '../FormError';
+import FormError from '../shared/FormError';
 
 const REASON_MIN = 5;
 const REASON_MAX = 500;

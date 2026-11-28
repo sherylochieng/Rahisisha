@@ -96,12 +96,12 @@ import { kesToCents } from '../../lib/kesToCents';
 import { uploadProductPhoto, checkPhotoFile } from '../../lib/uploadPhoto';
 import { centsToKes } from '../../lib/centsToKes';
 import { useFormState } from '../../hooks/useFormState';
-import FormError from '../FormError';
+import FormError from '../shared/FormError';
 // The look of a box and its red error note now live in one shared file
-import { inputClass, FieldError } from '../formParts';
+import { inputClass, FieldError } from '../shared/formParts';
 // (Week 30 Day 3, Batch 4a-2) the Category dropdown, as its own piece
 import CategorySelect from './CategorySelect';
-import SubmitButton from '../SubmitButton';
+import SubmitButton from '../shared/SubmitButton';
 
 // The biggest price the database column can hold (a 32-bit whole number)
 const MAX_PRICE_CENTS = 2147483647;

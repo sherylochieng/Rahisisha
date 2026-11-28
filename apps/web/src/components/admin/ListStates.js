@@ -45,8 +45,8 @@
 // =============================================================================
 
 import AdminButton from './AdminButton';
-import EmptyState from '../EmptyState';
-import FormError from '../FormError';
+import EmptyState from '../shared/EmptyState';
+import FormError from '../shared/FormError';
 
 export default function ListStates({
   items,

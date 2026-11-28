@@ -57,8 +57,8 @@ import AdminButton from '../../../../../components/admin/AdminButton';
 import ShopSummary from '../../../../../components/admin/ShopSummary';
 import ReceiptsList from '../../../../../components/admin/ReceiptsList';
 import ShopActions from '../../../../../components/admin/ShopActions';
-import FormError from '../../../../../components/FormError';
-import EmptyState from '../../../../../components/EmptyState';
+import FormError from '../../../../../components/shared/FormError';
+import EmptyState from '../../../../../components/shared/EmptyState';
 
 // The way back, written once and used in every state.
 function BackLink() {

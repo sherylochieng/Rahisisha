@@ -27,7 +27,7 @@
 // SYSTEM DESIGN PRINCIPLE
 //   "Thin boundary, shared content." This file only decides
 //   WHERE the error shows. The look and wording live in
-//   components/PageError.js, the same one the (authed) area uses.
+//   components/shared/PageError.js, the same one the (authed) area uses.
 //
 // RULES (never do this)
 //   1. NEVER remove 'use client' from line 1. Next.js requires it.
@@ -87,7 +87,7 @@
 //    Dark navy background, same family as login and 404.
 // ═══════════════════════════════════════════════════════════
 
-import PageError from '../components/PageError';
+import PageError from '../components/shared/PageError';
 // PageError: the shared error message (look + wording + logging)
 
 export default function AppError({ error, reset }) {

@@ -1,3 +1,24 @@
+// ═══════════════════════════════════════════════════════════
+// FILE: apps/web/src/components/site/Card.js
+// ═══════════════════════════════════════════════════════════
+//
+// WHY THIS FILE EXISTS
+//   One reusable feature card for the landing page: an icon, a title and a short description, in a light or dark style.
+//
+// DANGER
+//   Do not copy this card's markup into the page; change it here once and every card updates.
+//
+// RULES
+//   1. Content comes in through props; the shape stays the same.
+//   2. Do not fetch data in here.
+//
+// WHERE USED
+//   app/page.js (nine cards: features and services).
+//
+// HOW TO USE
+//   import Card from '../components/site/Card';
+<Card icon={<svg/>} title="..." description="..." variant="dark" />
+// ═══════════════════════════════════════════════════════════
 // Card — reusable card component used across the landing page
 // Props control everything — the same component renders different content
 // This is the core principle of reusable components: shape stays the same, content changes

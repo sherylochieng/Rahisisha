@@ -76,7 +76,7 @@ import { serverGet } from '../../../lib/serverApi';
 
 // ✅ AFTER (NEW): the shared "nothing here yet" box
 // ❌ BEFORE: no import. The empty message was a <p> written further down.
-import EmptyState from '../../../components/EmptyState';
+import EmptyState from '../../../components/shared/EmptyState';
 
 // Week 29 Day 4 follow-up: the shop link card (Open, Copy, Share)
 import ShopLinkCard from '../../../components/owner/ShopLinkCard';

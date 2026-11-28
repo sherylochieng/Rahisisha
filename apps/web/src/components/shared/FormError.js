@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/FormError.js
+// FILE: apps/web/src/components/shared/FormError.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -61,7 +61,7 @@
 //     <FormError> per field.
 //
 // HOW TO USE
-//   import FormError from '../../components/FormError';
+//   import FormError from '../../components/shared/FormError';
 //   <FormError message={error} />
 //
 // ═══════════════════════════════════════════════════════════

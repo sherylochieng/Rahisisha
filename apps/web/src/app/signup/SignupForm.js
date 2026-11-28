@@ -191,10 +191,10 @@ import { useFormState } from '../../hooks/useFormState';
 // ✅ AFTER (NEW) — two shared building blocks
 // ❌ BEFORE: this file had no imports for these. The red box and the
 //            button were written by hand further down.
-import FormError from '../../components/FormError';
+import FormError from '../../components/shared/FormError';
 // FormError: the red error box. Shows nothing when the message is empty
 
-import SubmitButton from '../../components/SubmitButton';
+import SubmitButton from '../../components/shared/SubmitButton';
 // SubmitButton: the button that says "Creating account..." and locks itself while waiting
 
 // ─────────────────────────────────────────────

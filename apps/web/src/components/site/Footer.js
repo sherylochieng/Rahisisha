@@ -1,3 +1,23 @@
+// ═══════════════════════════════════════════════════════════
+// FILE: apps/web/src/components/site/Footer.js
+// ═══════════════════════════════════════════════════════════
+//
+// WHY THIS FILE EXISTS
+//   The bottom of the public landing page: brand blurb, Product links, Account links and the small print.
+//
+// DANGER
+//   If you add a page to the Navbar, add it here too, or visitors find it in one place and not the other.
+//
+// RULES
+//   1. Server component: no state, no clicks. Do not add 'use client' for styling.
+//   2. Public landing page only.
+//
+// WHERE USED
+//   app/page.js (the landing page).
+//
+// HOW TO USE
+//   import Footer from '../components/site/Footer';
+// ═══════════════════════════════════════════════════════════
 import Link from 'next/link';
 // No 'use client' needed — no interactivity, pure display
 // This is a Server Component — renders on the server, faster

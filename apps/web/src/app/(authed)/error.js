@@ -27,7 +27,7 @@
 // SYSTEM DESIGN PRINCIPLE
 //   "Thin boundary, shared content." This file only decides
 //   WHERE the error shows (inside (authed), under the layout).
-//   WHAT it looks like lives in components/PageError.js.
+//   WHAT it looks like lives in components/shared/PageError.js.
 //
 // RULES (never do this)
 //   1. NEVER copy the message or styling into this file. Change
@@ -67,7 +67,7 @@
 //     a shared component, plus thin boundary files.
 //
 //   AFTER
-//     - components/PageError.js holds the look and the wording.
+//     - components/shared/PageError.js holds the look and the wording.
 //     - This file just hands over what Next.js gave it.
 //     - app/error.js (next step) does the same for public pages
 //       with the fullScreen look.
@@ -85,7 +85,7 @@
 //    No fullScreen, so it appears as a card inside the layout.
 // ═══════════════════════════════════════════════════════════
 
-import PageError from '../../components/PageError';
+import PageError from '../../components/shared/PageError';
 // PageError: the shared error message (look + wording + logging)
 
 export default function AuthedError({ error, reset }) {

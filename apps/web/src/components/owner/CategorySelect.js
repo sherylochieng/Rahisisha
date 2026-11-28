@@ -53,7 +53,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { useCategories } from '../../hooks/useCategories';
-import { inputClass, FieldError } from '../formParts';
+import { inputClass, FieldError } from '../shared/formParts';
 
 export default function CategorySelect({ value, onChange, disabled = false, error = '' }) {
   const { categories, loading } = useCategories();

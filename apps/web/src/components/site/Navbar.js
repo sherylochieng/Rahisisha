@@ -1,3 +1,23 @@
+// ═══════════════════════════════════════════════════════════
+// FILE: apps/web/src/components/site/Navbar.js
+// ═══════════════════════════════════════════════════════════
+//
+// WHY THIS FILE EXISTS
+//   The top bar of the public landing page: logo, Features / Services / About links, Log in and "Get started free". On a phone it folds into a hamburger menu.
+//
+// DANGER
+//   It is a client file because the hamburger needs state (open / closed). Keep it the only interactive part of the landing page.
+//
+// RULES
+//   1. Only for the public landing page. Owners use components/owner/Sidebar, admins use components/admin/AdminShell.
+//   2. Links to sections use /#features style so they also work from other pages.
+//
+// WHERE USED
+//   app/page.js (the landing page).
+//
+// HOW TO USE
+//   import Navbar from '../components/site/Navbar';
+// ═══════════════════════════════════════════════════════════
 'use client';
 // 'use client' — needed because we use useState for the mobile menu toggle
 // If we didn't have the mobile menu, this could be a Server Component

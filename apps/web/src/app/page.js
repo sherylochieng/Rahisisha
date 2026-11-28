@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
-import Card from '../components/Card';
+import Navbar from '../components/site/Navbar';
+import Footer from '../components/site/Footer';
+import Card from '../components/site/Card';
 
 // metadata — browser tab + Google search snippet
 export const metadata = {

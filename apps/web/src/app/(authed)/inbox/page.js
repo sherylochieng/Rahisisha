@@ -97,7 +97,7 @@ import Link from 'next/link';
 // serverGetPage: calls the API as the logged-in visitor, returns { data, nextCursor }
 import { serverGetPage } from '../../../lib/serverApi';
 import { formatNairobiTime } from '../../../lib/format';
-import EmptyState from '../../../components/EmptyState';
+import EmptyState from '../../../components/shared/EmptyState';
 
 // How many messages per page (the API allows up to 100)
 const PAGE_SIZE = 20;

@@ -2,7 +2,7 @@
 // Client Component: it logs the error in the browser and has a click button
 
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/PageError.js
+// FILE: apps/web/src/components/shared/PageError.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -88,7 +88,7 @@
 //   - One generic message for every kind of failure.
 //
 // HOW TO USE
-//   import PageError from '../../components/PageError';
+//   import PageError from '../../components/shared/PageError';
 //   export default function Error({ error, reset }) {
 //     return <PageError error={error} reset={reset} />;
 //   }

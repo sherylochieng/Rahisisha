@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/CategoryPills.js
+// FILE: apps/web/src/components/shared/CategoryPills.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -51,7 +51,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import Link from 'next/link';
-import { shopHref } from '../lib/shopHref';
+import { shopHref } from '../../lib/shopHref';
 
 const base = 'inline-block rounded-full border px-4 py-1.5 text-sm font-medium';
 const on = 'border-brand-orange bg-brand-orange text-white';
