@@ -47,7 +47,7 @@
 // - No mobile menu yet (the sidebar is hidden on small screens in the layout)
 //
 // HOW TO USE:
-//   import Sidebar from '../../components/Sidebar';
+//   import Sidebar from '../../components/owner/Sidebar';
 // =============================================================================
 
 // Link: Next.js's link that changes page without a full reload

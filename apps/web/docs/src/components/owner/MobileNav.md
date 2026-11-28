@@ -1,7 +1,7 @@
 # MobileNav.js: The Phone Menu
 
-**File:** `apps/web/src/components/MobileNav.js`
-**Doc:** `apps/web/docs/src/components/MobileNav.md`
+**File:** `apps/web/src/components/owner/MobileNav.js`
+**Doc:** `apps/web/docs/src/components/owner/MobileNav.md`
 **Added:** Week 29 Day 4
 **Also changed:** `Sidebar.js` (Inbox and Payments added, `NAV_ITEMS` exported) and `(authed)/layout.js` (renders MobileNav, smaller padding on phones)
 

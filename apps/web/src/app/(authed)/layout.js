@@ -52,10 +52,10 @@
 import { requireSession } from '../../lib/session';
 
 // Sidebar: the menu on the left
-import Sidebar from '../../components/Sidebar';
+import Sidebar from '../../components/owner/Sidebar';
 
 // Week 29 Day 4: the phone-sized menu (the Sidebar is hidden below md)
-import MobileNav from '../../components/MobileNav';
+import MobileNav from '../../components/owner/MobileNav';
 
 // children = whichever page the visitor asked for (for example the dashboard)
 export default async function AuthedLayout({ children }) {

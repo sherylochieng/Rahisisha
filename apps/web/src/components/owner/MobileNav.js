@@ -2,7 +2,7 @@
 // 'use client' - needed because we ask the browser "which page am I on?" (usePathname)
 
 // =============================================================================
-// FILE: apps/web/src/components/MobileNav.js  (Week 29 Day 4)
+// FILE: apps/web/src/components/owner/MobileNav.js  (Week 29 Day 4)
 // =============================================================================
 //
 // WHY THIS FILE EXISTS
