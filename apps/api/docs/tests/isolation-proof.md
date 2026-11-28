@@ -505,3 +505,7 @@ Migration 031 added the table `notifications`: one row per message to send (for 
 - **Expected after migration 031:** Query A lists 21 tables with RLS enabled and forced, and Query B lists the new rows `tenant_read` and `admin_all` for `notifications`.
 - **Sandbox run by the AI (throw-away Postgres 16 database, 28 October 2026):** `isolation.test.js` plus `notifications.outbox.test.js` passed (96 checks). Two on-purpose breakages were each caught by a test, then undone.
 - **Not yet run by Sheryl:** Query A, Query B and `npm run test:isolation` on her own machine and on Neon after migration 031. Her results should replace the AI's numbers here.
+
+## UPDATE, Batch 4a-1 (Week 30 Day 3)
+
+Migration 032 adds two policies on `categories` (`categories_read`, `admin_all`). The expected policy count is now 27 (was 25), enforced by `scripts/reset-db.sh`. `categories` has no `tenant_id`, so it is outside the tenant-table coverage guard on purpose.

@@ -81,3 +81,7 @@ Written by AI at Sheryl's request. Declared in `AI_AUDIT_week_29_day4.md` (follo
 
 - 18 November 2026: 11 of 11 passed in the AI's sandbox and on Sheryl's machine.
 - Checked by sabotage in the sandbox: showing drafts failed 6 checks; leaking the SKU failed check 3; ignoring the suspended status failed check 7. After each, the code was put back and the test passed again.
+
+## UPDATE, Batch 4a-1 (Week 30 Day 3)
+
+Test 3 now expects the public answer to have the keys `categories`, `products`, `shop` (it was `products`, `shop`). `categories` holds only aisle slug and name. Nothing private was added.

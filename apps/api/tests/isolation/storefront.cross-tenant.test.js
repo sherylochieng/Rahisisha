@@ -258,7 +258,9 @@ describe('GET /v1/storefront/:slug (public door, follow-up to Week 29 Day 4)', (
     expect(Object.keys(res.body.data.products[0]).sort())
       .toEqual(['description', 'id', 'image_url', 'name', 'price_cents']);
     expect(Number.isInteger(res.body.data.products[0].price_cents)).toBe(true);
-    expect(Object.keys(res.body.data).sort()).toEqual(['products', 'shop']);
+    // Week 30 Day 3 (Batch 4a-1): `categories` (slug + name of the aisles this shop
+    // uses) joined the public fields on purpose. Nothing private in it.
+    expect(Object.keys(res.body.data).sort()).toEqual(['categories', 'products', 'shop']);
     const text = JSON.stringify(res.body);
     expect(text).not.toContain('SKU-');
     expect(text).not.toContain(tenantA);
