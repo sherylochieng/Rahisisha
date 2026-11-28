@@ -75,15 +75,39 @@ export function isCategorySlug(word) {
 // active, not-deleted product. Run it on a shop connection (req.db) so RLS keeps
 // it to that shop. The shop window uses it to show filter buttons only for aisles
 // that have something in them.
-export async function listShopCategories(db) {
+//
+// onSaleOnly = true  (default, the PUBLIC shop window): only aisles that hold an
+//   ACTIVE product, and only active aisles. Shoppers must not see an empty button.
+// onSaleOnly = false (the OWNER's own Products page): every aisle any of the shop's
+//   products is filed under, drafts and archived included, so the owner can always
+//   find their own products.
+export async function listShopCategories(db, { onSaleOnly = true } = {}) {
   const { rows } = await db.query(
     `SELECT DISTINCT c.slug, c.name, c.sort_order
        FROM products p
-       JOIN categories c ON c.id = p.category_id AND c.active
-      WHERE p.status = 'active' AND p.deleted_at IS NULL
-      ORDER BY c.sort_order, c.name`
+       JOIN categories c ON c.id = p.category_id
+      WHERE p.deleted_at IS NULL
+        AND ($1::boolean = false OR (p.status = 'active' AND c.active))
+      ORDER BY c.sort_order, c.name`,
+    [onSaleOnly]
   );
   return rows.map((c) => ({ slug: c.slug, name: c.name }));
+}
+
+// The word the owner's Products page uses for "products with no category yet".
+// A reserved word, not a real aisle: head office must never create a category with
+// the slug 'none' (the ten seeds do not use it). ONE definition for the API.
+export const NO_CATEGORY = 'none';
+
+// Does this shop have at least one live product with no category? The owner page
+// shows a "No category" button only when it would find something.
+export async function hasUncategorisedProducts(db) {
+  const { rows } = await db.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM products WHERE deleted_at IS NULL AND category_id IS NULL
+     ) AS found`
+  );
+  return rows[0].found;
 }
 
 // One active category by id, or null. Real life: the clerk checks the aisle

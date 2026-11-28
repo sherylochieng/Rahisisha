@@ -33,3 +33,10 @@ No `tenant_id` here: categories are shared. Never write to categories from this 
 
 ## HOW TO USE
 `const rows = await listCategories(pool);` / `const cat = await findActiveCategory(req.db, id);`
+
+## ADDED IN BATCH 4a-3 (Week 30 Day 3): THE OWNER'S VIEW
+
+- `listShopCategories(db, { onSaleOnly })`: the default (`true`) is unchanged and still feeds the public shop window (only active products in active aisles). With `onSaleOnly: false` it lists every aisle any live product of the shop is filed under, drafts and archived included, for the owner's own Products page.
+- `hasUncategorisedProducts(db)`: true when the shop has at least one live product with no aisle, so the owner page shows a "No category" button only when it would find something.
+- `NO_CATEGORY = 'none'`: the reserved word for "products with no aisle". Head office must never create a category with the slug `none`.
+- Nothing removed.
