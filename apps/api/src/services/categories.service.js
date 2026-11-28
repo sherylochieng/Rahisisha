@@ -62,6 +62,30 @@ export async function listCategories(db) {
   return rows;
 }
 
+// The shape of a category slug: lowercase words joined by dashes, up to 60
+// characters, like 'beauty-hair'. The same rule as the CHECK in migration 032.
+// ONE definition, used by every route that takes a slug from the address.
+// Real life: the rule for how an aisle code is written on every sign.
+const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export function isCategorySlug(word) {
+  return typeof word === 'string' && word.length <= 60 && SLUG_RE.test(word);
+}
+
+// The aisles ONE shop actually uses: active categories that hold at least one
+// active, not-deleted product. Run it on a shop connection (req.db) so RLS keeps
+// it to that shop. The shop window uses it to show filter buttons only for aisles
+// that have something in them.
+export async function listShopCategories(db) {
+  const { rows } = await db.query(
+    `SELECT DISTINCT c.slug, c.name, c.sort_order
+       FROM products p
+       JOIN categories c ON c.id = p.category_id AND c.active
+      WHERE p.status = 'active' AND p.deleted_at IS NULL
+      ORDER BY c.sort_order, c.name`
+  );
+  return rows.map((c) => ({ slug: c.slug, name: c.name }));
+}
+
 // One active category by id, or null. Real life: the clerk checks the aisle
 // number written on a stock slip really exists before shelving.
 export async function findActiveCategory(db, id) {

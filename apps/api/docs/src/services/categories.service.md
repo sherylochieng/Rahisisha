@@ -14,6 +14,11 @@ Must only return `active` rows. If it returned switched-off aisles, owners could
 ## WHAT IT SOLVES
 `listCategories(db)` returns `[{id, slug, name}]` ordered by `sort_order, name`. `findActiveCategory(db, id)` returns the row or `null`; it checks the UUID shape first, so a garbage id never crashes Postgres.
 
+## ADDED IN THE DRY PASS (Week 30 Day 3)
+- `isCategorySlug(word)`: the one rule for how a slug is written (lowercase words joined by dashes, up to 60), the same as the CHECK in migration 032. The storefront controller used to carry its own copy.
+- `listShopCategories(db)`: the aisles ONE shop uses (active categories holding at least one active, not-deleted product). Run it on `req.db` so RLS keeps it to that shop. The storefront controller used to carry this SQL inline.
+- Nothing removed.
+
 ## SYSTEM DESIGN PRINCIPLE
 Service takes the connection (`db`) as a parameter: the caller decides whether it is a shop connection or the plain pool. Testable, no hidden globals.
 
