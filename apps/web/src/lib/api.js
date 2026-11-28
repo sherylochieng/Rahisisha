@@ -197,6 +197,14 @@ export const api = {
     });
   },
 
+  // GET /categories: the head-office list of aisles (Week 30 Day 3, Batch 4a-2).
+  // Public on the API side; sending the cookie does no harm. Answers
+  // { data: [{ id, slug, name }], error: null }. Used by hooks/useCategories.js.
+  // Real life: asking the information desk for the aisle map.
+  listCategories() {
+    return request('/categories');
+  },
+
   // DELETE /products/:id: remove a product from the list (Week 30, issue #6).
   // The API only hides it (a "soft delete"), so past orders keep their records.
   // The API answers 204 with no body, which request() handles (it returns null).
