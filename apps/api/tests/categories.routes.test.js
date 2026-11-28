@@ -69,38 +69,17 @@ import request from 'supertest';
 import dotenv from 'dotenv';
 import app from '../src/app.js';
 import { pool } from '../src/db/pool.js';
+import { asAdmin, signupTestShop } from './helpers/categoryKit.js';
 
 dotenv.config();
 
 const rand = Date.now();
 const hiddenSlug = `test-hidden-${rand}`;
-const phone = `07${String(rand).slice(-8)}`;
 
 let tenantId;
 
-// Run SQL as head office (platform admin switch is transaction-local).
-async function asAdmin(sql, params = []) {
-  const c = await pool.connect();
-  try {
-    await c.query('BEGIN');
-    await c.query("SELECT set_config('app.platform_admin','on',true)");
-    const r = await c.query(sql, params);
-    await c.query('COMMIT');
-    return r;
-  } catch (e) {
-    await c.query('ROLLBACK');
-    throw e;
-  } finally {
-    c.release();
-  }
-}
-
 beforeAll(async () => {
-  const res = await request(app)
-    .post('/v1/signup')
-    .send({ phone, name: 'Cat Tester', password: 'Test1234!', tenant_name: `Cat Shop ${rand}` });
-  expect(res.status).toBe(201);
-  tenantId = res.body.tenant_id;
+  ({ tenantId } = await signupTestShop('Cat Shop'));
 
   await asAdmin(
     "INSERT INTO categories (slug, name, sort_order, active) VALUES ($1, 'Hidden test', 500, false)",
