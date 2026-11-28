@@ -36,8 +36,9 @@
 //   sign-in page. After signing in, me() answers 200 and the menu appears.
 //
 // DECISIONS
-//   - The menu lists only pages that exist. Shops, Receipts and Admins are added
-//     as we build them.
+//   - The menu lists only pages that exist (Overview and Shops now). Receipts and Admins
+//     are added as we build them.
+//   - The "signed out? go to sign in" rule is shared (adminSession.js), not copied.
 //   - Navy menu, orange active item, as chosen in the colour mock-up (option C).
 //
 // WHERE USED
@@ -55,11 +56,15 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { adminApi } from '../../lib/adminApi';
+import { redirectIfSignedOut } from '../../lib/adminSession';
 import AdminLogo from './AdminLogo';
 import AdminButton from './AdminButton';
 
 // The menu. Add an entry here when a new admin page exists.
-const NAV = [{ href: '/admin', label: 'Overview' }];
+const NAV = [
+  { href: '/admin', label: 'Overview' },
+  { href: '/admin/shops', label: 'Shops' },
+];
 
 export default function AdminShell({ children }) {
   const router = useRouter();
@@ -78,10 +83,7 @@ export default function AdminShell({ children }) {
         if (!cancelled) setState({ status: 'ready', admin: res.data.admin, message: '' });
       } catch (err) {
         if (cancelled) return;
-        if (err.status === 401) {
-          router.replace('/admin/login'); // not signed in: go to the door
-          return;
-        }
+        if (redirectIfSignedOut(err, router)) return; // not signed in: go to the door
         // Network or server trouble: stay here, tell the admin, offer Retry.
         setState({ status: 'error', admin: null, message: err.message });
       }
@@ -128,7 +130,8 @@ export default function AdminShell({ children }) {
 
         <nav className="flex flex-col gap-1" aria-label="Admin menu">
           {NAV.map((item) => {
-            const active = pathname === item.href;
+            // Overview is exact. Other items stay lit on their sub-pages (/admin/shops/123).
+            const active = item.href === '/admin' ? pathname === item.href : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
