@@ -208,6 +208,15 @@ export const api = {
   // DELETE /products/:id: remove a product from the list (Week 30, issue #6).
   // The API only hides it (a "soft delete"), so past orders keep their records.
   // The API answers 204 with no body, which request() handles (it returns null).
+  // Shop profile (Week 30 Day 3, Batch 4b): save the owner's business card. The page
+  // loads it on the server (serverGet), so only the save lives here.
+  saveShopProfile(body) {
+    return request('/shop/profile', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  },
+
   deleteProduct(id) {
     return request(`/products/${encodeURIComponent(id)}`, {
       method: 'DELETE',

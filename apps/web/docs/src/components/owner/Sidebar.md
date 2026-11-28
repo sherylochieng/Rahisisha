@@ -28,3 +28,6 @@ Hidden on phones (MobileNav is used there). Mark a page `ready: true` only when 
 
 ## HOW TO USE
 `<Sidebar shopName={tenant.name} />` inside the signed-in layout.
+
+## UPDATE (Batch 4b)
+A new menu row, **Shop profile** (`/shop-profile`), sits between Wallet and Settings. It opens the owner's business card page. Nothing else in this file changed.

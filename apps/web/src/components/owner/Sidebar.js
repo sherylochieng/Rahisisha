@@ -66,6 +66,8 @@ export const NAV_ITEMS = [
   { label: 'Products',  href: '/products',  ready: true },
   { label: 'Orders',    href: '/orders',    ready: true },
   { label: 'Wallet',    href: '/wallet',    ready: true },
+  // (Week 30 Day 3, Batch 4b) the owner's business card
+  { label: 'Shop profile', href: '/shop-profile', ready: true },
   { label: 'Settings',  href: '/settings',  ready: false },
 ];
 
