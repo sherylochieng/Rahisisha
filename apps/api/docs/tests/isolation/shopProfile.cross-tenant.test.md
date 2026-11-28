@@ -56,4 +56,5 @@ cd apps/api && npm test -- isolation/shopProfile   Expect: 3 passed.
 1. A saves, B saves     = TWO SHOPS WRITE THEIR OWN CARDS.
 2. each reads its own   = EACH DRAWER HOLDS ONLY ITS OWN CARD.
 3. tenantId in body     = TRYING TO WRITE ON SOMEONE ELSE'S CARD: refused or ignored.
+4. afterAll pool.end()  = LOCKING THE DOOR ON THE WAY OUT, so the test run can finish.
 ```
