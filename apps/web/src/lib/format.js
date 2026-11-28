@@ -97,3 +97,14 @@ export function formatNairobiDay(day) {
     year: 'numeric',
   });
 }
+
+// formatNairobiDate: an ISO timestamp as a plain Nairobi date, for example "12 Nov 2026".
+// Used by the admin shops list ("Joined"). No time of day, because a join date does not need it.
+export function formatNairobiDate(iso) {
+  return new Date(iso).toLocaleDateString('en-KE', {
+    timeZone: 'Africa/Nairobi',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
