@@ -106,7 +106,13 @@
 import { z } from 'zod';
 import { isShopImageUrl } from '../services/cloudinary.service.js';
 // Week 30 Day 3 (Batch 4a-1): the category a product is filed under.
-import { findActiveCategory } from '../services/categories.service.js';
+import {
+  findActiveCategory,
+  isCategorySlug,
+  listShopCategories,
+  hasUncategorisedProducts,
+  NO_CATEGORY,
+} from '../services/categories.service.js';
 
 // ─── VALIDATION SCHEMAS ───────────────────────────────────────
 //
@@ -247,6 +253,12 @@ async function refusedCategory(req, res, categoryId) {
 // Query params:
 //   ?limit=10       how many to return (max 100)
 //   ?cursor=<uuid>  the last id seen — start AFTER this
+//   ?category=<slug> or ?category=none   (Week 30 Day 3, Batch 4a-3)
+//                   only products filed under that aisle, or only products
+//                   with no aisle yet. A badly shaped word is a 400.
+//
+// Each product also carries category_name (null when it has no aisle), so the
+// owner's Products page can show the aisle without a second request.
 // =============================================================
 
 export async function listProducts(req, res) {
@@ -257,6 +269,23 @@ export async function listProducts(req, res) {
   // null means "start from the beginning"
   const cursor = req.query.cursor || null;
 
+  // Optional aisle filter. null = no filter. 'none' = products with no aisle.
+  // Anything else must be a well-shaped slug; an unused one just finds nothing.
+  let category = null;
+  if (req.query.category !== undefined && req.query.category !== '') {
+    const word = String(req.query.category);
+    if (word !== NO_CATEGORY && !isCategorySlug(word)) {
+      return res.status(400).json({
+        error: {
+          code:    'validation',
+          message: 'Request validation failed',
+          details: { category: 'Invalid category' },
+        },
+      });
+    }
+    category = word;
+  }
+
   // We fetch limit + 1 rows on purpose.
   // If we get 11 back when limit=10, there IS a next page.
   // We return only 10 to the caller but use the 11th to set nextCursor.
@@ -265,13 +294,18 @@ export async function listProducts(req, res) {
   // req.db is set by withTenant middleware to this tenant's scoped connection
   // RLS on the database ensures only this tenant's rows come back
   const { rows } = await req.db.query(
-    `SELECT id, sku, name, description, price_cents, status, image_url, category_id, created_at
-     FROM products
-     WHERE deleted_at IS NULL
-       AND ($1::uuid IS NULL OR id > $1)
-     ORDER BY id
+    `SELECT p.id, p.sku, p.name, p.description, p.price_cents, p.status, p.image_url,
+            p.category_id, c.name AS category_name, p.created_at
+     FROM products p
+     LEFT JOIN categories c ON c.id = p.category_id
+     WHERE p.deleted_at IS NULL
+       AND ($1::uuid IS NULL OR p.id > $1)
+       AND ($3::text IS NULL
+            OR ($3 = '${NO_CATEGORY}' AND p.category_id IS NULL)
+            OR ($3 <> '${NO_CATEGORY}' AND c.slug = $3))
+     ORDER BY p.id
      LIMIT $2`,
-    [cursor, limit + 1]
+    [cursor, limit + 1, category]
   );
 
   // Did we get an extra row? If yes, there are more pages.
@@ -285,6 +319,24 @@ export async function listProducts(req, res) {
   const nextCursor = hasMore ? data[data.length - 1].id : null;
 
   res.json({ data, nextCursor, error: null });
+}
+
+// =============================================================
+// HANDLER: listProductCategories   (Week 30 Day 3, Batch 4a-3)
+// Route:   GET /v1/products/categories
+//
+// The aisles THIS shop's own products are filed under, for the filter buttons
+// on the owner's Products page, plus whether any product has no aisle yet.
+// Real life: the list of aisle signs the owner needs for their own stockroom.
+//
+// Answer: { data: { categories: [{ slug, name }], uncategorised: true|false }, error: null }
+// (the owner sees drafts and archived products too, unlike the public shop window)
+// =============================================================
+
+export async function listProductCategories(req, res) {
+  const categories    = await listShopCategories(req.db, { onSaleOnly: false });
+  const uncategorised = await hasUncategorisedProducts(req.db);
+  res.json({ data: { categories, uncategorised }, error: null });
 }
 
 // =============================================================

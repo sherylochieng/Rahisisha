@@ -128,3 +128,10 @@ Turns zod's list of problems into the standard sad note:
 - Create stores `category_id`. The list returns `category_id`.
 - Update uses the same three-way rule as the photo: not sent = keep, an id = set it, `null` = clear it (`CASE WHEN $9::boolean THEN $10::uuid ELSE category_id END`).
 - Proved by `tests/products.category.test.js`.
+
+## ADDED IN BATCH 4a-3 (Week 30 Day 3): OWNER LIST BY CATEGORY
+
+- `GET /v1/products` accepts `?category=<slug>` or `?category=none` (products with no aisle). A badly shaped word is a 400 with `details.category`; a well-shaped unused word returns an empty list.
+- Every product in the list now also carries `category_name` (null when it has no aisle), by a LEFT JOIN, so the owner page needs no second request.
+- New handler `listProductCategories`: `GET /v1/products/categories` answers `{ categories: [{slug, name}], uncategorised }` for the owner's filter buttons (drafts and archived included).
+- Nothing removed; the existing columns and the cursor paging are unchanged.
