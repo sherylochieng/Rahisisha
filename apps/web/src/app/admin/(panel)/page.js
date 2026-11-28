@@ -38,13 +38,18 @@
 //   Open /admin after signing in.
 // =============================================================================
 
+import Link from 'next/link';
+
 export default function AdminOverviewPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-brand-navy">Overview</h1>
       <p className="mt-2 max-w-xl text-sm text-slate-600">
-        You are signed in. The shops list, with suspend and verify, arrives in the next step.
+        You are signed in. Open the shops list to find a shop. Suspend and verify arrive in the next step.
       </p>
+      <Link href="/admin/shops" className="mt-4 inline-block text-sm font-semibold text-brand-navy underline underline-offset-4">
+        Go to shops
+      </Link>
     </div>
   );
 }
