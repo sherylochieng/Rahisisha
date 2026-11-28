@@ -82,3 +82,12 @@ try { const res = await adminApi.me(); } catch (err) { if (err.status === 401) {
 - The API needs a reason of 5 to 500 characters and stores it in the receipt. For suspend, the owner also sees it.
 - Errors carry `.code`: `already_suspended`, `not_suspended`, `already_verified`, `not_verified`, `shop_deleted`, `shop_not_found` or `validation`.
 - Used by `ShopActions.js`. Nothing existing in this file changed.
+
+---
+
+## Addition (Week 30 Day 3, Batch 3a): getStats
+
+`adminApi.getStats()` calls `GET /admin/stats`.
+
+- Answer: `{ data: { shops: { total, active, suspended, verified, newThisWeek } }, error }`. Numbers only, no personal data.
+- Used by `OverviewStats.js`. Nothing else in this file changed.
