@@ -29,7 +29,7 @@
 //   <NotificationsTable items={list.items} />
 //
 // DECISIONS
-//   Words come from lib/adminNotifications.js, so this file has no wording of its own.
+//   Words come from lib/admin/adminNotifications.js, so this file has no wording of its own.
 //
 // WHERE USED
 //   app/admin/(panel)/notifications/NotificationsBrowser.js
@@ -43,7 +43,7 @@
 
 import Link from 'next/link';
 import NotificationStatusChip from './NotificationStatusChip';
-import { templateLabel, describeNote } from '../../lib/adminNotifications';
+import { templateLabel, describeNote } from '../../lib/admin/adminNotifications';
 import { formatNairobiTime } from '../../lib/format';
 
 // The column headings, in order.

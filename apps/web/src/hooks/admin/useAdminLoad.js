@@ -2,7 +2,7 @@
 // Runs in the browser: it loads one thing with the admin cookie.
 
 // =============================================================================
-// FILE: apps/web/src/hooks/useAdminLoad.js   (Week 30 Day 3, Batch 2, part 3a)
+// FILE: apps/web/src/hooks/admin/useAdminLoad.js   (Week 30 Day 3, Batch 2, part 3a)
 // =============================================================================
 //
 // WHY THIS FILE EXISTS
@@ -49,7 +49,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { redirectIfSignedOut } from '../lib/adminSession';
+import { redirectIfSignedOut } from '../../lib/admin/adminSession';
 
 export function useAdminLoad(load, key) {
   const router = useRouter();

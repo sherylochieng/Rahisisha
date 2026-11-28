@@ -58,7 +58,7 @@
 //   list                       = the hook's result: items, loading, error, loadMore, retry.
 
 import { useState } from 'react';
-import { adminApi } from '../../../../lib/adminApi';
+import { adminApi } from '../../../../lib/admin/adminApi';
 import { useCursorList } from '../../../../hooks/useCursorList';
 import { useDebouncedValue } from '../../../../hooks/useDebouncedValue';
 import AdminField from '../../../../components/admin/AdminField';

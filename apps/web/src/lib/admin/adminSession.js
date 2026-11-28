@@ -1,5 +1,5 @@
 // =============================================================================
-// FILE: apps/web/src/lib/adminSession.js   (Week 30 Day 3, Batch 2, part 2)
+// FILE: apps/web/src/lib/admin/adminSession.js   (Week 30 Day 3, Batch 2, part 2)
 // =============================================================================
 //
 // WHY THIS FILE EXISTS

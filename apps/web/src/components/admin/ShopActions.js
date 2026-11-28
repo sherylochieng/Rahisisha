@@ -55,8 +55,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { adminApi } from '../../lib/adminApi';
-import { redirectIfSignedOut } from '../../lib/adminSession';
+import { adminApi } from '../../lib/admin/adminApi';
+import { redirectIfSignedOut } from '../../lib/admin/adminSession';
 import { SHOP_ACTIONS, availableActions } from '../../lib/shopActions';
 import AdminButton from './AdminButton';
 import ReasonDialog from './ReasonDialog';

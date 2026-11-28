@@ -55,8 +55,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { adminApi } from '../../lib/adminApi';
-import { redirectIfSignedOut } from '../../lib/adminSession';
+import { adminApi } from '../../lib/admin/adminApi';
+import { redirectIfSignedOut } from '../../lib/admin/adminSession';
 import AdminLogo from './AdminLogo';
 import AdminButton from './AdminButton';
 

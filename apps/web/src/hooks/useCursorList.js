@@ -66,7 +66,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { redirectIfSignedOut } from '../lib/adminSession';
+import { redirectIfSignedOut } from '../lib/admin/adminSession';
 
 export function useCursorList({ fetchPage, filters, pageSize = 25 }) {
   const router = useRouter();

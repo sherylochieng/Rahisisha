@@ -18,7 +18,7 @@
 //   One receipt list for the shop page now and the Receipts page later (DRY).
 //
 // SYSTEM DESIGN PRINCIPLE
-//   Separation of concerns: the receipt words come from lib/adminReceipts.js, the times
+//   Separation of concerns: the receipt words come from lib/admin/adminReceipts.js, the times
 //   from lib/format.js, and this file only lays them out.
 //
 // RULES
@@ -43,7 +43,7 @@
 // =============================================================================
 
 import { formatNairobiTime } from '../../lib/format';
-import { receiptReason, receiptTitle } from '../../lib/adminReceipts';
+import { receiptReason, receiptTitle } from '../../lib/admin/adminReceipts';
 
 export default function ReceiptsList({ receipts }) {
   if (!receipts || receipts.length === 0) {

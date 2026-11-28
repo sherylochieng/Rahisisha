@@ -51,8 +51,8 @@
 //   the states         = loading text, not found box, error with Try again, or the page.
 
 import Link from 'next/link';
-import { adminApi } from '../../../../../lib/adminApi';
-import { useAdminLoad } from '../../../../../hooks/useAdminLoad';
+import { adminApi } from '../../../../../lib/admin/adminApi';
+import { useAdminLoad } from '../../../../../hooks/admin/useAdminLoad';
 import AdminButton from '../../../../../components/admin/AdminButton';
 import ShopSummary from '../../../../../components/admin/ShopSummary';
 import ReceiptsList from '../../../../../components/admin/ReceiptsList';

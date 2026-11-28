@@ -1,5 +1,5 @@
 // =============================================================================
-// FILE: apps/web/src/lib/adminApi.js   (Week 30 Day 3, Batch 2: admin web, part 1)
+// FILE: apps/web/src/lib/admin/adminApi.js   (Week 30 Day 3, Batch 2: admin web, part 1)
 // =============================================================================
 //
 // WHY THIS FILE EXISTS
@@ -56,7 +56,7 @@
 //     Fine for an admin panel used by a few people.
 //
 // HOW TO USE
-//   import { adminApi } from '../../lib/adminApi';
+//   import { adminApi } from '../../lib/admin/adminApi';
 //   try { const res = await adminApi.me(); /* res.data.admin.name */ }
 //   catch (err) { if (err.status === 401) { /* go to /admin/login */ } }
 // =============================================================================
@@ -66,7 +66,7 @@
 //   adminApi       = the short list of things an admin can ask for.
 
 // The shared careful caller: cookie attached, friendly errors, one copy for everyone.
-import { request } from './apiClient';
+import { request } from '../apiClient';
 
 // The admin's shopping list of requests.
 // The four actions share one shape: POST /admin/shops/:id/<action> with a written reason.

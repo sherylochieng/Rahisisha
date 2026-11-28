@@ -55,7 +55,7 @@
 import { useRouter } from 'next/navigation';
 // useRouter: the navigation remote control. We use it to go to /admin after login.
 
-import { adminApi } from '../../../lib/adminApi';
+import { adminApi } from '../../../lib/admin/adminApi';
 // The one place that talks to the admin API.
 
 import { useFormState } from '../../../hooks/useFormState';

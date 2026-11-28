@@ -56,10 +56,10 @@
 //   practice note         = a reminder when practice-channel lines are on screen.
 
 import { useState } from 'react';
-import { adminApi } from '../../../../lib/adminApi';
-import { statusOptions } from '../../../../lib/adminNotifications';
+import { adminApi } from '../../../../lib/admin/adminApi';
+import { statusOptions } from '../../../../lib/admin/adminNotifications';
 import { useCursorList } from '../../../../hooks/useCursorList';
-import { useAdminLoad } from '../../../../hooks/useAdminLoad';
+import { useAdminLoad } from '../../../../hooks/admin/useAdminLoad';
 import AdminButton from '../../../../components/admin/AdminButton';
 import FilterPills from '../../../../components/admin/FilterPills';
 import ListStates from '../../../../components/admin/ListStates';

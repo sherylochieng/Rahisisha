@@ -1,5 +1,5 @@
 // =============================================================================
-// FILE: apps/web/src/lib/adminReceipts.js   (Week 30 Day 3, Batch 2, part 3a)
+// FILE: apps/web/src/lib/admin/adminReceipts.js   (Week 30 Day 3, Batch 2, part 3a)
 // =============================================================================
 //
 // WHY THIS FILE EXISTS
@@ -40,7 +40,7 @@
 //   - A new API action shows its raw code until a line is added here (safe, visible).
 //
 // HOW TO USE
-//   import { receiptTitle, receiptReason } from '../../lib/adminReceipts';
+//   import { receiptTitle, receiptReason } from '../../lib/admin/adminReceipts';
 // =============================================================================
 
 // The printed list of receipt names. Keys match the API's ADMIN_AUDIT_ACTIONS.

@@ -1,5 +1,5 @@
 // =============================================================================
-// FILE: apps/web/src/lib/adminNotifications.js   (Week 30 Day 3, Batch 3b-2b, web step 1)
+// FILE: apps/web/src/lib/admin/adminNotifications.js   (Week 30 Day 3, Batch 3b-2b, web step 1)
 // =============================================================================
 //
 // WHY THIS FILE EXISTS
@@ -44,10 +44,10 @@
 //   + One dictionary. - A new template on the API needs a label here (it falls back to its code meanwhile).
 //
 // HOW TO USE
-//   import { templateLabel, describeNote, statusOptions } from '../../lib/adminNotifications';
+//   import { templateLabel, describeNote, statusOptions } from '../../lib/admin/adminNotifications';
 // =============================================================================
 
-import { formatNairobiTime } from './format';
+import { formatNairobiTime } from '../format';
 
 // Template code -> plain words.
 const TEMPLATE_LABELS = {

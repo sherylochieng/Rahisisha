@@ -53,8 +53,8 @@
 //   CARDS              = the list of cards: which number, which label, which hint.
 //   the render         = loading text, error with Try again, or the grid.
 
-import { adminApi } from '../../lib/adminApi';
-import { useAdminLoad } from '../../hooks/useAdminLoad';
+import { adminApi } from '../../lib/admin/adminApi';
+import { useAdminLoad } from '../../hooks/admin/useAdminLoad';
 import AdminButton from './AdminButton';
 import StatCard from './StatCard';
 import FormError from '../shared/FormError';
