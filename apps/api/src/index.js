@@ -13,6 +13,10 @@
 
 import app  from './app.js';
 import dotenv from 'dotenv';
+// Week 30 Day 3 (Batch 3b-2a): the notification sender's alarm clock and the
+// database pool it uses. Started below ONLY when NOTIFICATIONS_WORKER=on.
+import { pool } from './db/pool.js';
+import { startNotificationLoop } from './jobs/notificationLoop.js';
 
 dotenv.config();
 
@@ -21,6 +25,14 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);
 });
+
+// Week 30 Day 3 (Batch 3b-2a): empty the notifications outbox in the background.
+// OFF unless NOTIFICATIONS_WORKER=on. Tests import app.js, never this file, so
+// they never start this timer.
+if (process.env.NOTIFICATIONS_WORKER === 'on') {
+  startNotificationLoop({ db: pool });
+  console.log('Notification sender is ON (checks the outbox regularly)');
+}
 
 
 // WHY THIS CHANGE:
