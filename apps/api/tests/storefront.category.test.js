@@ -54,7 +54,7 @@
 import request from 'supertest';
 import dotenv from 'dotenv';
 import app from '../src/app.js';
-import { pool } from '../src/db/pool.js';
+import { signupTestShop, categoryIdBySlug, readShopSlug } from './helpers/categoryKit.js';
 
 dotenv.config();
 
@@ -74,25 +74,11 @@ async function addProduct(extra) {
 }
 
 beforeAll(async () => {
-  const s = await request(app)
-    .post('/v1/signup')
-    .send({ phone: `07${String(rand).slice(-8)}`, name: 'SF Cat', password: 'Test1234!', tenant_name: `SF Cat ${rand}` });
-  expect(s.status).toBe(201);
-  cookie = s.headers['set-cookie'];
-
-  const c = await pool.connect();
-  try {
-    await c.query('BEGIN');
-    await c.query("SELECT set_config('app.current_tenant', $1, true)", [s.body.tenant_id]);
-    slug = (await c.query('SELECT slug FROM tenants WHERE id = $1', [s.body.tenant_id])).rows[0].slug;
-    await c.query('COMMIT');
-  } finally {
-    c.release();
-  }
-
-  const list = await request(app).get('/v1/categories');
-  shoesId = list.body.data.find((x) => x.slug === 'shoes').id;
-  beautyId = list.body.data.find((x) => x.slug === 'beauty-hair').id;
+  const shop = await signupTestShop('SF Cat');
+  cookie = shop.cookie;
+  slug = await readShopSlug(shop.tenantId);
+  shoesId = await categoryIdBySlug('shoes');
+  beautyId = await categoryIdBySlug('beauty-hair');
 
   await addProduct({ name: `SF Sandals ${rand}`, categoryId: shoesId });
   await addProduct({ name: `SF Lotion ${rand}`, categoryId: beautyId });
@@ -140,8 +126,7 @@ describe('storefront category filter', () => {
   });
 
   test('6. an aisle with only a draft product gets no button', async () => {
-    const draftOnly = await request(app).get('/v1/categories');
-    const kids = draftOnly.body.data.find((x) => x.slug === 'kids-baby').id;
+    const kids = await categoryIdBySlug('kids-baby');
     await addProduct({ name: `SF Draft Kid ${rand}`, categoryId: kids, status: 'draft' });
     const res = await request(app).get(`/v1/storefront/${slug}`);
     expect(res.body.data.categories.map((c) => c.slug)).not.toContain('kids-baby');

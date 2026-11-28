@@ -28,3 +28,6 @@ Never switch off a real category (suites run in parallel). Never hard-code a pho
 
 ## HOW TO USE
 `cd apps/api` then `npm test -- storefront.category`
+
+## ADDED IN THE DRY PASS
+Setup chores (head-office switch, opening a test shop, finding aisle ids, reading a shop slug) now come from `tests/helpers/categoryKit.js`. The tests themselves are unchanged. Nothing removed.
