@@ -298,3 +298,20 @@ Every attack found nothing and every control found the row, for all 16 tables.
 | **Control**          | A check that proves the other checks mean something                    |
 | **Coverage guard**   | A test that fails if something is left out of the other tests          |
 | **Attacker**         | Brio, playing a shop that tries to touch another shop's data           |
+
+
+---
+
+## ADDED IN BATCH 3b-1 (Week 30 Day 3): the `notifications` table
+
+Migration 031 added the outbox table `notifications`. It has a `tenant_id` and forced RLS, so the coverage guard demanded it be added here (that is the guard doing its job).
+
+**What changed in `isolation.test.js`:**
+
+1. `'notifications'` was added to `TENANT_TABLES`. It has an `id`, so it joins the generic attack loop: **Brio cannot read, update or delete Acme's row, and Acme still sees it** (4 checks).
+2. **Seeding Acme's row needs a temporary admin lock.** Shops have no write policy on this table (only head office writes). So the setup switches `app.platform_admin` to `on` for the one insert (`true` = only until the transaction ends), then straight to `off`, so it cannot leak into the attacks.
+3. **A new block, "Isolation - notifications (shops cannot write)"**, adds two write attacks: Brio cannot insert a row for Acme, and Acme cannot insert a row even for her **own** shop. A planted row would make the worker send a real WhatsApp in the platform's name.
+
+**Counts:** the notifications loop adds 4 checks and the new block adds 2. The two coverage guards are unchanged in number. In the sandbox, `isolation.test.js` and the new `notifications.outbox.test.js` passed together (96 checks; see isolation-proof.md).
+
+**How I know the new write check has teeth:** a shop-side INSERT policy was added on purpose and the "even for her own shop" check failed. The policy was then removed.

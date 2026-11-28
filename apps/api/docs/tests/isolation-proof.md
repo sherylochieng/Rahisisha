@@ -490,3 +490,18 @@ The inbox merges WhatsApp messages and USSD requests. USSD requests had no table
 4. Any difference is a finding. Fix it before shipping.
 
 *Day 4 note: after migration 026, Query B should return 21 rows (20 `tenant_isolation` plus `login_lookup`) and Query A should list 20 tables with RLS enabled and forced.*
+
+---
+
+### ADDED ON WEEK 30 DAY 3 (BATCH 3b-1: THE NOTIFICATIONS OUTBOX)
+
+Migration 031 added the table `notifications`: one row per message to send (for example "your shop was suspended"). It **has RLS**, enabled and forced, with two policies:
+
+- `tenant_read` (SELECT only): a shop sees only its own rows. There is **no write policy for shops**, so every shop-side INSERT, UPDATE and DELETE is refused or finds nothing.
+- `admin_all`: head office only, true while `app.platform_admin = 'on'`.
+
+- **The guard test was updated** (`tests/isolation.test.js`): `notifications` was added to `TENANT_TABLES`. It has an `id`, so it joins the generic read, update and delete loop (4 checks), and a new block adds two write attacks: Brio cannot insert a row for Acme, and Acme cannot insert a row even for her own shop.
+- **The policy count went from 23 to 25.** `scripts/reset-db.sh` (`EXPECTED_POLICIES=25`) was updated.
+- **Expected after migration 031:** Query A lists 21 tables with RLS enabled and forced, and Query B lists the new rows `tenant_read` and `admin_all` for `notifications`.
+- **Sandbox run by the AI (throw-away Postgres 16 database, 28 October 2026):** `isolation.test.js` plus `notifications.outbox.test.js` passed (96 checks). Two on-purpose breakages were each caught by a test, then undone.
+- **Not yet run by Sheryl:** Query A, Query B and `npm run test:isolation` on her own machine and on Neon after migration 031. Her results should replace the AI's numbers here.
