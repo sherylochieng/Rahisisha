@@ -264,3 +264,7 @@ It is read-only: the list of outbox lines and their three counts. Like the shops
 ## ADDED IN BATCH 4a-1 (Week 30 Day 3)
 
 `app.use('/v1/categories', categoriesRouter);` is a PUBLIC mount (no login, no tenant), placed before the authenticated product routes. It serves the shared aisle list.
+
+## ADDED IN BATCH 4b (Week 30 Day 3)
+
+The shop profile routes are mounted at /v1/shop/profile behind requireAuth, withTenant and blockWritesWhenSuspended (the owner's own business card). Nothing existing was changed.

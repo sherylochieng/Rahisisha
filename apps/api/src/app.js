@@ -49,6 +49,7 @@ import adminShopsRouter from './routes/adminShops.routes.js';
 import adminStatsRouter from './routes/adminStats.routes.js';
 import adminNotificationsRouter from './routes/adminNotifications.routes.js';
 import categoriesRouter from './routes/categories.routes.js';
+import shopProfileRouter from './routes/shopProfile.routes.js';
 import { blockWritesWhenSuspended } from './middleware/blockWritesWhenSuspended.js';
 import uploadsRouter from './routes/uploads.routes.js';
 
@@ -114,6 +115,11 @@ app.use('/v1/categories', categoriesRouter);
 // This double guard means a request with no token or wrong tenant NEVER
 // reaches the controller — it is rejected before any business logic runs
 app.use('/v1/products', requireAuth, withTenant, blockWritesWhenSuspended, productsRouter);
+
+// Shop profile (Week 30 Day 3, Batch 4b) — the owner's business card: town, one-line
+// description, WhatsApp number, hours, delivery areas and the marketplace switch.
+// Same double guard as products: login + a connection locked to the owner's shop.
+app.use('/v1/shop/profile', requireAuth, withTenant, blockWritesWhenSuspended, shopProfileRouter);
 
 // Photo permit: login required (requireAuth). No withTenant, because this route
 // never touches the database. It only signs a permit for the shop in the cookie.
@@ -340,4 +346,4 @@ export default app;
 // - One extra file to maintain (very small tradeoff)
 // - Developers new to the pattern may look for listen() in app.js and not find it
 //
-// =============================================================================
+// =============================================================================
