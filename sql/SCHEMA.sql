@@ -146,8 +146,14 @@ CREATE TABLE IF NOT EXISTS brand_profiles (
   return_policy   TEXT,                   -- "Returns within 7 days, unworn"
   working_hours   TEXT,                   -- "Mon–Sat 8am–6pm"
   whatsapp_number TEXT,
+  -- Week 30 Day 3, Batch 4b (migration 033): the shop's public business card
+  town            TEXT,                   -- "Kitengela" (max 60)
+  short_description TEXT,                 -- one line under the shop name (max 160)
+  list_in_marketplace BOOLEAN NOT NULL DEFAULT FALSE,  -- owner's yes to the marketplace
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT brand_profiles_town_len_chk CHECK (town IS NULL OR char_length(town) <= 60),
+  CONSTRAINT brand_profiles_desc_len_chk CHECK (short_description IS NULL OR char_length(short_description) <= 160)
 );
 
 CREATE INDEX brand_profiles_tenant_idx ON brand_profiles (tenant_id);
