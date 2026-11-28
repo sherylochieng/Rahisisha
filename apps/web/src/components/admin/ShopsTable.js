@@ -31,8 +31,8 @@
 //   Mama Njeri Groceries | Mama Njeri | free | Active | Verified | 12 Nov 2026
 //
 // DECISIONS
-//   - Rows are not links yet. The detail page is the next step, and a dead link is worse
-//     than no link. We add the link when the page exists.
+//   - The shop name is the link to the shop's page (/admin/shops/<id>). One clear place
+//     to click, instead of making the whole row clickable.
 //
 // WHERE USED
 //   ShopsBrowser.js.
@@ -44,6 +44,7 @@
 //   <ShopsTable shops={items} />
 // =============================================================================
 
+import Link from 'next/link';
 import ShopStatusChip from './ShopStatusChip';
 import VerifiedMark from './VerifiedMark';
 import { formatNairobiDate } from '../../lib/format';
@@ -70,7 +71,9 @@ export default function ShopsTable({ shops }) {
           {shops.map((shop) => (
             <tr key={shop.id} className="border-t border-slate-200">
               <td className="px-4 py-3">
-                <div className="font-semibold text-brand-navy">{shop.name}</div>
+                <Link href={`/admin/shops/${shop.id}`} className="font-semibold text-brand-navy underline-offset-4 hover:underline">
+                  {shop.name}
+                </Link>
                 <div className="text-xs text-slate-600">{shop.slug}</div>
               </td>
               <td className="px-4 py-3 text-slate-800">{shop.owner ? shop.owner.name : '—'}</td>
