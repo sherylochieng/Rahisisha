@@ -38,3 +38,15 @@ A boolean `full` instead of width classes. Tailwind classes that fight each othe
 - `disabled={loading}` and `aria-busy={loading}`: lock it and tell screen readers.
 - The classes: orange, navy bold text, darker orange on hover, faded when disabled.
 - `{loading ? loadingText : children}`: shows "Signing in..." while waiting.
+
+---
+
+## Addition (Week 30 Day 3, Batch 2, part 3b): variant
+
+A new optional `variant` prop with three looks. Existing buttons are unchanged because the default is `primary`.
+
+- `primary` (default): orange with navy text.
+- `danger`: red with white text. Use it only inside a confirmation step (the suspend box).
+- `quiet`: white with a navy border. Used for Cancel and the calm action buttons.
+
+A named variant instead of passing colour classes keeps the whole panel to three button looks and avoids Tailwind classes fighting each other. Unknown names fall back to `primary`.
