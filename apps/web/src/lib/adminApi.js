@@ -47,7 +47,7 @@
 //
 // WHERE USED
 //   AdminLoginForm.js (login), AdminShell.js (me, logout), ShopsBrowser.js (listShops),
-//   ShopDetail.js (getShop), and the shop actions next.
+//   ShopDetail.js (getShop), and ShopActions.js (suspend, reinstate, verify, unverify).
 //
 // TRADEOFFS
 //   + Simple, safe, easy to find.
@@ -68,6 +68,15 @@
 import { request } from './apiClient';
 
 // The admin's shopping list of requests.
+// The four actions share one shape: POST /admin/shops/:id/<action> with a written reason.
+// Written once here, so a fifth action later is one more line below.
+function shopAction(id, action, reason) {
+  return request(`/admin/shops/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export const adminApi = {
   // Sign in with phone + password. The browser keeps the cookie, not us.
   login(body) {
@@ -108,4 +117,13 @@ export const adminApi = {
   getShop(id) {
     return request(`/admin/shops/${encodeURIComponent(id)}`);
   },
+
+  // The four things an admin can do to a shop. Each needs a written reason (5 to 500
+  // characters), which the API stores in the receipt. Each answers { data: shop }.
+  // Errors carry .code: already_suspended, not_suspended, already_verified, not_verified,
+  // shop_deleted, shop_not_found (409 / 404) or validation (400).
+  suspendShop(id, reason) { return shopAction(id, 'suspend', reason); },
+  reinstateShop(id, reason) { return shopAction(id, 'reinstate', reason); },
+  verifyShop(id, reason) { return shopAction(id, 'verify', reason); },
+  unverifyShop(id, reason) { return shopAction(id, 'unverify', reason); },
 };
