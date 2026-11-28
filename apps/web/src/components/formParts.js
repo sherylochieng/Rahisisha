@@ -30,7 +30,7 @@
 //   2. FieldError draws nothing when the message is empty.
 //
 // WHERE USED
-//   components/ProductForm.js, components/CategorySelect.js
+//   components/owner/ProductForm.js, components/owner/CategorySelect.js
 //
 // TRADEOFFS
 //   + One place for form looks. - The login and signup forms still carry

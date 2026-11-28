@@ -34,7 +34,7 @@
 //   2. Never let an unmounted screen set state (the `alive` flag).
 //
 // WHERE USED
-//   components/ProductForm.js
+//   components/owner/ProductForm.js
 //
 // TRADEOFFS
 //   + No extra library. - A head-office change shows after a page refresh

@@ -34,7 +34,7 @@
 //   centsToKes(0)     -> "0"
 //
 // WHERE USED
-//   components/ProductForm.js (edit mode).
+//   components/owner/ProductForm.js (edit mode).
 //
 // TRADEOFFS
 //   No thousands commas ("1250", not "1,250"), so the text is exactly what

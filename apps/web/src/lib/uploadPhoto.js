@@ -43,7 +43,7 @@
 //   The form saves that line on the product.
 //
 // WHERE USED
-//   apps/web/src/components/ProductForm.js
+//   apps/web/src/components/owner/ProductForm.js
 //
 // TRADEOFFS
 //   + No Cloudinary library in the web app, and no file through our server.

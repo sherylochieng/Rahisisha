@@ -46,7 +46,7 @@
 //   kesToCents('7.555')  -> null
 //
 // WHERE USED:
-// - components/ProductForm.js
+// - components/owner/ProductForm.js
 //
 // TRADEOFFS:
 // + Exact, tiny, easy to test

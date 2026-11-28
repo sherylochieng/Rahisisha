@@ -21,7 +21,7 @@ One hook per shared piece of data, like useFormState for forms. A module-level `
 Never cache a failure (only a real answer is remembered). Never set state after the screen is gone (the `alive` flag).
 
 ## WHERE USED
-`components/ProductForm.js`.
+`components/owner/ProductForm.js`.
 
 ## TRADEOFFS
 + No extra library. - A head-office change shows after a page refresh (the API also caches for 5 minutes).
