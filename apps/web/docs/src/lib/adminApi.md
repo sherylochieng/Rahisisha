@@ -47,3 +47,16 @@ try { const res = await adminApi.me(); } catch (err) { if (err.status === 401) {
 - `adminApi.login`: POST `/admin/auth/login` with phone and password.
 - `adminApi.logout`: POST `/admin/auth/logout`. The API clears the cookie.
 - `adminApi.me`: GET `/admin/auth/me`. 200 with the admin's name, or 401 when signed out.
+
+---
+
+## Addition (Week 30 Day 3, Batch 2, part 2): listShops
+
+`adminApi.listShops({ status, verified, q, cursor, limit })` calls `GET /admin/shops`.
+
+- Every filter is optional. Empty ones are left out of the address, so it stays short.
+- `cursor` is the `nextCursor` from the previous page (for "Load more").
+- Answer shape: `{ data: [shops], nextCursor, error }`.
+- `URLSearchParams` builds and safely encodes the query (a search for `Mama & Sons` will not break the address).
+- Used by `ShopsBrowser.js`.
+- Nothing else in this file changed.
