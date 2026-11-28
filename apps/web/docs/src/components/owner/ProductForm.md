@@ -1,7 +1,7 @@
 # ProductForm.js: Add A Product
 
-**File:** `apps/web/src/components/ProductForm.js`
-**Doc:** `apps/web/docs/src/components/ProductForm.md`
+**File:** `apps/web/src/components/owner/ProductForm.js`
+**Doc:** `apps/web/docs/src/components/owner/ProductForm.md`
 **Added:** Week 29 Day 4 follow-up
 
 ---

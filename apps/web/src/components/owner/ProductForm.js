@@ -3,7 +3,7 @@
 // the API from the browser. Server files cannot do that
 
 // =============================================================================
-// FILE: apps/web/src/components/ProductForm.js
+// FILE: apps/web/src/components/owner/ProductForm.js
 // =============================================================================
 //
 // WHY THIS FILE EXISTS:
@@ -82,7 +82,7 @@
 //   alone when it is not sent, and this form leaves empty boxes out (known limit)
 //
 // HOW TO USE:
-//   import ProductForm from '../../../../components/ProductForm';
+//   import ProductForm from '../../../../components/owner/ProductForm';
 //   <ProductForm />                      // add a new product
 //   <ProductForm product={product} />    // edit an existing product
 // =============================================================================
@@ -91,17 +91,17 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import { api } from '../lib/api';
-import { kesToCents } from '../lib/kesToCents';
-import { uploadProductPhoto, checkPhotoFile } from '../lib/uploadPhoto';
-import { centsToKes } from '../lib/centsToKes';
-import { useFormState } from '../hooks/useFormState';
-import FormError from './FormError';
+import { api } from '../../lib/api';
+import { kesToCents } from '../../lib/kesToCents';
+import { uploadProductPhoto, checkPhotoFile } from '../../lib/uploadPhoto';
+import { centsToKes } from '../../lib/centsToKes';
+import { useFormState } from '../../hooks/useFormState';
+import FormError from '../FormError';
 // The look of a box and its red error note now live in one shared file
-import { inputClass, FieldError } from './formParts';
+import { inputClass, FieldError } from '../formParts';
 // (Week 30 Day 3, Batch 4a-2) the Category dropdown, as its own piece
 import CategorySelect from './CategorySelect';
-import SubmitButton from './SubmitButton';
+import SubmitButton from '../SubmitButton';
 
 // The biggest price the database column can hold (a 32-bit whole number)
 const MAX_PRICE_CENTS = 2147483647;

@@ -3,7 +3,7 @@
 // browser, so this part cannot be a server file.
 
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/CategorySelect.js
+// FILE: apps/web/src/components/owner/CategorySelect.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -35,7 +35,7 @@
 //   2. If the list cannot load, still show "No category" (the field is optional).
 //
 // WHERE USED
-//   components/ProductForm.js
+//   components/owner/ProductForm.js
 //
 // TRADEOFFS
 //   + Reusable and small. - Fixed wording (label, hint) for now.
@@ -52,8 +52,8 @@
 // <option value="">= "NO AISLE": choosing it removes the category on save.
 // ═══════════════════════════════════════════════════════════
 
-import { useCategories } from '../hooks/useCategories';
-import { inputClass, FieldError } from './formParts';
+import { useCategories } from '../../hooks/useCategories';
+import { inputClass, FieldError } from '../formParts';
 
 export default function CategorySelect({ value, onChange, disabled = false, error = '' }) {
   const { categories, loading } = useCategories();

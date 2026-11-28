@@ -1,6 +1,6 @@
 # CategorySelect.js
 
-**FILE:** `apps/web/src/components/CategorySelect.js` (Week 30 Day 3, Batch 4a-2 DRY pass)
+**FILE:** `apps/web/src/components/owner/CategorySelect.js` (Week 30 Day 3, Batch 4a-2 DRY pass)
 
 ## WHY THIS FILE EXISTS
 The "Category (optional)" dropdown as its own piece. It fetches the aisle list itself (`useCategories`) and shows "No category" plus the aisles. Real life: the aisle-number box on the product slip.
@@ -21,7 +21,7 @@ A controlled component: the parent owns the value; this file only draws and repo
 The parent keeps the value in state so the right option is selected when the list arrives late. If the list cannot load, still show "No category".
 
 ## WHERE USED
-`components/ProductForm.js`.
+`components/owner/ProductForm.js`.
 
 ## TRADEOFFS
 + Small and reusable. - Fixed wording for now.

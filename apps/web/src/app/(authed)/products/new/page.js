@@ -44,7 +44,7 @@
 // =============================================================================
 
 import Link from 'next/link';
-import ProductForm from '../../../../components/ProductForm';
+import ProductForm from '../../../../components/owner/ProductForm';
 
 // Browser tab title for this page
 export const metadata = {

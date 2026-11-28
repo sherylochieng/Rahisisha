@@ -50,7 +50,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { serverGetOptional } from '../../../../../lib/serverApi';
-import ProductForm from '../../../../../components/ProductForm';
+import ProductForm from '../../../../../components/owner/ProductForm';
 
 export const metadata = {
   title: 'Edit product',
