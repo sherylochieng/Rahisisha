@@ -23,6 +23,7 @@
 // RULES
 //   1. id, name and label are required.
 //   2. Extra input settings (type, autoComplete, required, ...) pass straight through.
+//   3. multiline makes it a taller text box (for written reasons) with the same look.
 //
 // PRACTICAL EXAMPLE
 //   <AdminField id="phone" name="phone" label="Phone" type="tel" autoComplete="username" required />
@@ -31,7 +32,7 @@
 //   - Uses the rest-props pattern so we do not list every possible input setting.
 //
 // WHERE USED
-//   AdminLoginForm.js, and the shop search and reason boxes next.
+//   AdminLoginForm.js, the shop search box, and the reason box in ReasonDialog.js.
 //
 // TRADEOFFS
 //   + One look for every field.
@@ -40,16 +41,22 @@
 //   See the practical example above.
 // =============================================================================
 
-export default function AdminField({ id, name, label, ...inputProps }) {
+// One look for both kinds of box, written once.
+const BOX_CLASSES = 'w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/40';
+
+export default function AdminField({ id, name, label, multiline = false, ...inputProps }) {
+  // A taller box for written text (the reason). Everything else is the same.
+  const Box = multiline ? 'textarea' : 'input';
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-700">
         {label}
       </label>
-      <input
+      <Box
         id={id}
         name={name}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 focus:border-brand-orange focus:outline-none focus:ring-2 focus:ring-brand-orange/40"
+        className={BOX_CLASSES}
+        {...(multiline ? { rows: 4 } : {})}
         {...inputProps}
       />
     </div>
