@@ -217,7 +217,7 @@ DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 ADMIN_USER="${ADMIN_USER:-postgres}"      # may drop/create databases
 APP_USER="${APP_USER:-rahisisha_user}"    # the user the app logs in as
-EXPECTED_POLICIES=23                      # 20 tenant_isolation + login_lookup (whatsapp_dedupe in migration 024; daraja_configs and payment_attempts in 025; ussd_events in 026), from isolation-proof.md. CHANGED (Week 30 Day 3): + platform_admin_only (028) + admin_read_memberships (029) = 23
+EXPECTED_POLICIES=25                      # 20 tenant_isolation + login_lookup (whatsapp_dedupe in migration 024; daraja_configs and payment_attempts in 025; ussd_events in 026), from isolation-proof.md. CHANGED (Week 30 Day 3): + platform_admin_only (028) + admin_read_memberships (029) = 23 CHANGED (Week 30 Day 3, Batch 3b-1): + tenant_read + admin_all on notifications (031) = 25
 
 # Always work from the repo root, wherever the script was started
 cd "$(dirname "$0")/.."
