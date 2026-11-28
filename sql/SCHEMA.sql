@@ -41,6 +41,8 @@
 --       because tenants and audit_logs point at platform_admins)
 --  29. notifications (migration 031, Week 30 Day 3, Batch 3b-1: the outbox;
 --      created at the END of this file because it points at tenants and audit_logs)
+--  30. categories + products.category_id (migration 032, Week 30 Day 3, Batch 4a-1;
+--      at the END of this file because it changes products)
 -- =============================================================
 
 
@@ -907,6 +909,54 @@ CREATE POLICY admin_all ON notifications
   USING      (current_setting('app.platform_admin', TRUE) = 'on')
   WITH CHECK (current_setting('app.platform_admin', TRUE) = 'on');
 ALTER TABLE notifications OWNER TO rahisisha_user;
+
+
+-- =============================================================
+-- Migration 032 (Week 30 Day 3, Batch 4a-1): CATEGORIES
+-- =============================================================
+-- Why: a marketplace needs aisles. A short list of categories controlled by head
+-- office, and an optional category on each product. No tenant_id: shared reference
+-- data. Everyone may read it (categories_read); only head office (admin lock) may
+-- write it (admin_all). One category per product. ON DELETE SET NULL.
+CREATE TABLE IF NOT EXISTS categories (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug        TEXT NOT NULL UNIQUE
+              CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(slug) <= 60),
+  name        TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 60),
+  sort_order  INTEGER NOT NULL DEFAULT 100,
+  active      BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- The starter list is written with the admin lock on for this transaction only.
+SELECT set_config('app.platform_admin', 'on', true);
+INSERT INTO categories (slug, name, sort_order) VALUES
+  ('womens-fashion',   'Women''s fashion',       10),
+  ('mens-fashion',     'Men''s fashion',         20),
+  ('kids-baby',        'Kids and baby',          30),
+  ('shoes',            'Shoes',                  40),
+  ('bags-accessories', 'Bags and accessories',   50),
+  ('beauty-hair',      'Beauty and hair',        60),
+  ('food-groceries',   'Food and groceries',     70),
+  ('electronics',      'Phones and electronics', 80),
+  ('home-kitchen',     'Home and kitchen',       90),
+  ('other',            'Other',                 999)
+ON CONFLICT (slug) DO NOTHING;
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS categories_read ON categories;
+CREATE POLICY categories_read ON categories
+  FOR SELECT
+  USING (true);
+DROP POLICY IF EXISTS admin_all ON categories;
+CREATE POLICY admin_all ON categories
+  USING      (current_setting('app.platform_admin', TRUE) = 'on')
+  WITH CHECK (current_setting('app.platform_admin', TRUE) = 'on');
+ALTER TABLE categories OWNER TO rahisisha_user;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id UUID
+  REFERENCES categories(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS products_category_idx
+  ON products (category_id)
+  WHERE status = 'active' AND deleted_at IS NULL;
 
 
 -- =============================================================
