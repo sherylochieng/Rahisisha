@@ -230,3 +230,20 @@ Right under `const app = express();` the app now reads an environment variable c
 - **If the host changes:** re-run the same proof to find the new number. Too low shows a proxy address. Too high lets a visitor's own fake address through, so never guess higher.
 
 *Written by AI at Sheryl's request. Added 28 November 2026.*
+
+---
+
+## Addition (Week 30 Day 3, Batch 3a): the admin overview numbers
+
+`app.js` now mounts one more admin router, next to the shops router:
+
+```js
+import adminStatsRouter from './routes/adminStats.routes.js';
+...
+app.use('/v1/admin/stats', adminStatsRouter);
+```
+
+- **What it serves:** `GET /v1/admin/stats` returns five shop counts (total, active, suspended, verified, new this week) for the Overview page.
+- **Where the guard is:** inside the router (`router.use(requirePlatformAdmin)`), like the shops router. `app.js` adds no guard of its own.
+- **No `withTenant`:** the admin works across shops with the admin lock the service opens.
+- Nothing else in `app.js` changed.
