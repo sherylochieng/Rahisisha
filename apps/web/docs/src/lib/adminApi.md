@@ -60,3 +60,14 @@ try { const res = await adminApi.me(); } catch (err) { if (err.status === 401) {
 - `URLSearchParams` builds and safely encodes the query (a search for `Mama & Sons` will not break the address).
 - Used by `ShopsBrowser.js`.
 - Nothing else in this file changed.
+
+---
+
+## Addition (Week 30 Day 3, Batch 2, part 3a): getShop
+
+`adminApi.getShop(id)` calls `GET /admin/shops/:id`.
+
+- Answer: the shop (with the owner's name and phone) plus its latest 20 receipts, newest first.
+- `encodeURIComponent(id)` keeps the id safe inside the address.
+- A missing shop answers 404 with code `shop_not_found`; the screen shows "Shop not found".
+- Used by `ShopDetail.js`. Nothing else in this file changed.
