@@ -75,3 +75,13 @@ Go back to the list and re-read it so the new product appears.
 ---
 
 *Written by AI at Sheryl's request (declared in `AI_AUDIT_week_29_day4.md`, follow-up section). Last updated 18 November 2026.*
+
+## ADDED IN BATCH 4a-2 (Week 30 Day 3): CATEGORY DROPDOWN
+
+- A "Category (optional)" dropdown sits between Status and Photo. It is its own file, `CategorySelect.js`, which gets the aisles from `useCategories()`; ProductForm only holds the chosen value and sends it.
+- `inputClass` and `FieldError` moved, unchanged, to `components/formParts.js` so ProductForm and CategorySelect share one copy (the only lines removed from ProductForm).
+- `categoryId` is kept in state (not read from the form), so the right aisle stays selected when the list arrives after the page opens.
+- Sent only when it changed: an id sets it, `null` removes it. A price-only edit never touches the aisle (matches the API's keep / set / clear rule).
+- A 400 with `details.categoryId` shows "Choose a category from the list." under the box.
+- If the list cannot load, the dropdown offers only "No category" and saving still works.
+- Nothing removed from the earlier guide text.

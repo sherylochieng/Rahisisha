@@ -97,25 +97,14 @@ import { uploadProductPhoto, checkPhotoFile } from '../lib/uploadPhoto';
 import { centsToKes } from '../lib/centsToKes';
 import { useFormState } from '../hooks/useFormState';
 import FormError from './FormError';
+// The look of a box and its red error note now live in one shared file
+import { inputClass, FieldError } from './formParts';
+// (Week 30 Day 3, Batch 4a-2) the Category dropdown, as its own piece
+import CategorySelect from './CategorySelect';
 import SubmitButton from './SubmitButton';
 
 // The biggest price the database column can hold (a 32-bit whole number)
 const MAX_PRICE_CENTS = 2147483647;
-
-// Same look for every box (red outline when that box has a problem)
-function inputClass(hasError) {
-  return `w-full border ${hasError ? 'border-red-500' : 'border-gray-300'} rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent`;
-}
-
-// FieldError: the small red message under a box. Draws nothing when empty
-function FieldError({ id, message }) {
-  if (!message) return null;
-  return (
-    <p id={id} className="mt-1 text-xs text-red-600">
-      {message}
-    </p>
-  );
-}
 
 // product = null  -> ADD mode (empty boxes, button says "Add product")
 // product = {...} -> EDIT mode (boxes filled in, button says "Save changes")
@@ -134,6 +123,13 @@ export default function ProductForm({ product = null }) {
   const [imageUrl, setImageUrl] = useState(originalImageUrl);
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState('');
+
+  // Category (Batch 4a-2): the aisle this product is filed under.
+  // '' means "no category". We keep it in state (not read from the form box)
+  // so the right option is still selected when the list arrives a moment
+  // after the page opens. Real life: the aisle number on the product slip.
+  const originalCategoryId = product?.category_id ?? '';
+  const [categoryId, setCategoryId] = useState(originalCategoryId);
 
   // Runs when the owner picks a file. Checks it, uploads it, keeps its address.
   async function handlePhotoChosen(e) {
@@ -192,6 +188,9 @@ export default function ProductForm({ product = null }) {
     if (description) body.description = description;
     // Photo: send only when it changed (a new address, or null to remove)
     if (imageUrl !== originalImageUrl) body.imageUrl = imageUrl;
+    // Category: same rule as the photo. Send only when it changed: an id to
+    // set it, null to remove it. A plain price edit never touches the aisle.
+    if (categoryId !== originalCategoryId) body.categoryId = categoryId || null;
 
     try {
       // EDIT sends a PATCH to the existing product. ADD sends a new one.
@@ -220,6 +219,7 @@ export default function ProductForm({ product = null }) {
         if (err.details.name) found.name = 'Enter the product name.';
         if (err.details.priceCents) found.price = 'Enter a price like 350 or 350.50.';
         if (err.details.status) found.status = 'Choose a status from the list.';
+        if (err.details.categoryId) found.categoryId = 'Choose a category from the list.';
         if (err.details.imageUrl) {
           setPhotoError('That photo could not be used. Please choose it again.');
           failSubmit('Please fix the highlighted fields.');
@@ -343,6 +343,14 @@ export default function ProductForm({ product = null }) {
         <FieldError id="status-error" message={fieldErrors.status} />
       </div>
 
+      {/* Category: optional. One aisle per product (Batch 4a-2) */}
+      <CategorySelect
+        value={categoryId}
+        onChange={setCategoryId}
+        disabled={loading}
+        error={fieldErrors.categoryId}
+      />
+
       {/* Photo: optional. Uploaded at once; Save only keeps its address */}
       <div>
         <p className="block text-sm font-medium text-gray-700 mb-1">Photo (optional)</p>
@@ -449,6 +457,19 @@ export default function ProductForm({ product = null }) {
 //                       plain price edit never touches the photo
 // 400 imageUrl branch : the API refused the address (not this shop's photo);
 //                       we ask the owner to choose the photo again
+//
+// Batch 4a-2 additions (Week 30 Day 3): CATEGORY
+// <CategorySelect>    : the dropdown is its own file; it fetches the aisle list
+//                       itself (useCategories, remembered for the tab)
+// categoryId state    : '' = no category. Kept in state, not read from the box,
+//                       so the right aisle stays selected when the list arrives
+//                       a moment after the page opens
+// body.categoryId     : added only when it changed. An id sets it, null removes
+//                       it; a price-only edit never touches the aisle
+// 400 categoryId      : the API refused the id (unknown or switched off);
+//                       we show "Choose a category from the list." under the box
+// list fails to load  : the dropdown only offers "No category"; saving still
+//                       works because the aisle is optional
 //
 // Week 30 additions
 // product = null      : a form that can be handed an existing product, like a
