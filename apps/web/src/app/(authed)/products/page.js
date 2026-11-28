@@ -73,7 +73,7 @@ import { NO_CATEGORY, parseCategory, shopQuery } from '../../../lib/shopParams';
 // formatKes: 75000 -> "KES 750.00"
 import { formatKes } from '../../../lib/format';
 import EmptyState from '../../../components/EmptyState';
-import DeleteProductButton from '../../../components/DeleteProductButton';
+import DeleteProductButton from '../../../components/owner/DeleteProductButton';
 
 // How many products per page
 const PAGE_SIZE = 20;

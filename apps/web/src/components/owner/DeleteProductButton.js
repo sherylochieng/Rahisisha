@@ -3,7 +3,7 @@
 // browser. Server files cannot do that
 
 // =============================================================================
-// FILE: apps/web/src/components/DeleteProductButton.js
+// FILE: apps/web/src/components/owner/DeleteProductButton.js
 // =============================================================================
 //
 // WHY THIS FILE EXISTS:
@@ -54,7 +54,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { api } from '../lib/api';
+import { api } from '../../lib/api';
 
 export default function DeleteProductButton({ productId, productName }) {
   const router = useRouter();
