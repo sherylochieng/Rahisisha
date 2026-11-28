@@ -47,7 +47,7 @@
 //
 // WHERE USED
 //   AdminLoginForm.js (login), AdminShell.js (me, logout), ShopsBrowser.js (listShops),
-//   and the shop detail page next.
+//   ShopDetail.js (getShop), and the shop actions next.
 //
 // TRADEOFFS
 //   + Simple, safe, easy to find.
@@ -101,5 +101,11 @@ export const adminApi = {
     if (limit) params.set('limit', String(limit));
     const query = params.toString();
     return request(`/admin/shops${query ? `?${query}` : ''}`);
+  },
+
+  // One shop's file: its details plus its latest receipts (newest first, up to 20).
+  // 404 (code shop_not_found) when the id is not a shop.
+  getShop(id) {
+    return request(`/admin/shops/${encodeURIComponent(id)}`);
   },
 };
