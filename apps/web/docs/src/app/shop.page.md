@@ -104,3 +104,11 @@ Written by AI at Sheryl's request. Declared in `AI_AUDIT_week_29_day4.md` (follo
 ## TEST LOG
 
 Checked on 18 November 2026: in the AI's sandbox (a shop with 30 products paged 24 + 6 with nothing skipped, the draft hidden, a garbage bookmark showing page one, unknown shop 404), and by Sheryl in the browser (`localhost:3001/shop/brio-hardware` and the shop's own address). No automated browser test yet.
+
+## ADDED IN BATCH 4a-2 (Week 30 Day 3): AISLE BUTTONS
+
+- Reads `?category=` from the address; the word is checked by `parseCategory` (`lib/shopParams.js`: lowercase words joined by dashes, up to 60 characters); anything else means All.
+- Shows `<CategoryPills>` above the shelves (only aisles this shop uses).
+- "More products" and "Back to the first products" use `shopHref`, so they keep the chosen aisle.
+- An empty aisle shows "Nothing in this category" with a hint to try All (an old link never errors).
+- Nothing removed.

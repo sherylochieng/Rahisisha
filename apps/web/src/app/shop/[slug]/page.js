@@ -112,6 +112,17 @@
 // 7. "More products" link  =  "TURN THE PAGE"
 //    Only shown when the API gave us a nextCursor.
 //
+// Batch 4a-2 additions (Week 30 Day 3): AISLE BUTTONS
+// parseCategory  =  "IS THIS AISLE WORD SHAPED LIKE OURS?" (lib/shopParams.js)
+//    Anything odd is ignored and the shopper sees All.
+// <CategoryPills>  =  "THE AISLE SIGNS ABOVE THE SHELVES" All, Shoes, Beauty and
+//    hair... Only aisles this shop really uses. The URL is the state
+//    (?category=shoes), so the page can be shared on WhatsApp.
+// shopHref(slug, {category, cursor})  =  ONE ADDRESS BUILDER, so "More products"
+//    and "Back to the first products" keep the chosen aisle.
+// Empty aisle  =  "Nothing in this category" with a hint to try All (an old link
+//    to an aisle the shop no longer uses shows this, not an error).
+//
 // 8. (Week 30) <CartProvider slug={slug}>  =  "THE SHARED BASKET ON THE COUNTER"
 //    Wraps the whole page so every Add button and the basket bar look at the
 //    SAME basket. The slug decides which shop's basket is loaded, so a customer
@@ -144,19 +155,27 @@ import { CartProvider } from '../../../components/CartProvider';
 import AddToBasket from '../../../components/AddToBasket';
 import BasketBar from '../../../components/BasketBar';
 import BasketLink from '../../../components/BasketLink';
+// (Week 30 Day 3, Batch 4a-2) the aisle buttons and the shared address builder
+import CategoryPills from '../../../components/CategoryPills';
+import { shopHref } from '../../../lib/shopHref';
+import { parseCategory } from '../../../lib/shopParams';
 
 // Same shape rule as the Orders page: only characters our bookmarks use
 const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,300}$/;
 
+
 // Read the address word and the bookmark, then ask the API once
 async function getPage(params, searchParams) {
   const { slug } = await params;
-  const { cursor } = await searchParams;
+  const { cursor, category } = await searchParams;
   const safeCursor =
     typeof cursor === 'string' && CURSOR_PATTERN.test(cursor) ? cursor : null;
 
-  const page = await fetchStorefront(slug, safeCursor);
-  return { slug, cursor: safeCursor, page };
+  // (Batch 4a-2) which aisle the shopper chose (null = All)
+  const safeCategory = parseCategory(category);
+
+  const page = await fetchStorefront(slug, safeCursor, safeCategory);
+  return { slug, cursor: safeCursor, category: safeCategory, page };
 }
 
 // The browser tab and link-preview title: the shop's name
@@ -170,12 +189,12 @@ export async function generateMetadata({ params, searchParams }) {
 }
 
 export default async function ShopPage({ params, searchParams }) {
-  const { slug, cursor, page } = await getPage(params, searchParams);
+  const { slug, cursor, category, page } = await getPage(params, searchParams);
 
   // Unknown or closed shop: the not-found screen
   if (!page) notFound();
 
-  const { shop, products, nextCursor } = page;
+  const { shop, products, categories, nextCursor } = page;
 
   return (
     // (Week 30) CartProvider shares ONE basket with every Add button and the
@@ -200,13 +219,18 @@ export default async function ShopPage({ params, searchParams }) {
 
       {/* THE SHELVES */}
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:py-8">
+        {/* (Batch 4a-2) THE AISLE SIGNS: All, Shoes, ... Only aisles this shop uses */}
+        <CategoryPills slug={slug} categories={categories} active={category} />
+
         {products.length === 0 ? (
           <EmptyState
-            title={cursor ? 'No more products' : 'Nothing for sale yet'}
+            title={cursor ? 'No more products' : category ? 'Nothing in this category' : 'Nothing for sale yet'}
             message={
               cursor
                 ? 'You have seen everything this shop has.'
-                : 'This shop has not added products yet. Please check back soon.'
+                : category
+                  ? 'This shop has nothing in this category right now. Try All.'
+                  : 'This shop has not added products yet. Please check back soon.'
             }
           />
         ) : (
@@ -268,13 +292,13 @@ export default async function ShopPage({ params, searchParams }) {
         {(nextCursor || cursor) && (
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm">
             {cursor && (
-              <Link href={`/shop/${slug}`} className="text-gray-600 underline">
+              <Link href={shopHref(slug, { category })} className="text-gray-600 underline">
                 Back to the first products
               </Link>
             )}
             {nextCursor && (
               <Link
-                href={`/shop/${slug}?cursor=${encodeURIComponent(nextCursor)}`}
+                href={shopHref(slug, { category, cursor: nextCursor })}
                 className="rounded-lg bg-brand-orange px-4 py-2 font-semibold text-white hover:bg-brand-orange-dark"
               >
                 More products
