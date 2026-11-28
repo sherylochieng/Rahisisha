@@ -240,7 +240,8 @@ describe('GET /v1/storefront/:slug (public door, follow-up to Week 29 Day 4)', (
     expect(res.status).toBe(200);
     expect(res.body.error).toBeNull();
     expect(res.body.nextCursor).toBeNull();
-    expect(res.body.data.shop).toEqual({ name: `Storefront A ${rand}`, slug: slugA });
+    // Batch 4b: the shop card also carries town and description (null until the owner fills them in).
+    expect(res.body.data.shop).toEqual({ name: `Storefront A ${rand}`, slug: slugA, town: null, description: null });
     expect(res.body.data.products.map((p) => p.name)).toEqual(['Prod-3', 'Prod-2', 'Prod-1']);
   });
 
@@ -346,4 +347,4 @@ describe('GET /v1/storefront/:slug (public door, follow-up to Week 29 Day 4)', (
     expect(names).not.toContain('Hacked');
     expect(names.length).toBe(3);
   });
-});
+});

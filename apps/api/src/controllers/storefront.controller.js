@@ -21,7 +21,9 @@
 //
 // WHAT IT SOLVES
 //   Gives the public page what it needs and nothing more:
-//   { data: { shop: { name, slug }, products: [...] }, nextCursor, error }.
+//   { data: { shop: { name, slug, town, description }, products: [...] }, nextCursor, error }.
+//   (Week 30 Day 3, Batch 4b: town and description are the shop's public business card;
+//   either may be null. The WhatsApp number is never part of this answer.)
 //
 // SYSTEM DESIGN PRINCIPLE
 //   "Public endpoints expose the minimum", and "defence in depth": the
@@ -112,6 +114,7 @@ import {
 } from '../utils/keysetCursor.js';
 // (Batch 4a-1) everything about aisles lives in the categories service
 import { isCategorySlug, listShopCategories } from '../services/categories.service.js';
+import { readPublicCard } from '../services/shopProfile.service.js';
 
 export async function getStorefront(req, res) {
   // 1. How many products per page (1 to 48, default 24)
@@ -185,9 +188,13 @@ export async function getStorefront(req, res) {
   //    for aisles that have something in them). Still locked to this shop by req.db.
   const categories = await listShopCategories(req.db);
 
+  // 7. The shop's public business card (Batch 4b): town and one-line description,
+  //    both may be null. NEVER the WhatsApp number. Still locked to this shop by req.db.
+  const card = await readPublicCard(req.db);
+
   res.json({
-    data: { shop: req.shop, products, categories },
+    data: { shop: { ...req.shop, ...card }, products, categories },
     nextCursor,
     error: null,
   });
-}
+}

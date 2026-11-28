@@ -110,3 +110,7 @@ Proved by `tests/isolation/storefront.cross-tenant.test.js` (tests 1 to 5, 8 to 
 - Still public fields only. Proved by `tests/storefront.category.test.js`; the shape test in `storefront.cross-tenant.test.js` now lists `categories`.
 
 - DRY pass: the slug rule (`isCategorySlug`) and the aisle query (`listShopCategories`) now live in `services/categories.service.js`; this controller only calls them. Nothing removed.
+
+## ADDED IN BATCH 4b (Week 30 Day 3)
+
+The public shop answer now also carries the shop's town and description (null when empty), read with readPublicCard. The owner's WhatsApp number is never included. Nothing removed.

@@ -85,3 +85,7 @@ Written by AI at Sheryl's request. Declared in `AI_AUDIT_week_29_day4.md` (follo
 ## UPDATE, Batch 4a-1 (Week 30 Day 3)
 
 Test 3 now expects the public answer to have the keys `categories`, `products`, `shop` (it was `products`, `shop`). `categories` holds only aisle slug and name. Nothing private was added.
+
+## UPDATED IN BATCH 4b (Week 30 Day 3)
+
+Test 1 now expects the shop card to carry town and description (null for a shop that has not filled them in). Nothing removed.
