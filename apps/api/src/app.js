@@ -56,6 +56,16 @@ dotenv.config();
 
 const app = express();
 
+// TRUST_PROXY = how many proxy "doors" in front of us we believe (Render has some).
+// Unset or 0 = believe none (laptop, tests). Without this on Render, req.ip is
+// Render's own address for EVERY visitor, so the admin login brake counts all
+// attackers as one person and every audit receipt records the wrong address.
+// Never use `true`: that lets a visitor fake their own address.
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY ?? '0', 10);
+if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+  app.set('trust proxy', trustProxyHops);
+}
+
 // ── Security & Parsing Middleware ─────────────────────────────────────────────
 // helmet()      → sets secure HTTP headers (prevents common web attacks)
 // express.json()→ parses incoming JSON request bodies into req.body
