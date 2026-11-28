@@ -47,7 +47,8 @@
 //
 // WHERE USED
 //   AdminLoginForm.js (login), AdminShell.js (me, logout), ShopsBrowser.js (listShops),
-//   ShopDetail.js (getShop), and ShopActions.js (suspend, reinstate, verify, unverify).
+//   ShopDetail.js (getShop), ShopActions.js (suspend, reinstate, verify, unverify)
+//   and OverviewStats.js (getStats).
 //
 // TRADEOFFS
 //   + Simple, safe, easy to find.
@@ -110,6 +111,12 @@ export const adminApi = {
     if (limit) params.set('limit', String(limit));
     const query = params.toString();
     return request(`/admin/shops${query ? `?${query}` : ''}`);
+  },
+
+  // The five overview counts: { shops: { total, active, suspended, verified, newThisWeek } }.
+  // Numbers only, no personal data. The answer is { data, error }.
+  getStats() {
+    return request('/admin/stats');
   },
 
   // One shop's file: its details plus its latest receipts (newest first, up to 20).
