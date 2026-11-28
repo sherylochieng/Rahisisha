@@ -28,3 +28,9 @@ A plain placeholder. Served at `/admin`. The shops list replaces it next.
 
 ## LINE BY LINE
 - `AdminOverviewPage`: a heading and one sentence. Nothing else.
+
+---
+
+## Addition (Week 30 Day 3, Batch 2, part 2)
+
+The Overview text now points to the shops list and adds a "Go to shops" link (`next/link`). Nothing was removed except the old "arrives in the next step" sentence for the list.
