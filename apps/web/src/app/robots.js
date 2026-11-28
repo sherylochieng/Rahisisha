@@ -16,6 +16,7 @@ export default function robots() {
 
         disallow: [
           '/dashboard', // private — never show in search results
+          '/admin',     // platform admin panel — never show in search results
           '/api/',      // API routes — never index these
         ],
       },
