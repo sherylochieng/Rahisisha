@@ -61,3 +61,16 @@ Turns `YYYY-MM-DD` into `Fri, 2 Jan 2026`.
 ---
 
 *Written by AI at Sheryl's request (declared in `AI_AUDIT_week_29_day4.md`). Last updated 17 November 2026.*
+
+---
+
+## Addition (Week 30 Day 3, Batch 2, part 2): formatNairobiDate
+
+`formatNairobiDate(iso)` turns a timestamp into a plain Nairobi date such as `12 Nov 2026`. No time of day.
+
+- **Why it exists:** the admin shops list shows when each shop joined. `formatNairobiTime` shows the day and the hour but no year, which is confusing in a list that spans months.
+- **Why Nairobi time:** the same rule as the other helpers: a shop that joined at 11pm Nairobi time must show that day, not the next day in UTC.
+- **Used by:** `components/admin/ShopsTable.js`.
+- **Nothing else in this file changed.**
+
+Line by line: `new Date(iso)` reads the timestamp; `toLocaleDateString('en-KE', { timeZone: 'Africa/Nairobi', day, month, year })` writes it in Kenyan format in Nairobi time.
