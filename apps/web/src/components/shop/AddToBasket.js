@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/AddToBasket.js
+// FILE: apps/web/src/components/shop/AddToBasket.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -56,7 +56,7 @@
 //     extra case: show "Sold out" and no button.
 //
 // HOW TO USE
-//   import AddToBasket from '../../../components/AddToBasket';
+//   import AddToBasket from '../../../components/shop/AddToBasket';
 //
 // ═══════════════════════════════════════════════════════════
 // PIECE BY PIECE — real life: buying sodas at the kiosk
@@ -71,7 +71,7 @@
 'use client';
 
 import { useCart } from './CartProvider';
-import { MAX_QUANTITY, quantityOf } from '../lib/cart';
+import { MAX_QUANTITY, quantityOf } from '../../lib/cart';
 
 export default function AddToBasket({ product }) {
   // The shared basket and its actions.

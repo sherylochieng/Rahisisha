@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/CartProvider.js
+// FILE: apps/web/src/components/shop/CartProvider.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -63,7 +63,7 @@
 //     load the latest saved basket when opened). Fine for a shop.
 //
 // HOW TO USE
-//   import { CartProvider, useCart } from '../components/CartProvider';
+//   import { CartProvider, useCart } from '../components/shop/CartProvider';
 //
 // ═══════════════════════════════════════════════════════════
 // PIECE BY PIECE — real life: the shared basket at the kiosk
@@ -96,7 +96,7 @@ import {
   removeItem,
   cartCount,
   cartTotalCents,
-} from '../lib/cart';
+} from '../../lib/cart';
 
 // The shared "counter". null means "nobody put a basket here" (used to catch mistakes).
 const CartContext = createContext(null);

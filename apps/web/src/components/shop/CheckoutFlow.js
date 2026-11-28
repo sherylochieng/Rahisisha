@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/CheckoutFlow.js
+// FILE: apps/web/src/components/shop/CheckoutFlow.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -76,7 +76,7 @@
 //     has its own storage). That is correct: each tab is its own trip.
 //
 // HOW TO USE
-//   import CheckoutFlow from '../../../../components/CheckoutFlow';
+//   import CheckoutFlow from '../../../../components/shop/CheckoutFlow';
 //
 // ═══════════════════════════════════════════════════════════
 // PIECE BY PIECE — real life: the vendor's memory of your slip
@@ -102,7 +102,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCart } from './CartProvider';
 import CheckoutForm from './CheckoutForm';
 import PaymentStatus from './PaymentStatus';
-import { toCheckoutItems } from '../lib/cart';
+import { toCheckoutItems } from '../../lib/cart';
 
 // ── THE TAB'S MEMORY (sessionStorage) ────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/PaymentStatus.js
+// FILE: apps/web/src/components/shop/PaymentStatus.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -117,8 +117,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
 import { useCart } from './CartProvider';
-import { formatKes } from '../lib/format';
-import { fetchOrderStatus, startPayment, saveDeliveryNote, checkPayment } from '../lib/checkoutApi';
+import { formatKes } from '../../lib/format';
+import { fetchOrderStatus, startPayment, saveDeliveryNote, checkPayment } from '../../lib/checkoutApi';
 
 // How often we ask the till (milliseconds).
 const POLL_FAST_MS = 2000;

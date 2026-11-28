@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/BasketBar.js
+// FILE: apps/web/src/components/shop/BasketBar.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -63,7 +63,7 @@
 //   - Uses a little screen height on small phones (hence the compact design).
 //
 // HOW TO USE
-//   import BasketBar from '../../../components/BasketBar';
+//   import BasketBar from '../../../components/shop/BasketBar';
 //
 // ═══════════════════════════════════════════════════════════
 // PIECE BY PIECE — real life: the vendor's "ready to pay?" counter
@@ -88,7 +88,7 @@
 import Link from 'next/link';
 
 import { useCart } from './CartProvider';
-import { formatKes } from '../lib/format';
+import { formatKes } from '../../lib/format';
 
 export default function BasketBar({ slug }) {
   // The shared basket: how many things, what they cost together, and whether

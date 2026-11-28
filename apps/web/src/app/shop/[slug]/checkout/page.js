@@ -81,8 +81,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { fetchStorefront } from '../../../../lib/publicApi';
-import { CartProvider } from '../../../../components/CartProvider';
-import CheckoutFlow from '../../../../components/CheckoutFlow';
+import { CartProvider } from '../../../../components/shop/CartProvider';
+import CheckoutFlow from '../../../../components/shop/CheckoutFlow';
 
 // Ask the API for the shop (its name). null means "no such shop".
 async function getShop(params) {

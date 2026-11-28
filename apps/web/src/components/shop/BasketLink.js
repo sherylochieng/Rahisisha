@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/BasketLink.js
+// FILE: apps/web/src/components/shop/BasketLink.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -50,7 +50,7 @@
 //     bottom bar is always there, which covers that case.
 //
 // HOW TO USE
-//   import BasketLink from '../../../components/BasketLink';
+//   import BasketLink from '../../../components/shop/BasketLink';
 //
 // ═══════════════════════════════════════════════════════════
 // PIECE BY PIECE — real life: the sign above the kiosk door

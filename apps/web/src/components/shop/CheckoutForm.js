@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FILE: apps/web/src/components/CheckoutForm.js
+// FILE: apps/web/src/components/shop/CheckoutForm.js
 // ═══════════════════════════════════════════════════════════
 //
 // WHY THIS FILE EXISTS
@@ -94,9 +94,9 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { useCart } from './CartProvider';
-import { formatKes } from '../lib/format';
-import { loadCustomer, saveCustomer, toCheckoutItems } from '../lib/cart';
-import { createOrder, startPayment } from '../lib/checkoutApi';
+import { formatKes } from '../../lib/format';
+import { loadCustomer, saveCustomer, toCheckoutItems } from '../../lib/cart';
+import { createOrder, startPayment } from '../../lib/checkoutApi';
 
 // ── THE PHONE RULE (mirrors the server's normalizePhone) ─────────────────────
 
