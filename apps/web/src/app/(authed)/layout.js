@@ -70,7 +70,12 @@ export default async function AuthedLayout({ children }) {
 
       {/* LEFT: the sidebar. Hidden on small screens (no mobile menu yet) */}
       {/* Week 29 Day 4: phones now get MobileNav instead (see the RIGHT column) */}
-      <div className="hidden md:block">
+      {/* (Week 30 Day 3, Batch 4a-3) md:flex, not md:block. This wrapper is stretched to
+          the full height of the page by the row above; as a flex box it passes that
+          height on to the Sidebar, so the blue runs all the way down, even on a long
+          page. With md:block the Sidebar stopped after one screen height and looked
+          like it was floating. Real life: a shelf that is as tall as the whole wall. */}
+      <div className="hidden md:flex">
         <Sidebar shopName={tenant.name} />
       </div>
 
