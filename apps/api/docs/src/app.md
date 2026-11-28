@@ -247,3 +247,16 @@ app.use('/v1/admin/stats', adminStatsRouter);
 - **Where the guard is:** inside the router (`router.use(requirePlatformAdmin)`), like the shops router. `app.js` adds no guard of its own.
 - **No `withTenant`:** the admin works across shops with the admin lock the service opens.
 - Nothing else in `app.js` changed.
+
+
+---
+
+## ADDED IN BATCH 3b-2b: the admin notifications window
+
+**New import** `adminNotificationsRouter` from `routes/adminNotifications.routes.js`, and **one new mount** after the stats one:
+
+```js
+app.use('/v1/admin/notifications', adminNotificationsRouter);
+```
+
+It is read-only: the list of outbox lines and their three counts. Like the shops and stats routers, the admin guard sits **inside** the router, and there is no `withTenant`. Nothing existing was changed.
