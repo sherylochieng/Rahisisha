@@ -68,3 +68,10 @@ Back to first page and Next page, shown only when they make sense.
 ---
 
 *Written by AI at Sheryl's request (declared in `AI_AUDIT_week_29_day4.md`, follow-up section). Last updated 18 November 2026.*
+
+## ADDED IN BATCH 4a-3 (Week 30 Day 3): CATEGORIES ON THE OWNER'S LIST
+
+- Filter buttons above the list: All, each aisle the shop uses, and "No category" when some product still needs filing (`CategoryPills` with `hrefFor`). No buttons appear until at least one product is filed.
+- Each row shows the aisle name as a small tag, or a soft "No category".
+- `?category=` is read with `parseCategory`; "Next page" and "Back to first page" keep it (`productsHref`). An empty filter shows "No products in this category".
+- Two requests, asked together: the products and `/products/categories`. Nothing removed.

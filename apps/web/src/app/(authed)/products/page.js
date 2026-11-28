@@ -65,7 +65,11 @@
 import Link from 'next/link';
 
 // serverGetPage: calls the API as the logged-in visitor, returns { data, nextCursor }
-import { serverGetPage } from '../../../lib/serverApi';
+import { serverGet, serverGetPage } from '../../../lib/serverApi';
+// (Week 30 Day 3, Batch 4a-3) category filter buttons and their addresses
+import CategoryPills from '../../../components/CategoryPills';
+import { productsHref } from '../../../lib/productsHref';
+import { NO_CATEGORY, parseCategory, shopQuery } from '../../../lib/shopParams';
 // formatKes: 75000 -> "KES 750.00"
 import { formatKes } from '../../../lib/format';
 import EmptyState from '../../../components/EmptyState';
@@ -87,12 +91,29 @@ const STATUS_STYLES = {
 // searchParams is a Promise in this version of Next.js
 export default async function ProductsPage({ searchParams }) {
   // STEP 1: which page? Only a real id shape counts; anything else = page one
-  const { cursor: rawCursor } = await searchParams;
+  const { cursor: rawCursor, category: rawCategory } = await searchParams;
+  // (Batch 4a-3) which aisle the owner chose: a word like 'shoes', 'none', or null = All
+  const category = parseCategory(rawCategory);
   const cursor = typeof rawCursor === 'string' && UUID_PATTERN.test(rawCursor) ? rawCursor : null;
-  const query = `?limit=${PAGE_SIZE}` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+  const query = shopQuery({ limit: PAGE_SIZE, cursor, category });
 
   // STEP 2: ask the API. While we wait here, Next.js shows loading.js
-  const { data: products, nextCursor } = await serverGetPage(`/products${query}`);
+  // The products, and (Batch 4a-3) the aisles this shop's own products use. Asked
+  // together so the page waits only once.
+  const [{ data: products, nextCursor }, aisles] = await Promise.all([
+    serverGetPage(`/products${query}`),
+    serverGet('/products/categories'),
+  ]);
+
+  // The filter buttons: the aisles in use, plus "No category" when something still
+  // needs filing. With no aisle in use yet there is nothing to filter, so no buttons.
+  const pills =
+    aisles.categories.length === 0
+      ? []
+      : [
+          ...aisles.categories,
+          ...(aisles.uncategorised ? [{ slug: NO_CATEGORY, name: 'No category' }] : []),
+        ];
 
   return (
     <div className="space-y-6">
@@ -108,11 +129,22 @@ export default async function ProductsPage({ searchParams }) {
         </Link>
 
       </div>
+      {/* (Batch 4a-3) THE AISLE SIGNS: All, Food and groceries, Shoes, No category */}
+      <CategoryPills
+        categories={pills}
+        active={category}
+        hrefFor={(c) => productsHref({ category: c })}
+      />
+
       {/* STEP 3a: no products yet */}
       {products.length === 0 ? (
         <EmptyState
-          title="No products yet"
-          message="Your products will appear here once you add them."
+          title={category ? 'No products in this category' : 'No products yet'}
+          message={
+            category
+              ? 'Nothing here right now. Try All, or choose this category on a product\'s Edit page.'
+              : 'Your products will appear here once you add them.'
+          }
         />
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100">
@@ -140,6 +172,17 @@ export default async function ProductsPage({ searchParams }) {
                       {formatKes(product.price_cents)}
                       <span className="mx-1.5 text-gray-300">|</span>
                       SKU: {product.sku || '—'}
+                    </p>
+                    {/* (Batch 4a-3) The aisle this product is filed under. A product
+                        with none is shown softly, so the owner sees it needs filing */}
+                    <p className="mt-1 text-xs">
+                      {product.category_name ? (
+                        <span className="rounded bg-brand-cream px-2 py-0.5 text-brand-navy">
+                          {product.category_name}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">No category</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -175,13 +218,13 @@ export default async function ProductsPage({ searchParams }) {
       {/* STEP 4: paging links */}
       <div className="flex items-center justify-between text-sm">
         {cursor ? (
-          <Link href="/products" className="text-brand-orange font-medium hover:underline">
+          <Link href={productsHref({ category })} className="text-brand-orange font-medium hover:underline">
             Back to first page
           </Link>
         ) : <span />}
         {nextCursor && (
           <Link
-            href={`/products?cursor=${encodeURIComponent(nextCursor)}`}
+            href={productsHref({ category, cursor: nextCursor })}
             className="text-brand-orange font-medium hover:underline"
           >
             Next page
