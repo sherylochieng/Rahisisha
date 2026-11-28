@@ -32,3 +32,9 @@ Uses `...inputProps` so we do not list every input setting. Used in `AdminLoginF
 ## LINE BY LINE
 - `label htmlFor={id}`: ties the label to the box.
 - `input id name className {...inputProps}`: the box, with the shared look and any extra settings.
+
+---
+
+## Addition (Week 30 Day 3, Batch 2, part 3b): multiline
+
+A new optional `multiline` prop turns the box into a taller text area (4 rows) with the same label, look and focus ring. Used for the written reason in `ReasonDialog.js`. Existing fields are unchanged because the default is `false`. Other settings (`maxLength`, `value`, `onChange`, `aria-describedby`) pass straight through.
