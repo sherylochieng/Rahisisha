@@ -220,11 +220,13 @@ Right under `const app = express();` the app now reads an environment variable c
 
 - **What it is:** how many proxy "front doors" sit between the visitor and the API. Render has some.
 - **Unset, 0 or nonsense:** trust none. This is the laptop and test behaviour, unchanged.
-- **A number N (the right number for Render is proven on the live server, see below):** Express believes the last N addresses in the `X-Forwarded-For` note and reads the real visitor before them.
+- **A number N:** Express believes the last N addresses in the `X-Forwarded-For` note and reads the real visitor before them. **On Render the proven value is `3`** (see the proof below).
 - **Why:** without it, `req.ip` is Render's address for everyone, so the admin login brake counts all visitors as one person and audit receipts record the wrong address. `req.ip` is read in `adminAuth.controller.js` (the brake) and `adminShops.controller.js` (the receipts).
 - **Danger:** never use `true`. It would believe an address the visitor wrote himself, and a thief could dodge the brake.
 - **Nothing else changed:** 10 lines were added, none removed.
 - **Test:** `tests/trustProxy.test.js` (guide: `docs/tests/trustProxy.test.md`).
-- **Still to do after deploy:** set `TRUST_PROXY=1` on Render, then do one admin action and check that the audit receipt shows your real address. If it shows a Render or Cloudflare address, try `2`.
+- **Proof on the live server (28 November 2026):** one admin action (verify, then un-verify a demo shop) was done on staging, then the address in the audit receipt was compared with the real address of the person who did it. With `1` the receipt showed a private Render address (`10.x`). With `2` it showed a Cloudflare address (`162.158.x.x`). With `3` it matched the real address. So `TRUST_PROXY=3` is set on Render.
+- **Why three:** visitor, then Cloudflare, then Render's own proxy, then the API. Each door adds one address to the note.
+- **If the host changes:** re-run the same proof to find the new number. Too low shows a proxy address. Too high lets a visitor's own fake address through, so never guess higher.
 
 *Written by AI at Sheryl's request. Added 28 November 2026.*
