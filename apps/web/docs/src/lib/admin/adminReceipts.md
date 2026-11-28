@@ -1,6 +1,6 @@
 # adminReceipts.js (guide)
 
-**File:** `apps/web/src/lib/adminReceipts.js`
+**File:** `apps/web/src/lib/admin/adminReceipts.js`
 
 ## What it is
 Two small functions that turn a raw receipt from the API into words: `receiptTitle(action)` and `receiptReason(receipt)`.

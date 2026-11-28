@@ -1,6 +1,6 @@
 # useAdminLoad.js (guide)
 
-**File:** `apps/web/src/hooks/useAdminLoad.js`
+**File:** `apps/web/src/hooks/admin/useAdminLoad.js`
 
 ## What it is
 A hook that loads ONE thing (one shop, later one admin) and reports `data`, `loading`, `error`, `notFound`, plus `reload` and `retry`.

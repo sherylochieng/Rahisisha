@@ -1,4 +1,4 @@
-# apps/web/src/lib/adminApi.js
+# apps/web/src/lib/admin/adminApi.js
 
 **Week 30 Day 3, Batch 2 (admin web), part 1.** The one place the admin pages talk to the API.
 
@@ -38,7 +38,7 @@ Pages using it must be client components. Fine for an admin panel.
 
 ## HOW TO USE
 ```js
-import { adminApi } from '../../lib/adminApi';
+import { adminApi } from '../../lib/admin/adminApi';
 try { const res = await adminApi.me(); } catch (err) { if (err.status === 401) { /* sign-in page */ } }
 ```
 

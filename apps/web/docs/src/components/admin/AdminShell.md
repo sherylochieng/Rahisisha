@@ -46,7 +46,7 @@ The menu lists only pages that exist (Overview for now). Navy menu, orange activ
 
 - **Menu:** `NAV` now has **Shops** (`/admin/shops`) beside Overview.
 - **Active item:** Overview lights only on its exact page; other items stay lit on their sub-pages (`pathname.startsWith`), so `/admin/shops/123` keeps "Shops" lit.
-- **DRY:** the "401 means go to sign in" rule now comes from `lib/adminSession.js` instead of being typed here.
+- **DRY:** the "401 means go to sign in" rule now comes from `lib/admin/adminSession.js` instead of being typed here.
 - Nothing else changed: the checking / ready / error states, sign out and Retry are as before.
 
 

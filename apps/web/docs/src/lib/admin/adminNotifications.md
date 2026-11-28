@@ -1,6 +1,6 @@
-# src/lib/adminNotifications.js
+# src/lib/admin/adminNotifications.js
 
-**FILE:** `apps/web/src/lib/adminNotifications.js` (Week 30 Day 3, Batch 3b-2b, web step 1)
+**FILE:** `apps/web/src/lib/admin/adminNotifications.js` (Week 30 Day 3, Batch 3b-2b, web step 1)
 
 ## WHY THIS FILE EXISTS
 

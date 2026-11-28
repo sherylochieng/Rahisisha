@@ -35,7 +35,7 @@ A presentational component: data in, markup out, no state. Same shape as `ShopsT
 
 ## DECISIONS / WHERE USED / TRADEOFFS / HOW TO USE
 
-All wording comes from `lib/adminNotifications.js`. Used by `NotificationsBrowser.js`. + Simple and accessible. - No sorting; always newest first.
+All wording comes from `lib/admin/adminNotifications.js`. Used by `NotificationsBrowser.js`. + Simple and accessible. - No sorting; always newest first.
 
 ---
 

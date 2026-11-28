@@ -1,6 +1,6 @@
 # adminSession.js (guide)
 
-**File:** `apps/web/src/lib/adminSession.js`
+**File:** `apps/web/src/lib/admin/adminSession.js`
 
 ## What it is
 One function, `redirectIfSignedOut(err, router)`. If the API said **401** (signed out), it sends the admin to `/admin/login` and returns `true`. For any other error it returns `false` and does nothing.
