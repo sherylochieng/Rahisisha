@@ -90,10 +90,15 @@
 //    A server fault is not hidden behind a friendly lie.
 // ═══════════════════════════════════════════════════════════
 
+// (Batch 4a-2) the ?category=...&cursor=... tail is written by shopParams
+import { shopQuery } from './shopParams';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export async function fetchStorefront(slug, cursor = null) {
-  const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+// (Week 30 Day 3, Batch 4a-2) `category` is an optional aisle word like 'shoes'.
+// It filters the products and is remembered across "More products" pages.
+export async function fetchStorefront(slug, cursor = null, category = null) {
+  const qs = shopQuery({ category, cursor }); // one place writes the tail
 
   const res = await fetch(
     `${API_URL}/storefront/${encodeURIComponent(slug)}${qs}`,
@@ -104,7 +109,7 @@ export async function fetchStorefront(slug, cursor = null) {
   if (res.status === 404) return null;
 
   // A stale or edited bookmark: start again from the first page
-  if (res.status === 400 && cursor) return fetchStorefront(slug, null);
+  if (res.status === 400 && cursor) return fetchStorefront(slug, null, category);
 
   if (!res.ok) {
     throw new Error(`Storefront ${slug} failed with status ${res.status}`);
@@ -114,6 +119,8 @@ export async function fetchStorefront(slug, cursor = null) {
   return {
     shop: json.data.shop,
     products: json.data.products,
+    // (Batch 4a-2) the aisles this shop uses: [{ slug, name }] (empty = none)
+    categories: json.data.categories ?? [],
     nextCursor: json.nextCursor ?? null,
   };
 }

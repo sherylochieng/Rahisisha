@@ -94,3 +94,7 @@ Written by AI at Sheryl's request. Declared in `AI_AUDIT_week_29_day4.md` (follo
 ## TEST LOG
 
 Checked against the sandbox API on 18 November 2026: known shop gives data, unknown shop gives not-found, a garbage bookmark shows page one. No automated test yet (see follow-ups).
+
+## ADDED IN BATCH 4a-2 (Week 30 Day 3): CATEGORY
+
+`fetchStorefront(slug, cursor = null, category = null)` now builds its query with `shopQuery` from `lib/shopParams.js` (`?category=shoes&cursor=...`, the same builder the page links use), keeps the category when it retries after a stale bookmark, and returns `categories: [{slug, name}]` (empty list when the API sends none). Nothing removed.
