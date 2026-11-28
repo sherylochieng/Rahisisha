@@ -108,3 +108,5 @@ Proved by `tests/isolation/storefront.cross-tenant.test.js` (tests 1 to 5, 8 to 
 - Optional `?category=<slug>`. A badly shaped word is a 400 (`validation`). A well-shaped word nobody uses returns an empty list (an old link shows an empty shelf, not an error).
 - The answer's `data` now also has `categories: [{slug, name}]`: only aisles that hold at least one active product of THIS shop, in head-office order. The page uses it to show filter buttons.
 - Still public fields only. Proved by `tests/storefront.category.test.js`; the shape test in `storefront.cross-tenant.test.js` now lists `categories`.
+
+- DRY pass: the slug rule (`isCategorySlug`) and the aisle query (`listShopCategories`) now live in `services/categories.service.js`; this controller only calls them. Nothing removed.

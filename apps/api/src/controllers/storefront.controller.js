@@ -110,6 +110,8 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../utils/keysetCursor.js';
+// (Batch 4a-1) everything about aisles lives in the categories service
+import { isCategorySlug, listShopCategories } from '../services/categories.service.js';
 
 export async function getStorefront(req, res) {
   // 1. How many products per page (1 to 48, default 24)
@@ -137,7 +139,7 @@ export async function getStorefront(req, res) {
   let category = null;
   if (req.query.category !== undefined && req.query.category !== '') {
     const word = String(req.query.category);
-    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(word) || word.length > 60) {
+    if (!isCategorySlug(word)) {
       return res.status(400).json({
         data: null,
         error: { code: 'validation', message: 'Invalid category' },
@@ -181,14 +183,7 @@ export async function getStorefront(req, res) {
 
   // 6. The aisles THIS shop actually uses (so the page can show filter buttons only
   //    for aisles that have something in them). Still locked to this shop by req.db.
-  const { rows: used } = await req.db.query(
-    `SELECT DISTINCT c.slug, c.name, c.sort_order
-       FROM products p
-       JOIN categories c ON c.id = p.category_id AND c.active
-      WHERE p.status = 'active' AND p.deleted_at IS NULL
-      ORDER BY c.sort_order, c.name`
-  );
-  const categories = used.map((c) => ({ slug: c.slug, name: c.name }));
+  const categories = await listShopCategories(req.db);
 
   res.json({
     data: { shop: req.shop, products, categories },
