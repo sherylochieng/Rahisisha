@@ -71,3 +71,14 @@ try { const res = await adminApi.me(); } catch (err) { if (err.status === 401) {
 - `encodeURIComponent(id)` keeps the id safe inside the address.
 - A missing shop answers 404 with code `shop_not_found`; the screen shows "Shop not found".
 - Used by `ShopDetail.js`. Nothing else in this file changed.
+
+---
+
+## Addition (Week 30 Day 3, Batch 2, part 3b): the four shop actions
+
+`suspendShop`, `reinstateShop`, `verifyShop` and `unverifyShop` each take `(id, reason)` and call `POST /admin/shops/:id/<action>` with `{ reason }`.
+
+- One small helper, `shopAction`, builds all four, so a fifth action is one more line.
+- The API needs a reason of 5 to 500 characters and stores it in the receipt. For suspend, the owner also sees it.
+- Errors carry `.code`: `already_suspended`, `not_suspended`, `already_verified`, `not_verified`, `shop_deleted`, `shop_not_found` or `validation`.
+- Used by `ShopActions.js`. Nothing existing in this file changed.
