@@ -72,6 +72,8 @@ TRADEOFFS
 | `DARAJA_API_BASE` | No | No | Overrides the Safaricom address. **Only for tests**, so they can talk to a fake. | `http://localhost:9999` | No. |
 | `WHATSAPP_API_BASE` | No | No | Overrides Meta's address (default `https://graph.facebook.com`). For tests and fakes. | `https://graph.facebook.com` | No. |
 | `WHATSAPP_API_VERSION` | No | No | The Meta API version (default `v21.0`). | `v21.0` | Update when Meta retires a version. |
+| `NOTIFICATIONS_WORKER` | No | No (off unless `on`) | Turns on the background sender that empties the notifications outbox. With only the pretend `test` channel it marks messages sent without telling anyone. | `on` | No. |
+| `NOTIFICATIONS_INTERVAL_SECONDS` | No | No (defaults to 15) | How often the sender checks the outbox. Limited to 5 to 600. | `15` | No. |
 
 ---
 
@@ -93,6 +95,7 @@ TRADEOFFS
 | `DARAJA_SANDBOX_PASSKEY` | Yes | same | Safaricom sandbox passkey. |
 | `DARAJA_SANDBOX_SHORTCODE` | No | same | Sandbox shortcode (default `174379`). |
 | `DARAJA_CALLBACK_BASE` | No | same | The public address Safaricom calls back (your ngrok address), with no path at the end. Changes each time ngrok restarts. |
+| `NOTIFICATIONS_QUIET` | No | `apps/api/src/channels/testChannel.js` and tests | Set to `on` to silence the test channel's log line. The sender tests set it themselves. |
 | `SHOP_SLUG` | No | `check-payment.js`, `diagnose-stk-query.js` | Which shop to check (default `aminas-boutique`). |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | **Yes** (password) | `scripts/reset-db.sh` | The Postgres administrator that may drop and create databases (default user `postgres`). |
 | `APP_USER` / `APP_PASSWORD` | **Yes** (password) | `scripts/reset-db.sh` | The app's database login (default user `rahisisha_user`). |
