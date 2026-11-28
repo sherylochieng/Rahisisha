@@ -75,6 +75,7 @@ const TENANT_TABLES = [
   'daraja_configs',    // migration 025. Key is tenant_id, no `id` column
   'payment_attempts',  // migration 025. Has an `id`, so it joins the attack loop
   'ussd_events',       // migration 026. Has an `id`, so it joins the attack loop
+  'notifications',     // migration 031. Has an `id`. Shops may only READ their own rows
 ];
 
 // The attack loop below uses `WHERE id = $1`, so it only fits tables that have
@@ -186,6 +187,14 @@ beforeAll(async () => {
         shortcode, passkey_encrypted, callback_url)
      VALUES ($1, 'sandbox', 'x', 'x', '000000', 'x', 'http://x')
      ON CONFLICT (tenant_id) DO UPDATE SET env = EXCLUDED.env`, [A]);
+  // notifications (migration 031, Week 30 Day 3, Batch 3b-1): the outbox is
+  // WRITE-ONLY for head office, so to seed Acme's row we switch the admin lock on
+  // for this one insert (true = only until the transaction ends) and switch it
+  // off again straight after, so it cannot leak into the attacks below.
+  await client.query("SELECT set_config('app.platform_admin', 'on', true)");
+  ids.notifications = await one(
+    "INSERT INTO notifications (tenant_id, template) VALUES ($1, 'shop.verified') RETURNING id", [A]);
+  await client.query("SELECT set_config('app.platform_admin', 'off', true)");
   ids.wallet_entries = await one(
     "INSERT INTO wallet_entries (tenant_id, amount_cents, reason) VALUES ($1, 100, 'sale') RETURNING id", [A]);
   ids.content_posts = await one(
@@ -361,6 +370,43 @@ describe('Isolation - ussd_events (write for another shop)', () => {
       refused = true;
     }
     await client.query('ROLLBACK TO SAVEPOINT before_ussd_attack');
+    expect(refused).toBe(true);
+  });
+});
+
+// --- notifications: can Brio plant a message FOR Acme's shop? ----------------
+// The loop above proves Brio cannot read, change or delete Acme's row. This
+// block adds the WRITE attack: a planted row would make the worker send a
+// real WhatsApp to Acme's owner in the platform's name. Shops have NO write
+// policy on this table, so even writing for their OWN shop must be refused.
+describe('Isolation - notifications (shops cannot write)', () => {
+  test('Brio cannot INSERT a notifications row for Acme', async () => {
+    await asTenant(brioTenantId);
+    await client.query('SAVEPOINT before_notice_attack');
+    let refused = false;
+    try {
+      await client.query(
+        "INSERT INTO notifications (tenant_id, template) VALUES ($1, 'shop.verified')",
+        [acmeTenantId]);
+    } catch (err) {
+      refused = true;
+    }
+    await client.query('ROLLBACK TO SAVEPOINT before_notice_attack');
+    expect(refused).toBe(true);
+  });
+
+  test('Acme cannot INSERT a notifications row even for her own shop', async () => {
+    await asTenant(acmeTenantId);
+    await client.query('SAVEPOINT before_own_notice');
+    let refused = false;
+    try {
+      await client.query(
+        "INSERT INTO notifications (tenant_id, template) VALUES ($1, 'shop.verified')",
+        [acmeTenantId]);
+    } catch (err) {
+      refused = true;
+    }
+    await client.query('ROLLBACK TO SAVEPOINT before_own_notice');
     expect(refused).toBe(true);
   });
 });
