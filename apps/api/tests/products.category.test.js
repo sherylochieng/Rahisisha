@@ -58,34 +58,17 @@
 import request from 'supertest';
 import dotenv from 'dotenv';
 import app from '../src/app.js';
-import { pool } from '../src/db/pool.js';
+import { asAdmin, signupTestShop, categoryIdBySlug } from './helpers/categoryKit.js';
 
 dotenv.config();
 
 const rand = Date.now();
-const password = 'Test1234!';
 let cookie;
 let shoesId;
 let beautyId;
 let productId;
 const hiddenSlug = `test-off-${rand}`;
 let offId;
-
-async function asAdmin(sql, params = []) {
-  const c = await pool.connect();
-  try {
-    await c.query('BEGIN');
-    await c.query("SELECT set_config('app.platform_admin','on',true)");
-    const r = await c.query(sql, params);
-    await c.query('COMMIT');
-    return r;
-  } catch (e) {
-    await c.query('ROLLBACK');
-    throw e;
-  } finally {
-    c.release();
-  }
-}
 
 const body = (extra = {}) => ({
   name: `Sandals ${rand}`,
@@ -96,15 +79,9 @@ const body = (extra = {}) => ({
 });
 
 beforeAll(async () => {
-  const s = await request(app)
-    .post('/v1/signup')
-    .send({ phone: `07${String(rand).slice(-8)}`, name: 'Cat Prod', password, tenant_name: `CatProd ${rand}` });
-  expect(s.status).toBe(201);
-  cookie = s.headers['set-cookie'];
-
-  const list = await request(app).get('/v1/categories');
-  shoesId = list.body.data.find((c) => c.slug === 'shoes').id;
-  beautyId = list.body.data.find((c) => c.slug === 'beauty-hair').id;
+  ({ cookie } = await signupTestShop('CatProd'));
+  shoesId = await categoryIdBySlug('shoes');
+  beautyId = await categoryIdBySlug('beauty-hair');
 
   const off = await asAdmin(
     "INSERT INTO categories (slug, name, active) VALUES ($1, 'Off', false) RETURNING id",
@@ -172,12 +149,10 @@ describe('product category', () => {
   });
 
   test('9. another shop cannot change our product (404)', async () => {
-    const o = await request(app)
-      .post('/v1/signup')
-      .send({ phone: `07${String(rand + 1).slice(-8)}`, name: 'Other', password, tenant_name: `CatOther ${rand}` });
+    const other = await signupTestShop('CatOther');
     const res = await request(app)
       .patch(`/v1/products/${productId}`)
-      .set('Cookie', o.headers['set-cookie'])
+      .set('Cookie', other.cookie)
       .send({ categoryId: shoesId });
     expect(res.status).toBe(404);
   });
