@@ -112,3 +112,9 @@ Checked on 18 November 2026: in the AI's sandbox (a shop with 30 products paged 
 - "More products" and "Back to the first products" use `shopHref`, so they keep the chosen aisle.
 - An empty aisle shows "Nothing in this category" with a hint to try All (an old link never errors).
 - Nothing removed.
+
+## ADDED IN BATCH 4b (Week 30 Day 3): THE SHOP'S BUSINESS CARD
+
+- The dark header now also shows the shop's **town** and its **one-line description**, but only when the owner has filled them in (`shop.town`, `shop.description` from the storefront API).
+- The owner's WhatsApp number is never shown here. The public API does not send it.
+- Nothing removed; an owner who has not filled in the card sees the page exactly as before.

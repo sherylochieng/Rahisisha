@@ -211,6 +211,10 @@ export default async function ShopPage({ params, searchParams }) {
           <div className="min-w-0">
             <h1 className="font-display text-2xl sm:text-3xl font-bold">{shop.name}</h1>
             <p className="mt-1 text-sm text-gray-300">Shop online. Pay with M-Pesa.</p>
+            {/* (Batch 4b) the shop's business card: town and one line, only when filled in */}
+            {/* tight spacing: town and the line sit close together under the name */}
+            {shop.town && <p className="mt-0.5 text-sm text-gray-200">{shop.town}</p>}
+            {shop.description && <p className="mt-0.5 max-w-xl text-sm text-gray-300">{shop.description}</p>}
           </div>
           {/* (Week 30) The Basket chip. Shows only when the basket has items. */}
           <BasketLink slug={slug} />
