@@ -121,3 +121,24 @@ Refuses if already verified. Stamps `verified_at = NOW()` and `verified_by`. `RE
 
 **`unverifyShop`**
 Refuses unless the shop is verified. Clears both fields. The receipt keeps who verified it and when.
+
+
+---
+
+## ADDED IN BATCH 3b-1: telling the owner (the outbox)
+
+Every one of the four actions now also **queues a message for the owner**, in the same transaction. Nothing is sent here.
+
+**New import:** `enqueueNotification` and `NOTIFICATION_TEMPLATES` from `notifications.service.js`.
+
+**New rule 8 and two decisions** (in the file header): the message is queued, never sent, inside the action. A shop with no owner row still gets a queued line with an empty phone, so the action never fails because nobody can be told. Only the **suspend** message carries the admin's reason (the owner must know why the shop closed). The reasons for reinstate, verify and un-verify are internal notes and stay in the receipt only.
+
+**New helper `queueOwnerNotice(client, { shop, template, receipt, extra })`**
+Real life: after the clerk stamps the register, a slip "tell the owner" goes in the tray. It builds the payload `{ shopName, ...extra }`, uses the owner's phone (or nothing if there is no owner), and links the message to the receipt (`receipt.id`).
+
+**What changed in each action** (the same three steps in all four):
+1. `recordAdminAudit(...)` is now kept as `const receipt = ...` (it already returned the receipt's `id`).
+2. The updated shop is read: `const updated = await readShop(client, tenantId);`.
+3. `queueOwnerNotice(...)` is called, and `updated` is returned (it used to be `return readShop(...)`, so the answer to the screen is the same).
+
+Suspend passes `extra: { reason: cleanText }`. The other three pass nothing extra.
