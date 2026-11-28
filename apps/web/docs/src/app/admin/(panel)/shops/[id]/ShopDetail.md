@@ -24,3 +24,12 @@ Read only for now. Nothing here changes data yet.
 4. `notFound ?`: the "Shop not found" box.
 5. `shop ?`: summary, then a "Receipts" heading and the list.
 6. Last branch: the error message and Try again.
+
+---
+
+## Addition (Week 30 Day 3, Batch 2, part 3b)
+
+- `ShopActions` now sits between the summary and the receipts, with `reload` as its `onDone`.
+- `reload` refreshes the shop and its receipts **without** blanking the page, so after an action the new status and the new receipt appear in place.
+- If that refresh fails, the error shows above the summary and the old details stay on screen.
+- The page is no longer read only. Nothing existing was removed apart from the old "read only" notes in the header comment.
