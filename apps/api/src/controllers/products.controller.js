@@ -105,6 +105,8 @@
 
 import { z } from 'zod';
 import { isShopImageUrl } from '../services/cloudinary.service.js';
+// Week 30 Day 3 (Batch 4a-1): the category a product is filed under.
+import { findActiveCategory } from '../services/categories.service.js';
 
 // ─── VALIDATION SCHEMAS ───────────────────────────────────────
 //
@@ -138,6 +140,11 @@ const ProductCreate = z.object({
   // - a string : set this photo (checked below: must be THIS shop's photo)
   // - null     : remove the photo (PATCH only makes sense)
   imageUrl: z.string().max(500).nullable().optional(),
+
+  // categoryId = which aisle the product is in (Week 30 Day 3, Batch 4a-1).
+  //   missing = keep (or none on create), an id = set it, null = remove it.
+  // It must be a real, active category (checked in refusedCategory below).
+  categoryId: z.string().uuid().nullable().optional(),
 });
 
 // ─── VALIDATION ERROR HELPER ──────────────────────────────────
@@ -203,6 +210,25 @@ function refusedImageUrl(req, res, imageUrl) {
   return true;
 }
 
+// ─── refusedCategory ──────────────────────────────────────────
+// (Week 30 Day 3, Batch 4a-1) A product may only be filed under a category
+// that really exists and is switched on. null / not sent = fine.
+// Real life: the clerk checks the aisle number on the slip is a real aisle.
+// Returns true when the category was refused (and the answer was already sent).
+// ─────────────────────────────────────────────────────────────
+async function refusedCategory(req, res, categoryId) {
+  if (categoryId == null) return false;               // none / removing: fine
+  if (await findActiveCategory(req.db, categoryId)) return false;
+  res.status(400).json({
+    error: {
+      code:    'validation',
+      message: 'Request validation failed',
+      details: { categoryId: 'Unknown category' },
+    },
+  });
+  return true;
+}
+
 // =============================================================
 // HANDLER: listProducts
 // Route:   GET /v1/products
@@ -239,7 +265,7 @@ export async function listProducts(req, res) {
   // req.db is set by withTenant middleware to this tenant's scoped connection
   // RLS on the database ensures only this tenant's rows come back
   const { rows } = await req.db.query(
-    `SELECT id, sku, name, description, price_cents, status, image_url, created_at
+    `SELECT id, sku, name, description, price_cents, status, image_url, category_id, created_at
      FROM products
      WHERE deleted_at IS NULL
        AND ($1::uuid IS NULL OR id > $1)
@@ -287,19 +313,22 @@ export async function createProduct(req, res) {
     description = null,
     status      = 'draft',
     imageUrl    = null,
+    categoryId  = null,
   } = result.data;
 
   // Refuse a photo address that is not this shop's own photo
   if (refusedImageUrl(req, res, imageUrl)) return;
+  // Refuse a category that does not exist or is switched off
+  if (await refusedCategory(req, res, categoryId)) return;
 
   try {
     // RETURNING * tells Postgres to give us back the full created row
     // This saves us doing a second SELECT after the INSERT
     const { rows } = await req.db.query(
-      `INSERT INTO products (tenant_id, name, price_cents, sku, description, status, image_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO products (tenant_id, name, price_cents, sku, description, status, image_url, category_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [req.tenantId, name, priceCents, sku, description, status, imageUrl]
+      [req.tenantId, name, priceCents, sku, description, status, imageUrl, categoryId]
     );
 
     // 201 Created — not 200. 201 means "a new thing was created"
@@ -365,10 +394,12 @@ export async function updateProduct(req, res) {
   const result = ProductCreate.partial().safeParse(req.body);
   if (!result.success) return validationError(res, result.error);
 
-  const { name, priceCents, sku, description, status, imageUrl } = result.data;
+  const { name, priceCents, sku, description, status, imageUrl, categoryId } = result.data;
 
   // Refuse a photo address that is not this shop's own photo
   if (refusedImageUrl(req, res, imageUrl)) return;
+  // Refuse a category that does not exist or is switched off
+  if (await refusedCategory(req, res, categoryId)) return;
 
   // The photo is special: COALESCE cannot REMOVE it (null would mean "keep").
   // So we say clearly whether the caller sent imageUrl at all:
@@ -376,6 +407,10 @@ export async function updateProduct(req, res) {
   //   sent a string  -> set it
   //   sent null      -> remove it
   const setImage = imageUrl !== undefined;
+
+  // The category works the same way as the photo (Batch 4a-1):
+  //   not sent -> keep, an id -> set it, null -> remove it.
+  const setCategory = categoryId !== undefined;
 
   const { rows } = await req.db.query(
     `UPDATE products
@@ -385,13 +420,14 @@ export async function updateProduct(req, res) {
          description = COALESCE($4, description),
          status      = COALESCE($5, status),
          image_url   = CASE WHEN $7::boolean THEN $8::text ELSE image_url END,
+         category_id = CASE WHEN $9::boolean THEN $10::uuid ELSE category_id END,
          updated_at  = NOW()
      WHERE id = $6
        AND deleted_at IS NULL
      RETURNING *`,
     // ?? null converts undefined to null so COALESCE works correctly
     // undefined would break the query — null is what Postgres expects
-    [name ?? null, priceCents ?? null, sku ?? null, description ?? null, status ?? null, req.params.id, setImage, imageUrl ?? null]
+    [name ?? null, priceCents ?? null, sku ?? null, description ?? null, status ?? null, req.params.id, setImage, imageUrl ?? null, setCategory, categoryId ?? null]
   );
 
   if (!rows[0]) {

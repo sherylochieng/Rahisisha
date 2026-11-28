@@ -121,3 +121,10 @@ Turns zod's list of problems into the standard sad note:
 
 - `priceCents` uses `.nonnegative()`, so **0 is allowed**. Change to `.positive()` if free products should be refused.
 - Not found / duplicate responses have no `code` field. Only validation errors are required to.
+
+## ADDED IN BATCH 4a-1 (Week 30 Day 3): CATEGORY
+
+- `ProductCreate` accepts `categoryId` (uuid, `null` allowed). It must be a real, active category; `refusedCategory()` answers 400 `{error:{code:'validation', details:{categoryId:'Unknown category'}}}` otherwise.
+- Create stores `category_id`. The list returns `category_id`.
+- Update uses the same three-way rule as the photo: not sent = keep, an id = set it, `null` = clear it (`CASE WHEN $9::boolean THEN $10::uuid ELSE category_id END`).
+- Proved by `tests/products.category.test.js`.
