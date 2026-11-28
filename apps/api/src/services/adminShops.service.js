@@ -50,6 +50,9 @@
 //   6. A deleted shop can never be changed.
 //   7. Errors carry a .code: validation, shop_not_found, shop_deleted,
 //      already_suspended, not_suspended, already_verified, not_verified.
+//   8. (Batch 3b-1) Each of the four actions also QUEUES a message for the
+//      owner in the notifications outbox, on the SAME transaction. Nothing is
+//      sent here. Only the suspend message carries the admin's reason.
 //
 // PRACTICAL EXAMPLE
 //   Customers report fake M-Pesa messages from "Wanjiku Fashions".
@@ -69,6 +72,12 @@
 //     the owner). The owner's password hash is never selected.
 //   - Reason length is counted in real characters (Array.from), the same way
 //     Postgres counts them, so an emoji cannot sneak past the 500 limit.
+//   - (Batch 3b-1) The owner's message is queued, never sent, inside the action.
+//     A shop with no owner row still gets a queued line with an empty phone, so
+//     the action itself never fails because nobody can be told.
+//   - Only the SUSPEND message includes the reason (the owner must know why the
+//     shop closed). Reinstate, verify and un-verify reasons are internal notes
+//     for head office and stay in the receipt only.
 //
 // WHERE USED
 //   apps/api/src/controllers/adminShops.controller.js (next file).
@@ -97,12 +106,15 @@
 //   getShop()         = one shop's file, with its latest receipts.
 //   lockShop()        = take the shop's file out of the cabinet so nobody else
 //                       edits it at the same time.
+//   queueOwnerNotice()= drop a message for the shop's owner into the outbox tray
+//                       (same transaction; nothing is sent here).
 //   suspendShop(), reinstateShop(), verifyShop(), unverifyShop()
 //                     = the four powers. Each: check input, lock, check state,
 //                       change, write the receipt, hand back the updated shop.
 
 import { withAdminLock } from './platformAdmin.service.js';
 import { recordAdminAudit, ADMIN_AUDIT_ACTIONS } from './adminAudit.service.js';
+import { enqueueNotification, NOTIFICATION_TEMPLATES } from './notifications.service.js';
 import { CURSOR_TS_SQL, decodeCursor, encodeCursor } from '../utils/keysetCursor.js';
 
 // A UUID, like 5bc6d791-ad88-41ad-93c2-4663c1d0507f.
@@ -333,6 +345,22 @@ async function lockShop(client, tenantId) {
   return rows[0];
 }
 
+// Queue the owner's message for an admin action (Batch 3b-1).
+// Real life: after the clerk stamps the register, a slip "tell the owner" goes
+// in the tray. `shop` is the updated shop from readShop(), `receipt` is what
+// recordAdminAudit returned. `extra` adds blanks to the payload (the suspend
+// reason). The owner may be missing: then the phone is empty and the slip says
+// so, but the action still succeeds.
+async function queueOwnerNotice(client, { shop, template, receipt, extra = {} }) {
+  return enqueueNotification(client, {
+    tenantId: shop.id,
+    template,
+    recipientPhone: shop.owner ? shop.owner.phone : null,
+    payload: { shopName: shop.name, ...extra },
+    auditLogId: receipt.id,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // SUSPEND: close the shop everywhere that obeys status. Needs a reason.
 // ---------------------------------------------------------------------------
@@ -351,13 +379,20 @@ export async function suspendShop(db, { adminId, tenantId, reason, ip } = {}) {
       [tenantId, cleanText, adminId]
     );
     // Write the receipt on the SAME transaction.
-    await recordAdminAudit(client, {
+    const receipt = await recordAdminAudit(client, {
       adminId, tenantId, ip,
       action: ADMIN_AUDIT_ACTIONS.SHOP_SUSPENDED,
       before: { status: shop.status },
       after: { status: 'suspended', reason: cleanText },
     });
-    return readShop(client, tenantId);
+    // Queue the owner's message (same transaction). The reason goes in, so the
+    // owner knows why the shop was closed.
+    const updated = await readShop(client, tenantId);
+    await queueOwnerNotice(client, {
+      shop: updated, receipt, template: NOTIFICATION_TEMPLATES.SHOP_SUSPENDED,
+      extra: { reason: cleanText },
+    });
+    return updated;
   });
 }
 
@@ -379,7 +414,7 @@ export async function reinstateShop(db, { adminId, tenantId, reason, ip } = {}) 
         WHERE id = $1`,
       [tenantId]
     );
-    await recordAdminAudit(client, {
+    const receipt = await recordAdminAudit(client, {
       adminId, tenantId, ip,
       action: ADMIN_AUDIT_ACTIONS.SHOP_REINSTATED,
       before: {
@@ -390,7 +425,12 @@ export async function reinstateShop(db, { adminId, tenantId, reason, ip } = {}) 
       },
       after: { status: 'active', reason: cleanText },
     });
-    return readShop(client, tenantId);
+    // Queue the owner's message. No reason in it: that note is for head office.
+    const updated = await readShop(client, tenantId);
+    await queueOwnerNotice(client, {
+      shop: updated, receipt, template: NOTIFICATION_TEMPLATES.SHOP_REINSTATED,
+    });
+    return updated;
   });
 }
 
@@ -411,13 +451,18 @@ export async function verifyShop(db, { adminId, tenantId, reason, ip } = {}) {
         RETURNING verified_at`,
       [tenantId, adminId]
     );
-    await recordAdminAudit(client, {
+    const receipt = await recordAdminAudit(client, {
       adminId, tenantId, ip,
       action: ADMIN_AUDIT_ACTIONS.SHOP_VERIFIED,
       before: { verified_at: null, verified_by: null },
       after: { verified_at: rows[0].verified_at, verified_by: adminId, reason: cleanText },
     });
-    return readShop(client, tenantId);
+    // Queue the owner's message (good news: your shop is verified).
+    const updated = await readShop(client, tenantId);
+    await queueOwnerNotice(client, {
+      shop: updated, receipt, template: NOTIFICATION_TEMPLATES.SHOP_VERIFIED,
+    });
+    return updated;
   });
 }
 
@@ -436,12 +481,17 @@ export async function unverifyShop(db, { adminId, tenantId, reason, ip } = {}) {
         WHERE id = $1`,
       [tenantId]
     );
-    await recordAdminAudit(client, {
+    const receipt = await recordAdminAudit(client, {
       adminId, tenantId, ip,
       action: ADMIN_AUDIT_ACTIONS.SHOP_UNVERIFIED,
       before: { verified_at: shop.verified_at, verified_by: shop.verified_by },
       after: { verified_at: null, verified_by: null, reason: cleanText },
     });
-    return readShop(client, tenantId);
+    // Queue the owner's message (the verified mark was removed).
+    const updated = await readShop(client, tenantId);
+    await queueOwnerNotice(client, {
+      shop: updated, receipt, template: NOTIFICATION_TEMPLATES.SHOP_UNVERIFIED,
+    });
+    return updated;
   });
 }
