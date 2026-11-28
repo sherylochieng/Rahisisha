@@ -91,3 +91,14 @@ try { const res = await adminApi.me(); } catch (err) { if (err.status === 401) {
 
 - Answer: `{ data: { shops: { total, active, suspended, verified, newThisWeek } }, error }`. Numbers only, no personal data.
 - Used by `OverviewStats.js`. Nothing else in this file changed.
+
+
+---
+
+## ADDED IN BATCH 3b-2b: reading the outbox
+
+Two read-only calls were added to `adminApi`:
+
+**`listNotifications({ status, cursor, limit })`** Builds `?status=...&cursor=...&limit=...` from only those three words (empty ones are left out) and calls `GET /admin/notifications`. Because it picks only these words, the page's `refresh` counter (which is part of the list filters) never reaches the server.
+
+**`getNotificationSummary()`** Calls `GET /admin/notifications/summary` and returns `{ queued, sent, failed }`.
