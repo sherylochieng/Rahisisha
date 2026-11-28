@@ -21,7 +21,7 @@ DRY: one pure function, no React, no network. It adds only the `/shop/<slug>` fr
 Never build /shop/ addresses by hand elsewhere. Changing aisle starts from the first page (no cursor).
 
 ## WHERE USED
-`components/CategoryPills.js` and `app/shop/[slug]/page.js`.
+`components/shared/CategoryPills.js` and `app/shop/[slug]/page.js`.
 
 ## TRADEOFFS
 + Tiny and easy to test. - Only category and cursor for now; add search here later.

@@ -1,6 +1,6 @@
 # CategoryPills.js
 
-**FILE:** `apps/web/src/components/CategoryPills.js` (Week 30 Day 3, Batch 4a-2)
+**FILE:** `apps/web/src/components/shared/CategoryPills.js` (Week 30 Day 3, Batch 4a-2)
 
 ## WHY THIS FILE EXISTS
 The row of aisle buttons on the public shop page: All, Shoes, Beauty and hair... Real life: the aisle signs hanging above the shelves.

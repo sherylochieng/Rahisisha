@@ -1,6 +1,6 @@
 # formParts.js
 
-**FILE:** `apps/web/src/components/formParts.js` (Week 30 Day 3, Batch 4a-2 DRY pass)
+**FILE:** `apps/web/src/components/shared/formParts.js` (Week 30 Day 3, Batch 4a-2 DRY pass)
 
 ## WHY THIS FILE EXISTS
 The two small pieces every form box shares: the look of a box (`inputClass`) and the red note under it (`FieldError`). They moved here from `ProductForm.js`, code unchanged.
