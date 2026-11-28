@@ -46,7 +46,8 @@
 //   - API_URL already ends in /v1, so paths here start with /admin/...
 //
 // WHERE USED
-//   AdminLoginForm.js (login), AdminShell.js (me, logout), and the shop pages next.
+//   AdminLoginForm.js (login), AdminShell.js (me, logout), ShopsBrowser.js (listShops),
+//   and the shop detail page next.
 //
 // TRADEOFFS
 //   + Simple, safe, easy to find.
@@ -81,5 +82,24 @@ export const adminApi = {
   // "Who am I?" 200 with the admin's name, or 401 when signed out.
   me() {
     return request('/admin/auth/me');
+  },
+
+  // The register of shops, a page at a time. Every filter is optional.
+  //   status   = 'active' | 'suspended' (empty means all except deleted)
+  //   verified = 'true' | 'false' (empty means either)
+  //   q        = words to look for in the shop name or address word
+  //   cursor   = the nextCursor from the previous page (for "Load more")
+  //   limit    = page size
+  // The answer is { data: [shops], nextCursor, error }.
+  listShops({ status, verified, q, cursor, limit } = {}) {
+    const params = new URLSearchParams();
+    // Only add a filter when it has a value, so the address stays short and clean.
+    if (status) params.set('status', status);
+    if (verified) params.set('verified', verified);
+    if (q) params.set('q', q);
+    if (cursor) params.set('cursor', cursor);
+    if (limit) params.set('limit', String(limit));
+    const query = params.toString();
+    return request(`/admin/shops${query ? `?${query}` : ''}`);
   },
 };
