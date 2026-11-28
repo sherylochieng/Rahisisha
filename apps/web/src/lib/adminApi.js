@@ -115,6 +115,22 @@ export const adminApi = {
 
   // The five overview counts: { shops: { total, active, suspended, verified, newThisWeek } }.
   // Numbers only, no personal data. The answer is { data, error }.
+  // Notifications outbox (Week 30 Day 3, Batch 3b-2b). Read-only.
+  // status: 'queued' | 'sent' | 'failed' | '' (all).
+  listNotifications({ status, cursor, limit } = {}) {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (cursor) params.set('cursor', cursor);
+    if (limit) params.set('limit', String(limit));
+    const query = params.toString();
+    return request(`/admin/notifications${query ? `?${query}` : ''}`);
+  },
+
+  // The three counts: { queued, sent, failed }.
+  getNotificationSummary() {
+    return request('/admin/notifications/summary');
+  },
+
   getStats() {
     return request('/admin/stats');
   },
