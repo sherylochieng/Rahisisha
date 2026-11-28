@@ -28,3 +28,8 @@ Never trust an aisle word from the address: parseCategory it. Never build `?cate
 
 ## HOW TO USE
 `import { parseCategory, shopQuery } from '../lib/shopParams';`
+
+## ADDED IN BATCH 4a-3 (Week 30 Day 3)
+
+- `NO_CATEGORY = 'none'`: the reserved word the owner's Products page uses for "products with no category". It is slug-shaped, so `parseCategory` lets it through.
+- `shopQuery` also accepts `limit` (how many rows the owner's Products page asks for). Nothing removed.

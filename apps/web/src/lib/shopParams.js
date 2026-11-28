@@ -49,6 +49,10 @@
 //                    special characters made safe, empty parts left out.
 // ═══════════════════════════════════════════════════════════
 
+// (Batch 4a-3) The reserved word the owner's Products page uses for "products with
+// no category yet". It is also slug-shaped, so parseCategory lets it through.
+export const NO_CATEGORY = 'none';
+
 const CATEGORY_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // Read an aisle word from the address. Returns the word, or null if unusable.
@@ -59,8 +63,10 @@ export function parseCategory(raw) {
 }
 
 // Write the tail of a shop address (or of the storefront API call).
-export function shopQuery({ category = null, cursor = null } = {}) {
+// limit (Batch 4a-3) is how many rows the OWNER's Products page asks for per page.
+export function shopQuery({ category = null, cursor = null, limit = null } = {}) {
   const parts = new URLSearchParams();
+  if (limit) parts.set('limit', String(limit));  // how many per page
   if (category) parts.set('category', category); // which aisle
   if (cursor) parts.set('cursor', cursor);       // where in the aisle
   const text = parts.toString();
