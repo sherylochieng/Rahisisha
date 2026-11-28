@@ -48,6 +48,7 @@ import adminAuthRouter from './routes/adminAuth.routes.js';
 import adminShopsRouter from './routes/adminShops.routes.js';
 import adminStatsRouter from './routes/adminStats.routes.js';
 import adminNotificationsRouter from './routes/adminNotifications.routes.js';
+import categoriesRouter from './routes/categories.routes.js';
 import { blockWritesWhenSuspended } from './middleware/blockWritesWhenSuspended.js';
 import uploadsRouter from './routes/uploads.routes.js';
 
@@ -102,6 +103,10 @@ app.use(express.urlencoded({ extended: false }));
 
 // Auth routes (login, register) — PUBLIC, no authentication needed
 app.use('/v1', authRouter);
+
+// Categories (Week 30 Day 3, Batch 4a-1) — PUBLIC, read-only. The same short list for
+// everyone: the product form, the shop page and (later) the marketplace read it.
+app.use('/v1/categories', categoriesRouter);
 
 // Product routes — PROTECTED
 // requireAuth: checks the JWT cookie, sets req.userId, req.tenantId, req.role

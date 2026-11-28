@@ -260,3 +260,7 @@ app.use('/v1/admin/notifications', adminNotificationsRouter);
 ```
 
 It is read-only: the list of outbox lines and their three counts. Like the shops and stats routers, the admin guard sits **inside** the router, and there is no `withTenant`. Nothing existing was changed.
+
+## ADDED IN BATCH 4a-1 (Week 30 Day 3)
+
+`app.use('/v1/categories', categoriesRouter);` is a PUBLIC mount (no login, no tenant), placed before the authenticated product routes. It serves the shared aisle list.
