@@ -85,3 +85,7 @@ Go back to the list and re-read it so the new product appears.
 - A 400 with `details.categoryId` shows "Choose a category from the list." under the box.
 - If the list cannot load, the dropdown offers only "No category" and saving still works.
 - Nothing removed from the earlier guide text.
+
+## ADDED IN BATCH 4a-3 (Week 30 Day 3): FIELD ORDER
+
+The form now starts with **Photo**, then **Category**, then Name, Price, SKU, Description and Status. Reason: a photo takes a few seconds to upload, and the form lets you keep typing meanwhile, so the upload runs while you fill in the rest. Only the order of the blocks changed. Nothing removed.

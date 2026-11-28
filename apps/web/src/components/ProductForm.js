@@ -240,6 +240,57 @@ export default function ProductForm({ product = null }) {
     <form onSubmit={handleSubmit} noValidate className="space-y-4 max-w-xl">
       <FormError message={error} />
 
+      {/* (Batch 4a-3) Photo and Category come first: the photo uploads while you fill in the rest */}
+      {/* Photo: optional. Uploaded at once; Save only keeps its address */}
+      <div>
+        <p className="block text-sm font-medium text-gray-700 mb-1">Photo (optional)</p>
+        {imageUrl && (
+          // Plain <img>: the picture lives on Cloudinary, not in our app
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt="Product photo preview"
+            className="mb-2 h-40 w-40 rounded-lg border border-gray-200 object-cover"
+          />
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <label
+            htmlFor="photo"
+            className={`inline-block cursor-pointer rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 ${uploading || loading ? 'pointer-events-none opacity-60' : ''}`}
+          >
+            {uploading ? 'Uploading...' : imageUrl ? 'Change photo' : 'Choose photo'}
+          </label>
+          <input
+            id="photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handlePhotoChosen}
+            disabled={uploading || loading}
+            className="sr-only"
+          />
+          {imageUrl && !uploading && (
+            <button
+              type="button"
+              onClick={() => { setImageUrl(null); setPhotoError(''); }}
+              disabled={loading}
+              className="text-sm font-medium text-red-600 hover:underline"
+            >
+              Remove photo
+            </button>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-gray-400">JPG, PNG or WebP, up to 5 MB.</p>
+        <FieldError id="photo-error" message={photoError} />
+      </div>
+
+      {/* Category: optional. One aisle per product (Batch 4a-2) */}
+      <CategorySelect
+        value={categoryId}
+        onChange={setCategoryId}
+        disabled={loading}
+        error={fieldErrors.categoryId}
+      />
+
       {/* Name */}
       <div>
         <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -341,56 +392,6 @@ export default function ProductForm({ product = null }) {
           <option value="archived">Archived (hidden)</option>
         </select>
         <FieldError id="status-error" message={fieldErrors.status} />
-      </div>
-
-      {/* Category: optional. One aisle per product (Batch 4a-2) */}
-      <CategorySelect
-        value={categoryId}
-        onChange={setCategoryId}
-        disabled={loading}
-        error={fieldErrors.categoryId}
-      />
-
-      {/* Photo: optional. Uploaded at once; Save only keeps its address */}
-      <div>
-        <p className="block text-sm font-medium text-gray-700 mb-1">Photo (optional)</p>
-        {imageUrl && (
-          // Plain <img>: the picture lives on Cloudinary, not in our app
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imageUrl}
-            alt="Product photo preview"
-            className="mb-2 h-40 w-40 rounded-lg border border-gray-200 object-cover"
-          />
-        )}
-        <div className="flex flex-wrap items-center gap-3">
-          <label
-            htmlFor="photo"
-            className={`inline-block cursor-pointer rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 ${uploading || loading ? 'pointer-events-none opacity-60' : ''}`}
-          >
-            {uploading ? 'Uploading...' : imageUrl ? 'Change photo' : 'Choose photo'}
-          </label>
-          <input
-            id="photo"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={handlePhotoChosen}
-            disabled={uploading || loading}
-            className="sr-only"
-          />
-          {imageUrl && !uploading && (
-            <button
-              type="button"
-              onClick={() => { setImageUrl(null); setPhotoError(''); }}
-              disabled={loading}
-              className="text-sm font-medium text-red-600 hover:underline"
-            >
-              Remove photo
-            </button>
-          )}
-        </div>
-        <p className="mt-1 text-xs text-gray-400">JPG, PNG or WebP, up to 5 MB.</p>
-        <FieldError id="photo-error" message={photoError} />
       </div>
 
       {/* Buttons */}
