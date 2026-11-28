@@ -47,6 +47,7 @@ import { resolveShopBySlug } from './middleware/resolveShopBySlug.js';
 import adminAuthRouter from './routes/adminAuth.routes.js';
 import adminShopsRouter from './routes/adminShops.routes.js';
 import adminStatsRouter from './routes/adminStats.routes.js';
+import adminNotificationsRouter from './routes/adminNotifications.routes.js';
 import { blockWritesWhenSuspended } from './middleware/blockWritesWhenSuspended.js';
 import uploadsRouter from './routes/uploads.routes.js';
 
@@ -161,6 +162,11 @@ app.use('/v1/admin/shops', adminShopsRouter);
 // Platform admin overview numbers (Week 30 Day 3, Batch 3a): counts of shops, nothing else.
 // The admin guard is applied INSIDE the router, like the shops router above.
 app.use('/v1/admin/stats', adminStatsRouter);
+
+// Platform admin notifications window (Week 30 Day 3, Batch 3b-2b): read-only list of the
+// outbox (queued, sent, failed) and its counts. No phone numbers or message text.
+// The admin guard is applied INSIDE the router, like the routers above.
+app.use('/v1/admin/notifications', adminNotificationsRouter);
 
 // USSD: PUBLIC on purpose. No requireAuth, because a phone has no login cookie.
 // Instead the guard resolveUssdTenant finds the shop from the service code,
