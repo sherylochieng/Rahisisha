@@ -13,6 +13,7 @@
 import { Router } from 'express';
 import {
   listProducts,
+  listProductCategories,
   createProduct,
   getProduct,
   updateProduct,
@@ -25,6 +26,10 @@ const router = Router();
 // GET  /v1/products       → list all products (paginated)
 // POST /v1/products       → create a new product
 router.get('/',    asyncHandler(listProducts));
+
+// (Batch 4a-3) MUST stay above '/:id': Express matches routes top to bottom, and
+// '/:id' would otherwise treat the word 'categories' as a product id.
+router.get('/categories', asyncHandler(listProductCategories));
 router.post('/',   asyncHandler(createProduct));
 
 // GET    /v1/products/:id → fetch one product
