@@ -28,3 +28,7 @@ Show nothing when empty. Use shopHref for addresses. Mark the current button.
 
 ## HOW TO USE
 `<CategoryPills slug={slug} categories={categories} active={category} />`
+
+## ADDED IN BATCH 4a-3 (Week 30 Day 3): hrefFor
+
+A new optional prop `hrefFor(category|null)` decides where each button points. The public shop does not pass it (it still builds `/shop/<slug>?category=...`); the owner's Products page passes one that builds `/products?category=...`. One component, two places. Nothing removed.

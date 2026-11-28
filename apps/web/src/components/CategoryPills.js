@@ -72,17 +72,22 @@ function Pill({ href, isActive, children }) {
   );
 }
 
-export default function CategoryPills({ slug, categories = [], active = null }) {
+// hrefFor (Batch 4a-3): a function that turns a category word (or null for All) into
+// an address. The public shop does not pass it (it defaults to shopHref for `slug`);
+// the owner's Products page passes one that builds /products?category=... addresses.
+// Real life: the same aisle signs, pointing to the shop floor or to the stockroom.
+export default function CategoryPills({ slug, categories = [], active = null, hrefFor }) {
   if (categories.length === 0) return null;
+  const hrefOf = hrefFor || ((category) => shopHref(slug, { category }));
 
   return (
     <nav aria-label="Shop by category" className="-mx-4 mb-5 overflow-x-auto px-4">
       <ul className="flex gap-2 whitespace-nowrap">
-        <Pill href={shopHref(slug)} isActive={active === null}>
+        <Pill href={hrefOf(null)} isActive={active === null}>
           All
         </Pill>
         {categories.map((c) => (
-          <Pill key={c.slug} href={shopHref(slug, { category: c.slug })} isActive={active === c.slug}>
+          <Pill key={c.slug} href={hrefOf(c.slug)} isActive={active === c.slug}>
             {c.name}
           </Pill>
         ))}
