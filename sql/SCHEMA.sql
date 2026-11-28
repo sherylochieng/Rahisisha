@@ -39,6 +39,8 @@
 --  28. platform_admins table + tenants.suspended_* + audit_logs.actor_admin_id
 --      (migration 028, Week 30 platform admin; created at the END of this file
 --       because tenants and audit_logs point at platform_admins)
+--  29. notifications (migration 031, Week 30 Day 3, Batch 3b-1: the outbox;
+--      created at the END of this file because it points at tenants and audit_logs)
 -- =============================================================
 
 
@@ -862,6 +864,49 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS verified_by UUID
   REFERENCES platform_admins(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS tenants_status_created_idx
   ON tenants (status, created_at DESC);
+
+
+-- =============================================================
+-- Migration 031 (Week 30 Day 3, Batch 3b-1): the notifications OUTBOX
+-- =============================================================
+-- Why: when head office suspends, reinstates or verifies a shop, the owner is
+-- told. Sending is slow and can fail, so the admin action only WRITES A ROW
+-- here (in the same transaction as the change and its receipt). A worker sends
+-- it later. Shops may only READ their own rows (tenant_read); only head office
+-- (app.platform_admin = 'on') may write (admin_all).
+CREATE TABLE IF NOT EXISTS notifications (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  channel         TEXT NOT NULL DEFAULT 'test'
+                  CHECK (channel IN ('test', 'whatsapp', 'sms')),
+  template        TEXT NOT NULL CHECK (char_length(template) BETWEEN 1 AND 80),
+  recipient_phone TEXT CHECK (recipient_phone IS NULL OR char_length(recipient_phone) <= 20),
+  payload         JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status          TEXT NOT NULL DEFAULT 'queued'
+                  CHECK (status IN ('queued', 'sent', 'failed')),
+  attempts        INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  last_error      TEXT CHECK (last_error IS NULL OR char_length(last_error) <= 500),
+  send_after      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sent_at         TIMESTAMPTZ,
+  audit_log_id    UUID REFERENCES audit_logs(id) ON DELETE SET NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS notifications_due_idx
+  ON notifications (send_after, id) WHERE status = 'queued';
+CREATE INDEX IF NOT EXISTS notifications_tenant_idx
+  ON notifications (tenant_id, created_at DESC, id DESC);
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_read ON notifications;
+CREATE POLICY tenant_read ON notifications
+  FOR SELECT
+  USING (tenant_id = NULLIF(current_setting('app.current_tenant', TRUE), '')::UUID);
+DROP POLICY IF EXISTS admin_all ON notifications;
+CREATE POLICY admin_all ON notifications
+  USING      (current_setting('app.platform_admin', TRUE) = 'on')
+  WITH CHECK (current_setting('app.platform_admin', TRUE) = 'on');
+ALTER TABLE notifications OWNER TO rahisisha_user;
 
 
 -- =============================================================
