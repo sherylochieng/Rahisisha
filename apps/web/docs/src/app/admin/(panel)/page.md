@@ -34,3 +34,14 @@ A plain placeholder. Served at `/admin`. The shops list replaces it next.
 ## Addition (Week 30 Day 3, Batch 2, part 2)
 
 The Overview text now points to the shops list and adds a "Go to shops" link (`next/link`). Nothing was removed except the old "arrives in the next step" sentence for the list.
+
+---
+
+## Addition (Week 30 Day 3, Batch 3a)
+
+The Overview page now shows real numbers.
+
+- It renders `OverviewStats` (five number cards) between the intro sentence and the "Go to shops" link.
+- The page stays a thin server page. The browser component does the fetching, because the admin cookie cannot be read on the server.
+- The header comment was updated: it no longer calls the page a placeholder and now says the page shows counts only.
+- The link and the heading are unchanged.
