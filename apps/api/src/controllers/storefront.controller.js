@@ -131,6 +131,21 @@ export async function getStorefront(req, res) {
     id = c.id;
   }
 
+  // 2b. Optional filter ?category=<slug> (Week 30 Day 3, Batch 4a-1).
+  //     A badly shaped word is a 400. A well-shaped word nobody uses (an old link)
+  //     just finds nothing, so a stale link shows an empty shelf, not an error.
+  let category = null;
+  if (req.query.category !== undefined && req.query.category !== '') {
+    const word = String(req.query.category);
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(word) || word.length > 60) {
+      return res.status(400).json({
+        data: null,
+        error: { code: 'validation', message: 'Invalid category' },
+      });
+    }
+    category = word;
+  }
+
   // 3. The active products of THIS shop. req.db is locked to the shop by
   //    withTenant, so rows of other shops are invisible even if this WHERE
   //    were wrong. Newest first, id breaks ties.
@@ -141,9 +156,10 @@ export async function getStorefront(req, res) {
       WHERE status = 'active'
         AND deleted_at IS NULL
         AND ($1::timestamptz IS NULL OR (created_at, id) < ($1::timestamptz, $2::uuid))
+        AND ($4::text IS NULL OR category_id = (SELECT id FROM categories WHERE slug = $4 AND active))
       ORDER BY created_at DESC, id DESC
       LIMIT $3`,
-    [ts, id, limit + 1]
+    [ts, id, limit + 1, category]
   );
 
   // 4. One spare row means another page exists
@@ -163,8 +179,19 @@ export async function getStorefront(req, res) {
     image_url: p.image_url,
   }));
 
+  // 6. The aisles THIS shop actually uses (so the page can show filter buttons only
+  //    for aisles that have something in them). Still locked to this shop by req.db.
+  const { rows: used } = await req.db.query(
+    `SELECT DISTINCT c.slug, c.name, c.sort_order
+       FROM products p
+       JOIN categories c ON c.id = p.category_id AND c.active
+      WHERE p.status = 'active' AND p.deleted_at IS NULL
+      ORDER BY c.sort_order, c.name`
+  );
+  const categories = used.map((c) => ({ slug: c.slug, name: c.name }));
+
   res.json({
-    data: { shop: req.shop, products },
+    data: { shop: req.shop, products, categories },
     nextCursor,
     error: null,
   });

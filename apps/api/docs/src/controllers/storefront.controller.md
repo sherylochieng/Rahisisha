@@ -102,3 +102,9 @@ Written by AI at Sheryl's request. Declared in `AI_AUDIT_week_29_day4.md` (follo
 ## TEST LOG
 
 Proved by `tests/isolation/storefront.cross-tenant.test.js` (tests 1 to 5, 8 to 10). On 18 November 2026 the test failed on purpose when drafts were shown and when the SKU was leaked, then passed again when the code was put back. In the browser, Brio Hardware showed its two active products and hid the drafts.
+
+## ADDED IN BATCH 4a-1 (Week 30 Day 3): CATEGORY FILTER
+
+- Optional `?category=<slug>`. A badly shaped word is a 400 (`validation`). A well-shaped word nobody uses returns an empty list (an old link shows an empty shelf, not an error).
+- The answer's `data` now also has `categories: [{slug, name}]`: only aisles that hold at least one active product of THIS shop, in head-office order. The page uses it to show filter buttons.
+- Still public fields only. Proved by `tests/storefront.category.test.js`; the shape test in `storefront.cross-tenant.test.js` now lists `categories`.
