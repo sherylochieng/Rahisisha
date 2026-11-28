@@ -31,3 +31,7 @@ Never switch off a real category (suites run in parallel). Never hard-code a pho
 
 ## ADDED IN THE DRY PASS
 Setup chores (head-office switch, opening a test shop, finding aisle ids, reading a shop slug) now come from `tests/helpers/categoryKit.js`. The tests themselves are unchanged. Nothing removed.
+
+## ADDED IN BATCH 4a-3 (Week 30 Day 3): 7 MORE TESTS (16 in total)
+
+10. the list carries `category_name`; 11. `?category=shoes` returns only shoes; 12. `?category=none` returns only products with no aisle; 13. garbled words give 400, an unused well-shaped word finds nothing; 14. `GET /v1/products/categories` shape and the no-aisle flag (this test fails if the route is placed below `/:id`, proven by moving it); 15. a new shop's 3 sample products are filed under Food and groceries; 16. another shop sees none of our aisles (RLS). Nothing removed.

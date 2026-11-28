@@ -157,3 +157,86 @@ describe('product category', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ─── Batch 4a-3: the owner's Products page ─────────────────
+// The owner's list now carries the aisle NAME, can be filtered by aisle (or by
+// "no aisle yet"), and has its own list of aisle buttons.
+describe('owner products list by category (Batch 4a-3)', () => {
+  let filterCookie;
+  let shoeName;
+  let plainName;
+
+  beforeAll(async () => {
+    ({ cookie: filterCookie } = await signupTestShop('CatFilter'));
+    shoeName = `Filter Shoe ${rand}`;
+    plainName = `Filter Plain ${rand}`;
+    const a = await request(app).post('/v1/products').set('Cookie', filterCookie).send(body({ name: shoeName, categoryId: shoesId }));
+    const b = await request(app).post('/v1/products').set('Cookie', filterCookie).send(body({ name: plainName }));
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
+  });
+
+  const listNames = async (query) => {
+    const res = await request(app).get(`/v1/products?limit=100${query}`).set('Cookie', filterCookie);
+    return { res, names: res.body.data.map((p) => p.name) };
+  };
+
+  test('10. every product carries category_name (null when it has no aisle)', async () => {
+    const { res } = await listNames('');
+    const shoe = res.body.data.find((p) => p.name === shoeName);
+    const plain = res.body.data.find((p) => p.name === plainName);
+    expect(shoe.category_name).toBe('Shoes');
+    expect(plain.category_name).toBeNull();
+  });
+
+  test('11. ?category=shoes returns only shoes', async () => {
+    const { res, names } = await listNames('&category=shoes');
+    expect(res.status).toBe(200);
+    expect(names).toEqual([shoeName]);
+  });
+
+  test('12. ?category=none returns only products with no aisle', async () => {
+    const { names } = await listNames('&category=none');
+    expect(names).toContain(plainName);
+    expect(names).not.toContain(shoeName);
+  });
+
+  test('13. a garbled word is a clean 400; an unused well-shaped word finds nothing', async () => {
+    for (const bad of ['Bad Word', "x'--", 'UPPER', 'a'.repeat(61)]) {
+      const res = await request(app).get('/v1/products').query({ category: bad }).set('Cookie', filterCookie);
+      expect(res.status).toBe(400);
+      expect(res.body.error.details.category).toBe('Invalid category');
+    }
+    const { res, names } = await listNames('&category=kids-baby');
+    expect(res.status).toBe(200);
+    expect(names).toEqual([]);
+  });
+
+  test('14. GET /v1/products/categories lists this shop\'s aisles and the no-aisle flag', async () => {
+    const res = await request(app).get('/v1/products/categories').set('Cookie', filterCookie);
+    expect(res.status).toBe(200);
+    const slugs = res.body.data.categories.map((c) => c.slug);
+    expect(slugs).toEqual(expect.arrayContaining(['shoes', 'food-groceries']));
+    expect(slugs).not.toContain('kids-baby');
+    expect(res.body.data.uncategorised).toBe(true);
+    for (const c of res.body.data.categories) expect(Object.keys(c).sort()).toEqual(['name', 'slug']);
+  });
+
+  test('15. a brand new shop\'s 3 sample products are filed under Food and groceries', async () => {
+    const fresh = await signupTestShop('CatSamples');
+    const res = await request(app).get('/v1/products?limit=100').set('Cookie', fresh.cookie);
+    const samples = res.body.data.filter((p) => p.name.startsWith('Sample:'));
+    expect(samples).toHaveLength(3);
+    expect(samples.every((p) => p.category_name === 'Food and groceries')).toBe(true);
+    const aisles = await request(app).get('/v1/products/categories').set('Cookie', fresh.cookie);
+    expect(aisles.body.data.categories.map((c) => c.slug)).toEqual(['food-groceries']);
+    expect(aisles.body.data.uncategorised).toBe(false);
+  });
+
+  test('16. another shop never sees our aisles (RLS)', async () => {
+    const other = await signupTestShop('CatOtherList');
+    const { res } = { res: await request(app).get('/v1/products?limit=100&category=shoes').set('Cookie', other.cookie) };
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([]);
+  });
+});
