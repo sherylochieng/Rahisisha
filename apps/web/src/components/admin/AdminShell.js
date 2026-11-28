@@ -64,6 +64,7 @@ import AdminButton from './AdminButton';
 const NAV = [
   { href: '/admin', label: 'Overview' },
   { href: '/admin/shops', label: 'Shops' },
+  { href: '/admin/notifications', label: 'Notifications' },
 ];
 
 export default function AdminShell({ children }) {
