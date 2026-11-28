@@ -114,6 +114,13 @@ const SAMPLE_PRODUCTS = [
   { sku: 'SAMPLE-3', name: 'Sample: Sugar 1kg',       priceCents: 16000 },
 ];
 
+// (Week 30 Day 3, Batch 4a-3) Every sample product is filed under this aisle, so a
+// brand new owner sees categories working straight away. The aisle is found by its
+// slug inside the INSERT; if head office ever removed it, the product simply has no
+// category (it never blocks signup). Real life: the stock clerk shelving the free
+// starter goods in the food aisle.
+const SAMPLE_CATEGORY_SLUG = 'food-groceries';
+
 // Obviously fake phones, so they never belong to a real person.
 // channel must be one of: whatsapp, web, ussd
 const SAMPLE_CUSTOMERS = [
@@ -130,14 +137,16 @@ export async function seedSampleData(client, tenantId) {
   // 1) Sample products
   for (const p of SAMPLE_PRODUCTS) {
     await client.query(
-      `INSERT INTO products (tenant_id, sku, name, description, price_cents, status)
-       VALUES ($1, $2, $3, $4, $5, 'active')`,
+      `INSERT INTO products (tenant_id, sku, name, description, price_cents, status, category_id)
+       VALUES ($1, $2, $3, $4, $5, 'active',
+               (SELECT id FROM categories WHERE slug = $6))`,
       [
         tenantId,
         p.sku,
         p.name,
         'Sample product. Edit or delete it when you add your own.',
         p.priceCents,
+        SAMPLE_CATEGORY_SLUG,
       ]
     );
   }
