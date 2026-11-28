@@ -211,3 +211,20 @@ app.use('/v1/inbox',    requireAuth, withTenant, blockWritesWhenSuspended, inbox
 - **Guides:** `docs/src/middleware/blockWritesWhenSuspended.md`, `docs/tests/suspendedShop.doors.test.md`.
 
 *Written by AI at Sheryl's request. Added 27 November 2026.*
+
+---
+
+## FOLLOW-UP (Week 30 Day 3, Batch 1): TRUST_PROXY
+
+Right under `const app = express();` the app now reads an environment variable called `TRUST_PROXY`. This closes the "known gap" noted in the admin shops follow-up above.
+
+- **What it is:** how many proxy "front doors" sit between the visitor and the API. Render has some.
+- **Unset, 0 or nonsense:** trust none. This is the laptop and test behaviour, unchanged.
+- **A number N (the right number for Render is proven on the live server, see below):** Express believes the last N addresses in the `X-Forwarded-For` note and reads the real visitor before them.
+- **Why:** without it, `req.ip` is Render's address for everyone, so the admin login brake counts all visitors as one person and audit receipts record the wrong address. `req.ip` is read in `adminAuth.controller.js` (the brake) and `adminShops.controller.js` (the receipts).
+- **Danger:** never use `true`. It would believe an address the visitor wrote himself, and a thief could dodge the brake.
+- **Nothing else changed:** 10 lines were added, none removed.
+- **Test:** `tests/trustProxy.test.js` (guide: `docs/tests/trustProxy.test.md`).
+- **Still to do after deploy:** set `TRUST_PROXY=1` on Render, then do one admin action and check that the audit receipt shows your real address. If it shows a Render or Cloudflare address, try `2`.
+
+*Written by AI at Sheryl's request. Added 28 November 2026.*
