@@ -1,7 +1,7 @@
 # ShopLinkCard.js: Share Your Shop Link
 
-**File:** `apps/web/src/components/ShopLinkCard.js`
-**Doc:** `apps/web/docs/src/components/ShopLinkCard.md`
+**File:** `apps/web/src/components/owner/ShopLinkCard.js`
+**Doc:** `apps/web/docs/src/components/owner/ShopLinkCard.md`
 **Added:** Week 29 Day 4 follow-up
 
 ---

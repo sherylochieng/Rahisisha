@@ -79,7 +79,7 @@ import { serverGet } from '../../../lib/serverApi';
 import EmptyState from '../../../components/EmptyState';
 
 // Week 29 Day 4 follow-up: the shop link card (Open, Copy, Share)
-import ShopLinkCard from '../../../components/ShopLinkCard';
+import ShopLinkCard from '../../../components/owner/ShopLinkCard';
 // buildShopUrl: turns the shop word into the full public address
 import { buildShopUrl } from '../../../lib/shopUrl';
 // requireSession: gives us the logged-in shop (its name and address word)

@@ -3,7 +3,7 @@
 // talks to the browser (clipboard). Server files cannot do that
 
 // =============================================================================
-// FILE: apps/web/src/components/ShopLinkCard.js
+// FILE: apps/web/src/components/owner/ShopLinkCard.js
 // =============================================================================
 //
 // WHY THIS FILE EXISTS:
@@ -51,7 +51,7 @@
 // - Older browsers cannot copy with one click. They get the plain text link
 //
 // HOW TO USE:
-//   import ShopLinkCard from '../../../components/ShopLinkCard';
+//   import ShopLinkCard from '../../../components/owner/ShopLinkCard';
 // =============================================================================
 
 // useEffect (Week 29 Weekend): lets us ask the browser about the Share sheet
